@@ -1,0 +1,160 @@
+import type { ColumnDef } from '@tanstack/react-table';
+import type { Project } from '@tracker/shared';
+import { GOODS_OR_SERVICE, PROJECT_STAGES } from '@tracker/shared';
+import { StatusFlagCell } from './StatusFlagCell';
+
+export type EditType = 'text' | 'number' | 'select';
+
+export interface ColumnMeta {
+  editable?: boolean;
+  editType?: EditType;
+  options?: readonly string[];
+  pendingFlag?: boolean;
+}
+
+function text(accessorKey: keyof Project, header: string, size = 150, editable = true): ColumnDef<Project> {
+  return {
+    accessorKey,
+    header,
+    size,
+    meta: editable ? ({ editable: true, editType: 'text' } as ColumnMeta) : undefined,
+    cell: ({ getValue }) => {
+      const v = getValue();
+      if (v === null || v === undefined || v === '') return <span className="text-gray-300">—</span>;
+      return <span className="text-sm text-gray-800">{String(v)}</span>;
+    },
+  };
+}
+
+function numberCol(accessorKey: keyof Project, header: string, size = 120): ColumnDef<Project> {
+  return {
+    accessorKey,
+    header,
+    size,
+    meta: { editable: true, editType: 'number' } as ColumnMeta,
+    cell: ({ getValue }) => {
+      const v = getValue();
+      if (v === null || v === undefined || v === '') return <span className="text-gray-300">—</span>;
+      return <span className="text-sm text-gray-800">{String(v)}</span>;
+    },
+  };
+}
+
+function selectCol(
+  accessorKey: keyof Project,
+  header: string,
+  size: number,
+  options: readonly string[],
+): ColumnDef<Project> {
+  return {
+    accessorKey,
+    header,
+    size,
+    meta: { editable: true, editType: 'select', options } as ColumnMeta,
+    cell: ({ getValue }) => {
+      const v = getValue() as string | null | undefined;
+      if (!v) return <span className="text-gray-300">—</span>;
+      return <span className="text-sm text-gray-800">{v}</span>;
+    },
+  };
+}
+
+const driveLinkColumn: ColumnDef<Project> = {
+  accessorKey: 'drive_folder_id',
+  header: 'Drive',
+  size: 100,
+  cell: ({ getValue }) => {
+    const id = getValue() as string | null | undefined;
+    if (!id) return <span className="text-gray-300">—</span>;
+    return (
+      <a
+        href={`https://drive.google.com/drive/folders/${id}`}
+        target="_blank"
+        rel="noreferrer"
+        className="text-sm text-blue-600 underline"
+        aria-label="Open Drive folder"
+      >
+        Folder
+      </a>
+    );
+  },
+};
+
+const statusColumn: ColumnDef<Project> = {
+  id: 'status_flag',
+  header: 'Status',
+  size: 110,
+  enableSorting: false,
+  cell: ({ row }) => <StatusFlagCell project={row.original} />,
+};
+
+const pendingColumn: ColumnDef<Project> = {
+  id: 'pending_flag',
+  header: 'Pending',
+  size: 90,
+  enableSorting: false,
+  meta: { pendingFlag: true } as ColumnMeta,
+  cell: ({ row, table }) => {
+    const pendingIds = (table.options.meta as { pendingProjectIds?: Set<string> } | undefined)
+      ?.pendingProjectIds;
+    const hasPending = pendingIds?.has(row.original.id);
+    if (!hasPending) return <span />;
+    return (
+      <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+        Pending
+      </span>
+    );
+  },
+};
+
+export const projectColumns: ColumnDef<Project>[] = [
+  {
+    id: 'project_info',
+    header: 'Project Info',
+    columns: [
+      text('project_name', 'Project', 220),
+      text('folder_name', 'Folder', 160),
+      text('staff_assigned_id', 'Staff', 140, false),
+      driveLinkColumn,
+      selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
+      selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),
+      statusColumn,
+      pendingColumn,
+    ],
+  },
+  {
+    id: 'customer',
+    header: 'Customer Section',
+    columns: [
+      text('customer_name', 'Customer', 160),
+      text('market_segment', 'Segment', 140),
+      text('date_customer_received_doc1', 'Doc 1 Received', 140),
+      text('date_customer_received_doc2', 'Doc 2 Received', 140),
+      text('doc2_number_id', 'Doc 2 No.', 120),
+      numberCol('customer_price', 'Price', 110),
+      text('customer_start_contract', 'Start', 130),
+      text('customer_end_contract', 'End', 130),
+    ],
+  },
+  {
+    id: 'vendor',
+    header: 'Vendor Section',
+    columns: [
+      text('vendor_name', 'Vendor', 160),
+      numberCol('vendor_revenue', 'Revenue', 120),
+      selectCol('vendor_type', 'Type', 120, GOODS_OR_SERVICE),
+      text('project_sent_date', 'Sent Date', 130),
+      text('project_finish_date', 'Finish Date', 130),
+      text('vendor_project_id', 'Vendor ID', 130),
+      text('negotiation_date', 'Negotiation', 130),
+      text('approval_date', 'Approval', 130),
+      text('document_sent_date', 'Doc Sent', 130),
+      text('document_id', 'Doc ID', 130),
+      numberCol('vendor_price', 'Price', 120),
+      text('vendor_start_contract', 'Start', 130),
+      text('vendor_end_contract', 'End', 130),
+    ],
+  },
+];
+
+export type ActiveCell = { rowId: string; field: string } | null;

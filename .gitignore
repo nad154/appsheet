@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.local
+*.duckdb
+*.duckdb.wal
+apps/server/secrets/
+apps/server/data/parquet/*.parquet
+test-results/
+playwright-report/
+.DS_Store

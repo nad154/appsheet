@@ -1,0 +1,22 @@
+{
+  "name": "project-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Internal LAN app for tracking projects with a staff-submission / super-admin-approval workflow",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w @tracker/web",
+    "dev:server": "npm run dev -w @tracker/server",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

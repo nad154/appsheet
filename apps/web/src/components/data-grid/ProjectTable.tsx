@@ -239,6 +239,7 @@ export function ProjectTable({
                   const isActiveSort = isSortable && accessorKey === sortBy;
                   const width = header.getSize();
                   const isStickyCol = index === 0 && header.column.parent?.id === STICKY_GROUP_ID;
+                  // main table header 
                   return (
                     <th
                       key={header.id}

@@ -53,7 +53,7 @@ export function ColumnGroupHeader({ header, index }: ColumnGroupHeaderProps) {
       style={style}
       className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
     >
-      <span className="block truncate">
+      <span>
         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
       </span>
     </th>

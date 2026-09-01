@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import type { PublicUser, Role } from '@tracker/shared';
 import { ROLES } from '@tracker/shared';
+import { useToast } from '../../components/Toast'
 
 const btn =
   'rounded border px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-40';
@@ -30,6 +31,8 @@ export function SettingsPage() {
     </div>
   );
 }
+
+const { showToast } = useToast();
 
 /* -------------------------------------------------------------------------- */
 /* Users                                                                      */
@@ -70,7 +73,8 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
     try {
       await updateUser.mutateAsync({ id: u.id, is_active: !u.is_active });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed.');
+      // alert(err instanceof Error ? err.message : 'Update failed.');
+      showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
     }
   };
 
@@ -79,7 +83,8 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
     try {
       await updateUser.mutateAsync({ id: u.id, role: newRole });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed.');
+      // alert(err instanceof Error ? err.message : 'Update failed.');
+      showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
     }
   };
 
@@ -241,7 +246,8 @@ function MarketSegmentsPanel() {
     try {
       await updateSegment.mutateAsync({ id, is_active: !isActive });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed.');
+      // alert(err instanceof Error ? err.message : 'Update failed.');
+      showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
     }
   };
 

@@ -8,6 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Project } from '@tracker/shared';
 import { ColumnGroupHeader } from './ColumnGroupHeader';
 import { projectColumns, type ColumnMeta } from './columns';
+import type { ToastVariant } from '../Toast';
 
 interface ProjectColumnDef {
   columns?: ProjectColumnDef[];
@@ -43,6 +44,12 @@ interface ProjectTableProps {
 }
 
 const STICKY_GROUP_ID = 'project_info';
+
+const Z = {
+  thead: 20,
+  stickyHeaderCol: 40,
+  stickyBodyCol: 10,
+};
 
 function draftValue(row: Project, field: string): string {
   const v = (row as Record<string, unknown>)[field];
@@ -151,6 +158,7 @@ export function ProjectTable({
   });
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const tableWidth = table.getTotalSize();
 
   const resetEditing = () => setActiveCell(null);
 
@@ -199,7 +207,7 @@ export function ProjectTable({
 
   if (isError) {
     return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
         Failed to load projects. Please try again.
       </div>
     );
@@ -207,15 +215,18 @@ export function ProjectTable({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-400">Click any editable cell to change a value. STAFF edits are held for approval.</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400">Click any editable cell to change a value. STAFF edits are held for approval.</p>
+        {isLoading && <p className="text-xs text-gray-400">Refreshing…</p>}
+      </div>
       <div
         ref={parentRef}
         className="relative h-[65vh] overflow-auto rounded-md border border-gray-200"
         role="table"
         aria-label="Projects grid"
       >
-        <table className="border-collapse" style={{ display: 'grid' }}>
-          <thead style={{ display: 'grid', position: 'sticky', top: 0, zIndex: 2 }}>
+        <table style={{ display: 'grid', width: tableWidth, minWidth: '100%' }}>
+          <thead style={{ display: 'grid', position: 'sticky', top: 0, zIndex: Z.thead }}>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} style={{ display: 'flex' }}>
                 {headerGroup.headers.map((header, index) => {
@@ -240,9 +251,12 @@ export function ProjectTable({
                         minWidth: width,
                         width,
                         flexShrink: 0,
+                        overflow: 'hidden',
                         position: isStickyCol ? 'sticky' : undefined,
                         left: isStickyCol ? 0 : undefined,
-                        zIndex: isStickyCol ? 4 : undefined,
+                        zIndex: isStickyCol ? Z.stickyHeaderCol : undefined,
+                        backgroundColor: isStickyCol ? '#f9fafb' : undefined,
+                        boxShadow: isStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.08)' : undefined,
                         cursor: isSortable ? 'pointer' : undefined,
                       }}
                     >
@@ -261,6 +275,13 @@ export function ProjectTable({
             ))}
           </thead>
           <tbody style={{ display: 'grid', height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+            {rows.length === 0 && !isLoading && (
+              <tr style={{ display: 'flex', width: '100%' }}>
+                <td className="px-3 py-8 text-center text-sm text-gray-400" style={{ width: '100%' }}>
+                  No projects to show.
+                </td>
+              </tr>
+            )}
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const row = modelRows[virtualRow.index];
               return (
@@ -271,7 +292,7 @@ export function ProjectTable({
                     display: 'flex',
                     position: 'absolute',
                     transform: `translateY(${virtualRow.start}px)`,
-                    width: '100%',
+                    width: tableWidth,
                   }}
                 >
                   {row.getVisibleCells().map((cell, index) => {
@@ -330,8 +351,9 @@ export function ProjectTable({
                           flexShrink: 0,
                           position: isStickyCol ? 'sticky' : undefined,
                           left: isStickyCol ? 0 : undefined,
-                          zIndex: isStickyCol ? 1 : undefined,
+                          zIndex: isStickyCol ? Z.stickyBodyCol : undefined,
                           background: isStickyCol ? '#fff' : undefined,
+                          boxShadow: isStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.06)' : undefined,
                           cursor: editable ? 'text' : undefined,
                         }}
                       >
@@ -367,7 +389,7 @@ export function ProjectTable({
           <button
             onClick={() => handlePageChange(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="rounded-md border px-3 py-1 disabled:opacity-40"
+            className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40"
           >
             Prev
           </button>
@@ -377,7 +399,7 @@ export function ProjectTable({
           <button
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="rounded-md border px-3 py-1 disabled:opacity-40"
+            className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40"
           >
             Next
           </button>

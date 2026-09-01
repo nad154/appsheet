@@ -33,10 +33,18 @@ export function ColumnGroupHeader({ header, index }: ColumnGroupHeaderProps) {
     minWidth: width,
     width,
     flexShrink: 0,
+    overflow: 'hidden',
   };
 
   const style: CSSProperties = isSticky
-    ? { ...common, position: 'sticky', left: 0, zIndex: 3 }
+    ? { 
+      ...common, 
+      position: 'sticky', 
+      left: 0, 
+      zIndex: 40,
+      backgroundColor: '#f9fafb',
+      boxShadow: '2px 0 4px -2px rgba(0,0,0,0.08)',
+     }
     : common;
 
   return (
@@ -45,7 +53,9 @@ export function ColumnGroupHeader({ header, index }: ColumnGroupHeaderProps) {
       style={style}
       className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
     >
-      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+      <span className="block truncate">
+        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+      </span>
     </th>
   );
 }

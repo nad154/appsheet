@@ -4,6 +4,7 @@ import { usePendingEdits, useMyPendingEdits } from '../../hooks/usePendingEdits'
 import { ProjectTable, type SortDir, type EditResult } from '../../components/data-grid/ProjectTable';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast  } from '../../components/Toast';
 
 const emptyForm = {
   project_name: '',
@@ -21,6 +22,7 @@ const emptyForm = {
 export function GridPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'SUPER_ADMIN';
+  const { showToast } = useToast();
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -43,11 +45,6 @@ export function GridPage() {
     () => new Set(pendingList.filter((e) => e.project_id).map((e) => e.project_id as string)),
     [pendingList],
   );
-
-  const triggerNotice = (msg: string) => {
-    setNotice(msg);
-    window.setTimeout(() => setNotice(null), 4000);
-  };
 
   const handleCellUpdate = async (
     row: { id: string },
@@ -102,10 +99,10 @@ export function GridPage() {
       };
       const res = await apiClient.post<{ ok?: boolean; submitted?: boolean }>('/api/projects', payload);
       if (res?.submitted) {
-        triggerNotice('Project submitted — pending approval.');
+        showToast('Project submitted — pending approval.', 'success');
         await Promise.all([minePending.refetch()]);
       } else {
-        triggerNotice('Project created.');
+        showToast('Project created.', 'success');
         await refetchProjects();
       }
       setShowAddForm(false);
@@ -129,8 +126,6 @@ export function GridPage() {
           {isAdmin ? 'Add project' : 'Propose new project'}
         </button>
       </div>
-
-      {notice && <p className="mb-3 rounded bg-green-50 p-2 text-sm text-green-700">{notice}</p>}
 
       {showAddForm && (
         <div className="mb-4 rounded border border-gray-200 p-4">
@@ -211,9 +206,9 @@ export function GridPage() {
         onPageSizeChange={handlePageSizeChange}
         onSortChange={handleSortChange}
         onCellUpdate={handleCellUpdate}
-        onNotice={triggerNotice}
+        onNotice={showToast}
       />
-      {isLoading && <p className="mt-2 text-sm text-gray-500">Loading…</p>}
+      {/* {isLoading && <p className="mt-2 text-sm text-gray-500">Loading…</p>} */}
     </div>
   );
 }

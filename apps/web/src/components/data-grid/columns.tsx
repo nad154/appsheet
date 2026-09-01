@@ -21,7 +21,7 @@ function text(accessorKey: keyof Project, header: string, size = 150, editable =
     cell: ({ getValue }) => {
       const v = getValue();
       if (v === null || v === undefined || v === '') return <span className="text-gray-300">—</span>;
-      return <span className="text-sm text-gray-800">{String(v)}</span>;
+      return <span className="block truncate text-sm text-gray-800">{String(v)}</span>;
     },
   };
 }
@@ -35,7 +35,7 @@ function numberCol(accessorKey: keyof Project, header: string, size = 120): Colu
     cell: ({ getValue }) => {
       const v = getValue();
       if (v === null || v === undefined || v === '') return <span className="text-gray-300">—</span>;
-      return <span className="text-sm text-gray-800">{String(v)}</span>;
+      return <span className="block truncate text-sm text-gray-800">{String(v)}</span>;
     },
   };
 }
@@ -54,7 +54,7 @@ function selectCol(
     cell: ({ getValue }) => {
       const v = getValue() as string | null | undefined;
       if (!v) return <span className="text-gray-300">—</span>;
-      return <span className="text-sm text-gray-800">{v}</span>;
+      return <span className="block truncate text-sm text-gray-800">{v}</span>;
     },
   };
 }

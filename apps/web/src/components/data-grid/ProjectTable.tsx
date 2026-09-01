@@ -77,6 +77,24 @@ function EditableCell({
 
   const cls =
     'w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300';
+  
+  if (editType === 'date') {
+    return (
+      <input
+        autoFocus
+        type="date"
+        value={draft.length > 10 ? draft.slice(0, 10) : draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') onCancel();
+        }}
+        className={cls}
+        aria-label={`Edit ${field}`}
+      />
+    );
+  }
 
   if (editType === 'select' && options?.length) {
     return (

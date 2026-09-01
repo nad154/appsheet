@@ -3,7 +3,7 @@ import type { Project } from '@tracker/shared';
 import { GOODS_OR_SERVICE, PROJECT_STAGES } from '@tracker/shared';
 import { StatusFlagCell } from './StatusFlagCell';
 
-export type EditType = 'text' | 'number' | 'select';
+export type EditType = 'text' | 'number' | 'select' | 'date';
 
 export interface ColumnMeta {
   editable?: boolean;
@@ -55,6 +55,22 @@ function selectCol(
       const v = getValue() as string | null | undefined;
       if (!v) return <span className="text-gray-300">—</span>;
       return <span className="block truncate text-sm text-gray-800">{v}</span>;
+    },
+  };
+}
+
+function selectDate(accessorKey: keyof Project, header: string, size = 130): ColumnDef<Project> {
+  return {
+    accessorKey,
+    header,
+    size,
+    meta: { editable: true, editType: 'date' } as ColumnMeta,
+    cell: ({ getValue }) => {
+      const v = getValue() as string | null | undefined;
+      if (!v) return <span className="text-gray-300">—</span>;
+      const d = new Date(v);
+      const display = Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString();
+      return <span className="block truncate text-sm text-gray-800">{display}</span>;
     },
   };
 }
@@ -129,12 +145,12 @@ export const projectColumns: ColumnDef<Project>[] = [
       text('customer_name', 'Customer', 160),
       text('market_segment', 'Market Segment', 140),
       selectCol('service_or_goods', 'Service/Goods', 120, GOODS_OR_SERVICE), 
-      text('date_customer_received_doc1', 'Tanggal Terima SP Customer', 140),
-      text('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 140),
+      selectDate('date_customer_received_doc1', 'Tanggal Terima SP Customer', 140),
+      selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 140),
       text('doc2_number_id', 'No PO/PKS Customer', 120),
       numberCol('customer_price', 'Amount PO/PKS Customer', 110),
-      text('customer_start_contract', 'Start Contract - Cust', 130),
-      text('customer_end_contract', 'End Contract - Cust', 130),
+      selectDate('customer_start_contract', 'Start Contract - Cust', 130),
+      selectDate('customer_end_contract', 'End Contract - Cust', 130),
     ],
   },
   {
@@ -144,16 +160,16 @@ export const projectColumns: ColumnDef<Project>[] = [
       text('vendor_name', 'Vendor', 160),
       numberCol('vendor_revenue', 'Nilai RAB', 120),
       selectCol('vendor_type', 'Type Vendor Service/Goods', 120, GOODS_OR_SERVICE),
-      text('project_sent_date', 'Tgl Kirim FPT', 130),
-      text('project_finish_date', 'Tgl Finish FPT', 130),
+      selectDate('project_sent_date', 'Tgl Kirim FPT', 130),
+      selectDate('project_finish_date', 'Tgl Finish FPT', 130),
       text('vendor_project_id', 'No FPT', 130),
-      text('negotiation_date', 'Tanggal Nego Vendor', 130),
-      text('approval_date', 'Tanggal Terima SP Vendor', 130),
-      text('document_sent_date', 'Tanggal kirim PO/PKS vendor', 130),
+      selectDate('negotiation_date', 'Tanggal Nego Vendor', 130),
+      selectDate('approval_date', 'Tanggal Terima SP Vendor', 130),
+      selectDate('document_sent_date', 'Tanggal kirim PO/PKS vendor', 130),
       text('document_id', 'No PO/PKS', 130),
       numberCol('vendor_price', 'Nilai PO/PKS', 120),
-      text('vendor_start_contract', 'Start Contract2', 130),
-      text('vendor_end_contract', 'End Contract2', 130),
+      selectDate('vendor_start_contract', 'Start Contract2', 130),
+      selectDate('vendor_end_contract', 'End Contract2', 130),
     ],
   },
 ];

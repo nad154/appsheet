@@ -48,14 +48,24 @@ export function ColumnGroupHeader({ header, index }: ColumnGroupHeaderProps) {
     : common;
 
   return (
-    <th
-      key={header.id}
-      style={style}
-      className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
-    >
-      <span>
-        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-      </span>
-    </th>
+      <div
+        key={header.id}
+        role="columnheader"
+        style={style}
+        className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
+      >
+        <span className="block truncate">
+          {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+        </span>
+      </div>
+    // <th
+    //   key={header.id}
+    //   style={style}
+    //   className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
+    // >
+    //   <span>
+    //     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+    //   </span>
+    // </th>
   );
 }

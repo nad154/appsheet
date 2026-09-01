@@ -243,10 +243,12 @@ export function ProjectTable({
         role="table"
         aria-label="Projects grid"
       >
-        <table style={{ display: 'grid', width: tableWidth, minWidth: '100%' }}>
-          <thead style={{ display: 'grid', position: 'sticky', top: 0, zIndex: Z.thead }}>
+        <div style={{ display: 'grid', width: tableWidth, minWidth: '100%' }}>
+          <div role="rowgroup" style={{ display: 'grid', position: 'sticky', top: 0, zIndex: Z.thead, width: tableWidth  }}>
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id} style={{ display: 'flex' }}>
+              <div key={headerGroup.id} 
+              role="row"
+              style={{ display: 'flex', width: tableWidth}}>
                 {headerGroup.headers.map((header, index) => {
                   const isGroup = header.subHeaders.length > 0;
                   if (isGroup) {
@@ -259,8 +261,9 @@ export function ProjectTable({
                   const isStickyCol = index === 0 && header.column.parent?.id === STICKY_GROUP_ID;
                   // main table header 
                   return (
-                    <th
+                    <div
                       key={header.id}
+                      role="columnheader"
                       onClick={isSortable ? () => handleSortClick(accessorKey) : undefined}
                       aria-sort={isActiveSort ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
@@ -287,25 +290,26 @@ export function ProjectTable({
                           {isActiveSort ? (sortDir === 'desc' ? '↓' : '↑') : ''}
                         </span>
                       )}
-                    </th>
+                    </div>
                   );
                 })}
-              </tr>
+              </div>
             ))}
-          </thead>
-          <tbody style={{ display: 'grid', height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+          </div>
+          <div role="rowgroup" style={{ display: 'grid', height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
             {rows.length === 0 && !isLoading && (
-              <tr style={{ display: 'flex', width: '100%' }}>
-                <td className="px-3 py-8 text-center text-sm text-gray-400" style={{ width: '100%' }}>
+              <div role="row" style={{ display: 'flex', width: '100%' }}>
+                <div role="cell" className="px-3 py-8 text-center text-sm text-gray-400" style={{ width: '100%' }}>
                   No projects to show.
-                </td>
-              </tr>
+                </div>
+              </div>
             )}
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const row = modelRows[virtualRow.index];
               return (
-                <tr
+                <div
                   key={row.id}
+                  role="row"
                   className="border-b border-gray-100 hover:bg-gray-50"
                   style={{
                     display: 'flex',
@@ -359,8 +363,9 @@ export function ProjectTable({
                     }
 
                     return (
-                      <td
+                      <div
                         key={cell.id}
+                        role="cell"
                         className="px-3 py-2 text-gray-700"
                         style={{
                           display: 'flex',
@@ -377,14 +382,14 @@ export function ProjectTable({
                         }}
                       >
                         {content}
-                      </td>
+                      </div>
                     );
                   })}
-                </tr>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between text-sm text-gray-600">

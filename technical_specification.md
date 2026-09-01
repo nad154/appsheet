@@ -455,6 +455,21 @@ Both the frontend grid highlighting and the backend digest query import these �
 
 ---
 
+### 10.1 Implementation Progress
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| **Phase 0 — Project Scaffolding** | ✅ Complete | Monorepo structure with workspaces; `apps/web` scaffolded (Vite + React + Tailwind + TanStack); `apps/server` scaffolded (Express + TypeScript + all npm packages); `packages/shared` with Zod schemas + thresholds. |
+| **Phase 1 — Data Layer** | ✅ Complete | `db/connection.ts` (singleton + write mutex), `db/migrate.ts`, `db/export.ts` implemented. `app.duckdb` + WAL + parquet snapshots present. |
+| **Phase 2 — Auth & RBAC** | ✅ Complete | `modules/auth/` (login, refresh, logout, tokens, config, authService); `middleware/requireAuth.ts`, `requireRole.ts`, `rateLimit.ts`; `auth-store.tsx` + `useAuth.ts` on frontend. |
+| **Phase 3 — Core Grid (read path)** | ✅ Complete | `components/data-grid/` (ProjectTable, ColumnGroupHeader, StatusFlagCell, columns); `hooks/useProjects.ts`; `app/grid/GridPage.tsx`. |
+| **Phase 4 — Write Path & Approval Queue** | ✅ Complete | `modules/projects/` (routes + service); `modules/pending-edits/` (routes + service); `components/approvals/` (DiffView, ApprovalQueueList); `app/approvals/ApprovalsPage.tsx`. |
+| **Phase 5 — Settings** | ✅ Complete | `modules/settings/` (routes + settingsService); `hooks/useSettings.ts`; `app/settings/SettingsPage.tsx`. |
+| **Phase 6 — Google Integrations** | ⬜ Not Started | Missing: `modules/drive/`, `modules/gmail/`, `jobs/dailyDigest.ts`, `app/drive-browser/` on frontend. |
+| **Phase 7 — Hardening & Deployment** | ⬜ Not Started | Rate limiting implemented; audit logging, HTTPS config, production build steps remain. |
+
+---
+
 ## 11. Open Items to Confirm Before/During Build
 
 *(Storage engine, §1.2/§1.3, is now confirmed — DuckDB native local file as source of truth, Parquet as local snapshots.)*

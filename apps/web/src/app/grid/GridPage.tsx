@@ -29,7 +29,7 @@ export function GridPage() {
   const [pageSize, setPageSize] = useState(50);
   const [sortBy, setSortBy] = useState<string | undefined>('updated_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [notice, setNotice] = useState<string | null>(null);
+  // const [notice, setNotice] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);

@@ -40,7 +40,7 @@ interface ProjectTableProps {
   onPageSizeChange: (size: number) => void;
   onSortChange: (sortBy: string, sortDir: SortDir) => void;
   onCellUpdate: (row: Project, field: string, value: unknown) => Promise<EditResult>;
-  onNotice?: (message: string) => void;
+  onNotice?: (message: string, variant?: ToastVariant) => void;
 }
 
 const STICKY_GROUP_ID = 'project_info';

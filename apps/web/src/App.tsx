@@ -6,6 +6,7 @@ import { LoginPage } from './app/login/LoginPage';
 import { GridPage } from './app/grid/GridPage';
 import { ApprovalsPage } from './app/approvals/ApprovalsPage';
 import { SettingsPage } from './app/settings/SettingsPage';
+import { DriveBrowserPage } from './app/drive-browser/DriveBrowserPage';
 
 export default function App() {
   return (
@@ -41,10 +42,7 @@ export default function App() {
               path="/drive-browser"
               element={
                 <ProtectedRoute roles={['SUPER_ADMIN']}>
-                  <div className="p-8">
-                    <h1 className="text-xl font-semibold">Drive Browser</h1>
-                    <p className="mt-2 text-sm text-gray-500">Scaffolded route — implementation pending.</p>
-                  </div>
+                  <DriveBrowserPage />
                 </ProtectedRoute>
               }
             />

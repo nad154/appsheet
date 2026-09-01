@@ -1,6 +1,8 @@
 import { runWrite, runRead } from '../../db/connection.js';
 import { uuid } from '../../lib/uuid.js';
 import { exportSnapshots } from '../../db/export.js';
+import { createProjectFolder } from '../drive/driveService.js';
+import { isGoogleConfigured } from '../google/auth.js';
 import type { AuthUser } from '../../middleware/requireAuth.js';
 import {
   projectCreateSchema,
@@ -146,7 +148,14 @@ export async function createDirect(
   const payload = projectCreateSchema.parse(rawPayload);
   const id = uuid();
   await runWrite(async (ex) => {
-    await ex(insertProjectSql(), buildInsertValues(id, payload));
+    // Create the 1:1 Drive folder (when Drive is configured) before inserting,
+    // so a Drive failure rolls back the whole write — no orphaned project.
+    let driveFolderId: string | null = payload.drive_folder_id ?? null;
+    if (isGoogleConfigured() && !driveFolderId) {
+      driveFolderId = await createProjectFolder(payload.project_name);
+    }
+    const values = buildInsertValues(id, { ...payload, drive_folder_id: driveFolderId });
+    await ex(insertProjectSql(), values);
   });
   await exportSnapshots(['projects']);
   return { id };
@@ -307,6 +316,15 @@ export async function approve(id: string, admin: AuthUser): Promise<void> {
       clean.created_at = 'current_timestamp';
       clean.updated_at = 'current_timestamp';
       if (!clean.project_name) throw new PendingEditError('project_name is required', 400);
+
+      // Create the 1:1 Drive folder (when configured) before inserting, so a
+      // Drive failure rolls back the whole approval — no orphaned project.
+      let driveFolderId: string | null = (clean.drive_folder_id as string | null | undefined) ?? null;
+      if (isGoogleConfigured() && !driveFolderId) {
+        driveFolderId = await createProjectFolder(String(clean.project_name));
+      }
+      clean.drive_folder_id = driveFolderId;
+
       await ex(insertProjectSql(), buildInsertValues(String(clean.id), clean));
     } else {
       if (!current) throw new PendingEditError('Project not found', 404);

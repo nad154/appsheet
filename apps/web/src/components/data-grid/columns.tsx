@@ -130,7 +130,7 @@ export const projectColumns: ColumnDef<Project>[] = [
     columns: [
       text('project_name', 'Project', 220),
       text('folder_name', 'Folder', 160),
-      text('staff_assigned_id', 'Sales', 140, false),
+      text('staff_assigned_name', 'Sales', 140, false),
       driveLinkColumn,
       selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
       // selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),

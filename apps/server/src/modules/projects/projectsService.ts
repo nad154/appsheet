@@ -42,14 +42,14 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   const offset = (page - 1) * pageSize;
 
   const isStaff = user.role === 'STAFF';
-  const whereClause = isStaff ? 'WHERE staff_assigned_id = ?' : '';
+  const whereClause = isStaff ? 'WHERE p.staff_assigned_id = ?' : '';
 
   const params: unknown[] = [];
   if (isStaff) params.push(user.id);
 
   const rows = await runRead<ProjectRow>(
-    `SELECT *
-     FROM projects
+    `SELECT p.*, u.name AS staff_assigned_name 
+    FROM projects p LEFT JOIN users u ON u.id = p.staff_assigned_id
      ${whereClause}
      ORDER BY ${sortBy} ${sortDir}
      LIMIT ? OFFSET ?`,
@@ -57,7 +57,7 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   );
 
   const countRows = await runRead<{ total: number }>(
-    `SELECT count(*) AS total FROM projects ${whereClause}`,
+    `SELECT count(*) AS total FROM projects p ${whereClause}`,
     params,
   );
   const total = Number(countRows[0]?.total ?? 0);

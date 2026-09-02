@@ -8,6 +8,7 @@ export const projectSchema = z.object({
   id: z.string().uuid(),
   folder_name: z.string().nullable().optional(),
   project_name: z.string().min(1),
+  staff_assigned_name: z.string().nullable().optional(),
   staff_assigned_id: z.string().uuid().nullable().optional(),
   drive_folder_id: z.string().nullable().optional(),
 
@@ -50,6 +51,7 @@ export const projectCreateSchema = projectSchema.omit({
   id: true,
   created_at: true,
   updated_at: true,
+  // staff_assigned_name: true, 
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();

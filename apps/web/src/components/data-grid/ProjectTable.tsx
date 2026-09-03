@@ -120,6 +120,24 @@ function EditableCell({
     );
   }
 
+  if (editType === 'textarea') {
+    return (
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) commit();
+          if (e.key === 'Escape') onCancel();
+        }}
+        rows={3}
+        className={cls}
+        aria-label={`Edit ${field}`}
+      />
+    );
+  }
+
   return (
     <input
       autoFocus

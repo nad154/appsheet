@@ -23,6 +23,31 @@ test('admin sees all projects with status flags and approvals nav', async ({ pag
   await expect(page.getByTestId('user-role-badge')).toHaveText('(SUPER_ADMIN)');
 });
 
+test('admin can see PIC, Issues and Aging columns in the grid', async ({ page }) => {
+  await login(page, 'admin@example.com', 'admin12345');
+  await expect(page).toHaveURL(/\/grid/);
+
+  await expect(page.getByRole('columnheader', { name: 'PIC' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Issues' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Aging' })).toBeVisible();
+});
+
+test('admin can create a project with PIC and Issues via the add form', async ({ page }) => {
+  await login(page, 'admin@example.com', 'admin12345');
+  await expect(page).toHaveURL(/\/grid/);
+
+  await page.getByRole('button', { name: 'Add project' }).click();
+
+  await page.getByLabel(/Project name/).fill('E2E PIC Issues Project');
+  await page.getByLabel(/PIC/).fill('Jane Doe');
+  await page.getByLabel(/Issues/).fill('Waiting on vendor approval');
+
+  await page.getByRole('button', { name: 'Create' }).click();
+
+  await expect(page.getByText('Project created.', { exact: true })).toBeVisible();
+  await expect(page.getByText('E2E PIC Issues Project', { exact: true })).toBeVisible();
+});
+
 test('staff sees only their assigned projects and no approvals nav', async ({ page }) => {
   await login(page, 'staff1@example.com', 'staff12345');
 

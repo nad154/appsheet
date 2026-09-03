@@ -18,6 +18,8 @@ const emptyForm = {
   vendor_price: '',
   service_or_goods: '',
   current_stage: 'on_progress',
+  pic: '',
+  issues: '',
 };
 
 export function GridPage() {
@@ -97,6 +99,8 @@ export function GridPage() {
         vendor_price: toNumber(form.vendor_price),
         service_or_goods: (form.service_or_goods || null) as 'service' | 'goods' | null,
         current_stage: form.current_stage as 'on_progress' | 'finish',
+        pic: form.pic.trim() || null,
+        issues: form.issues.trim() || null,
       };
       const res = await apiClient.post<{ ok?: boolean; submitted?: boolean }>('/api/projects', payload);
       if (res?.submitted) {
@@ -174,6 +178,14 @@ export function GridPage() {
                 <option value="on_progress">on_progress</option>
                 <option value="finish">finish</option>
               </select>
+            </label>
+            <label className="flex flex-col text-xs text-gray-600">
+              PIC
+              <input value={form.pic} onChange={(e) => setField('pic', e.target.value)} className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm" />
+            </label>
+            <label className="flex flex-col text-xs text-gray-600">
+              Issues
+              <textarea value={form.issues} onChange={(e) => setField('issues', e.target.value)} rows={2} className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm" />
             </label>
           </div>
           {addError && <p className="mt-3 text-sm text-red-600">{addError}</p>}

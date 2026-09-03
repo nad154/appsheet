@@ -1,9 +1,9 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Project } from '@tracker/shared';
-import { GOODS_OR_SERVICE, PROJECT_STAGES } from '@tracker/shared';
+import { GOODS_OR_SERVICE, PROJECT_STAGES, computeAging } from '@tracker/shared';
 import { StatusFlagCell } from './StatusFlagCell';
 
-export type EditType = 'text' | 'number' | 'select' | 'date';
+export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea';
 
 export interface ColumnMeta {
   editable?: boolean;
@@ -75,6 +75,24 @@ function selectDate(accessorKey: keyof Project, header: string, size = 130): Col
   };
 }
 
+function textareaCol(accessorKey: keyof Project, header: string, size = 200): ColumnDef<Project> {
+  return {
+    accessorKey,
+    header,
+    size,
+    meta: { editable: true, editType: 'textarea' } as ColumnMeta,
+    cell: ({ getValue }) => {
+      const v = getValue() as string | null | undefined;
+      if (!v) return <span className="text-gray-300">—</span>;
+      return (
+        <span className="block truncate text-sm text-gray-800" title={v}>
+          {v}
+        </span>
+      );
+    },
+  };
+}
+
 const driveLinkColumn: ColumnDef<Project> = {
   accessorKey: 'drive_folder_id',
   header: 'Drive',
@@ -123,6 +141,18 @@ const pendingColumn: ColumnDef<Project> = {
   },
 };
 
+const agingColumn: ColumnDef<Project> = {
+  id: 'aging',
+  header: 'Aging',
+  size: 90,
+  enableSorting: false,
+  cell: ({ row }) => {
+    const aging = computeAging(row.original);
+    if (aging === null) return <span className="text-gray-300">—</span>;
+    return <span className="block text-sm text-gray-800">{aging}</span>;
+  },
+};
+
 export const projectColumns: ColumnDef<Project>[] = [
   {
     id: 'project_info',
@@ -131,6 +161,7 @@ export const projectColumns: ColumnDef<Project>[] = [
       text('project_name', 'Project', 220),
       text('folder_name', 'Folder', 160),
       text('staff_assigned_name', 'Sales', 140, false),
+      text('pic', 'PIC', 120),
       driveLinkColumn,
       selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
       // selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),
@@ -170,6 +201,8 @@ export const projectColumns: ColumnDef<Project>[] = [
       numberCol('vendor_price', 'Nilai PO/PKS', 120),
       selectDate('vendor_start_contract', 'Start Contract2', 130),
       selectDate('vendor_end_contract', 'End Contract2', 130),
+      agingColumn,
+      textareaCol('issues', 'Issues', 200),
     ],
   },
 ];

@@ -39,6 +39,10 @@ export const projectSchema = z.object({
   vendor_end_contract: z.string().nullable().optional(),
   current_stage: z.enum(PROJECT_STAGES).default('on_progress'),
 
+  // PIC / Issues
+  pic: z.string().nullable().optional(),
+  issues: z.string().nullable().optional(),
+
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -51,7 +55,7 @@ export const projectCreateSchema = projectSchema.omit({
   id: true,
   created_at: true,
   updated_at: true,
-  // staff_assigned_name: true, 
+  staff_assigned_name: true, 
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();

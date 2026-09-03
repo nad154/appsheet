@@ -1,4 +1,5 @@
 import { runWrite, runRead, PARQUET_DIR } from './connection.js';
+import { exportSnapshots } from './export.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -56,6 +57,10 @@ CREATE TABLE IF NOT EXISTS projects (
   vendor_end_contract DATE,
   current_stage VARCHAR CHECK (current_stage IN ('on_progress','finish')) DEFAULT 'on_progress',
 
+  -- PIC / Issues
+  pic VARCHAR,
+  issues VARCHAR,
+
   -- Metadata
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
   updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
@@ -82,6 +87,17 @@ CREATE TABLE IF NOT EXISTS sessions (
   revoked BOOLEAN NOT NULL DEFAULT false
 );
 
+CREATE TABLE IF NOT EXISTS notifications (
+  id VARCHAR PRIMARY KEY,
+  recipient_id VARCHAR NOT NULL REFERENCES users(id),
+  type VARCHAR NOT NULL CHECK (type IN ('NEW_APPROVAL','AGING_ALERT')),
+  project_id VARCHAR REFERENCES projects(id),
+  pending_edit_id VARCHAR REFERENCES pending_edits(id),
+  message VARCHAR NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
 -- users.parquet must never include password_hash; export from this view.
 CREATE OR REPLACE VIEW v_users_public AS
   SELECT id, name, email, role, is_active, created_at FROM users;
@@ -98,7 +114,37 @@ export async function migrate(): Promise<void> {
     await exec(DDL);
   });
 
+  await migrateColumns();
   await importLegacySnapshots();
+}
+
+async function columnExists(table: string, column: string): Promise<boolean> {
+  const rows = await runRead<{ column_name: string }>(
+    `SELECT column_name FROM duckdb_columns() WHERE table_name = ? AND column_name = ?`,
+    [table, column],
+  );
+  return rows.length > 0;
+}
+
+async function migrateColumns(): Promise<void> {
+  const additions: Array<{ table: string; column: string; type: string }> = [
+    { table: 'projects', column: 'pic', type: 'VARCHAR' },
+    { table: 'projects', column: 'issues', type: 'VARCHAR' },
+  ];
+
+  let altered = false;
+  for (const { table, column, type } of additions) {
+    if (!(await columnExists(table, column))) {
+      await runWrite(async (exec) => {
+        await exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+      });
+      altered = true;
+    }
+  }
+
+  if (altered) {
+    await exportSnapshots(['projects']);
+  }
 }
 
 async function importLegacySnapshots(): Promise<void> {

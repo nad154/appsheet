@@ -1,4 +1,5 @@
 import { runWrite, runRead } from '../../db/connection.js';
+import type { QueryResult } from '../../db/connection.js';
 import { uuid } from '../../lib/uuid.js';
 import { exportSnapshots } from '../../db/export.js';
 import { createProjectFolder } from '../drive/driveService.js';
@@ -56,6 +57,29 @@ function toPendingEdit(row: PendingEditRow) {
   return { ...rest, changes_json: parseChanges(row) };
 }
 
+interface SuperAdminRow extends QueryResult {
+  id: string;
+}
+
+async function notifyNewApproval(
+  editId: string,
+  projectId: string | null,
+  projectName: string,
+  ex: (sql: string, params?: unknown[]) => Promise<QueryResult[]>,
+): Promise<void> {
+  const adminRows = (await ex(
+    `SELECT id FROM users WHERE role = 'SUPER_ADMIN' AND is_active = true`,
+  )) as SuperAdminRow[];
+  const message = `New approval request: ${projectName}`;
+  for (const admin of adminRows) {
+    await ex(
+      `INSERT INTO notifications (id, recipient_id, type, project_id, pending_edit_id, message, is_read, created_at)
+       VALUES (?, ?, 'NEW_APPROVAL', ?, ?, ?, false, current_timestamp)`,
+      [uuid(), admin.id, projectId, editId, message],
+    );
+  }
+}
+
 /**
  * STAFF proposes a new project. Stored as a pending edit (edit_type=CREATE,
  * project_id=NULL). The caller can never create a project for another staff
@@ -85,6 +109,8 @@ export async function submitCreate(
        VALUES (?, NULL, ?, 'CREATE', ?, 'pending', current_timestamp)`,
       [id, user.id, JSON.stringify(stored)],
     );
+    const projectName = stored.project_name || 'Untitled project';
+    await notifyNewApproval(id, null, projectName, ex);
   });
   return { id };
 }
@@ -133,6 +159,8 @@ export async function submitUpdate(
        VALUES (?, ?, ?, 'UPDATE', ?, 'pending', current_timestamp)`,
       [id, projectId, user.id, JSON.stringify(changes)],
     );
+    const projectName = project?.project_name ?? 'Untitled project';
+    await notifyNewApproval(id, projectId, projectName, ex);
   });
   return { id };
 }
@@ -395,6 +423,8 @@ const PROJECT_COLUMNS: (keyof ProjectCreate)[] = [
   'vendor_start_contract',
   'vendor_end_contract',
   'current_stage',
+  'pic',
+  'issues',
 ];
 
 function insertProjectSql(): string {

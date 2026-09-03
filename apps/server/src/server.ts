@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createApp } from './app.js';
 import { migrate } from './db/migrate.js';
 import { isGoogleConfigured, resolveRootFolderId } from './modules/google/auth.js';
+import { startAgingCron } from './jobs/agingCron.js';
 
 async function bootstrap(): Promise<void> {
   await migrate();
@@ -24,6 +25,14 @@ async function bootstrap(): Promise<void> {
   }
 
   const port = Number(process.env.PORT ?? 3000);
+
+  try {
+    startAgingCron();
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to start aging cron:', err instanceof Error ? err.message : err);
+  }
+
   const app = createApp();
   app.listen(port, () => {
     // eslint-disable-next-line no-console

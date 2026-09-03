@@ -5,6 +5,7 @@ import { projectsRouter } from './modules/projects/routes.js';
 import { pendingEditsRouter } from './modules/pending-edits/routes.js';
 import { settingsRouter } from './modules/settings/routes.js';
 import { driveRouter } from './modules/drive/routes.js';
+import { notificationsRouter } from './modules/notifications/routes.js';
 
 export function createApp() {
   const app = express();
@@ -20,6 +21,7 @@ export function createApp() {
   app.use('/api/pending-edits', pendingEditsRouter);
   app.use('/api/settings', settingsRouter);
   app.use('/api/drive', driveRouter);
+  app.use('/api/notifications', notificationsRouter);
 
   return app;
 }

@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { canManageSettings, canSeeApprovals } from '../lib/rbac';
+import { NotificationBell } from './NotificationBell';
 import type { Role } from '@tracker/shared';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -47,6 +48,7 @@ export function AppLayout() {
           </nav>
 
           <div className="flex items-center gap-3">
+            <NotificationBell />
             {isDev && user && (
               <select
                 data-testid="dev-role-switcher"

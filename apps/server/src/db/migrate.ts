@@ -151,7 +151,8 @@ async function importLegacySnapshots(): Promise<void> {
   const mapping: Record<string, { table: string; transform?: string }> = {
     'projects.parquet': { table: 'projects' },
     'pending_edits.parquet': { table: 'pending_edits' },
-    'users.parquet': { table: 'users' },
+    // users.parquet is exported from v_users_public which EXCLUDES password_hash.
+    // Never import it — users must be created by the seed script with proper hashes.
   };
 
   for (const [file, { table, transform }] of Object.entries(mapping)) {

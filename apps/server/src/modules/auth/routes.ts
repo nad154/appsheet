@@ -49,6 +49,7 @@ authRouter.post(
         res.status(err.statusCode).json({ error: err.message });
         return;
       }
+      console.error("Login error", err); 
       res.status(500).json({ error: 'Internal server error' });
     }
   },

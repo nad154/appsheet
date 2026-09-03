@@ -68,7 +68,12 @@ export async function authenticate(email: string, password: string): Promise<Aut
     throw new AuthError('Invalid email or password');
   }
 
-  const ok = await argon2.verify(user.password_hash, password);
+  let ok: boolean;
+  try {
+    ok = await argon2.verify(user.password_hash, password);
+  } catch {
+    throw new AuthError('Invalid email or password');
+  }
   if (!ok) {
     throw new AuthError('Invalid email or password');
   }

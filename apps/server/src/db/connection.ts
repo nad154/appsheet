@@ -91,28 +91,40 @@ export async function runRead<T extends QueryResult>(sql: string, params: unknow
 // Release the lock cleanly on shutdown so restarts (or a script run right
 // after) don't collide with a still-open handle from this process.
 let closing = false;
-function closeDb(): void {
+
+function closeConn(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!conn) { resolve(); return; }
+    try { conn.close(() => resolve()); } catch { resolve(); }
+  });
+}
+
+function closeDatabase(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!db) { resolve(); return; }
+    try { db.close(() => resolve()); } catch { resolve(); }
+  });
+}
+
+async function closeDb(): Promise<void> {
   if (closing) return;
   closing = true;
-  try {
-    conn?.close?.();
-  } catch {
-    /* ignore */
-  }
-  try {
-    db?.close?.();
-  } catch {
-    /* ignore */
-  }
+  await closeConn();
+  await closeDatabase();
 }
-process.once('SIGINT', () => {
-  closeDb();
+
+process.once('SIGINT', async () => {
+  await closeDb();
   process.exit(0);
 });
-process.once('SIGTERM', () => {
-  closeDb();
+process.once('SIGTERM', async () => {
+  await closeDb();
   process.exit(0);
 });
-process.once('exit', closeDb);
+process.once('exit', () => {
+  // Last-resort synchronous close on exit event (can't await here).
+  try { conn?.close?.(); } catch { /* ignore */ }
+  try { db?.close?.(); } catch { /* ignore */ }
+});
 
 export { conn, db };

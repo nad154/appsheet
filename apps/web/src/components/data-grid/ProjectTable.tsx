@@ -186,6 +186,10 @@ export function ProjectTable({
   const modelRows = table.getRowModel().rows;
   const parentRef = useRef<HTMLDivElement>(null);
 
+  const leafHeaders = table.getHeaderGroups().at(-1)?.headers ?? [];
+  const gridTemplateColumns = leafHeaders.map((h) => `${h.getSize()}px`).join(' ');
+  const stickyLeafId = leafHeaders[0]?.column.id;
+
   const rowVirtualizer = useVirtualizer({
     count: modelRows.length,
     getScrollElement: () => parentRef.current,
@@ -262,11 +266,11 @@ export function ProjectTable({
         aria-label="Projects grid"
       >
         <div style={{ display: 'grid', width: tableWidth, minWidth: '100%' }}>
-          <div role="rowgroup" style={{ display: 'grid', position: 'sticky', top: 0, zIndex: Z.thead, width: tableWidth  }}>
+          <div role="rowgroup" style={{ display: 'grid', position: 'sticky', top: 0, zIndex: Z.thead }}>
             {table.getHeaderGroups().map((headerGroup) => (
               <div key={headerGroup.id} 
               role="row"
-              style={{ display: 'flex', width: tableWidth}}>
+              style={{ display: 'grid', gridTemplateColumns, width: tableWidth }}>
                 {headerGroup.headers.map((header, index) => {
                   const isGroup = header.subHeaders.length > 0;
                   if (isGroup) {
@@ -275,7 +279,6 @@ export function ProjectTable({
                   const accessorKey = (header.column.columnDef as { accessorKey?: string }).accessorKey;
                   const isSortable = typeof accessorKey === 'string' && header.column.getCanSort();
                   const isActiveSort = isSortable && accessorKey === sortBy;
-                  const width = header.getSize();
                   const isStickyCol = index === 0 && header.column.parent?.id === STICKY_GROUP_ID;
                   // main table header 
                   return (
@@ -288,9 +291,6 @@ export function ProjectTable({
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        minWidth: width,
-                        width,
-                        flexShrink: 0,
                         overflow: 'hidden',
                         position: isStickyCol ? 'sticky' : undefined,
                         left: isStickyCol ? 0 : undefined,
@@ -330,14 +330,14 @@ export function ProjectTable({
                   role="row"
                   className="border-b border-gray-100 hover:bg-gray-50"
                   style={{
-                    display: 'flex',
-                    position: 'absolute',
-                    transform: `translateY(${virtualRow.start}px)`,
-                    width: tableWidth,
+                    display: 'grid', 
+                    gridTemplateColumns, 
+                    position: 'absolute', 
+                    transform: `translateY(${virtualRow.start}px)`, 
+                    width: tableWidth
                   }}
                 >
                   {row.getVisibleCells().map((cell, index) => {
-                    const width = cell.column.getSize();
                     const isStickyCol = index === 0 && cell.column.parent?.id === STICKY_GROUP_ID;
                     const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
                     const field = cell.column.id;
@@ -388,9 +388,7 @@ export function ProjectTable({
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          minWidth: width,
-                          width,
-                          flexShrink: 0,
+                          overflow: 'hidden',
                           position: isStickyCol ? 'sticky' : undefined,
                           left: isStickyCol ? 0 : undefined,
                           zIndex: isStickyCol ? Z.stickyBodyCol : undefined,

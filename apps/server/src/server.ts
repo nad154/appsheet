@@ -3,6 +3,9 @@ import { createApp } from './app.js';
 import { migrate } from './db/migrate.js';
 import { isGoogleConfigured, resolveRootFolderId } from './modules/google/auth.js';
 import { startAgingCron } from './jobs/agingCron.js';
+import { conn } from './db/connection.js';
+
+
 
 async function bootstrap(): Promise<void> {
   await migrate();
@@ -45,3 +48,16 @@ bootstrap().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
+
+
+function shutdown(signal: string) {
+  // eslint-disable-next-line no-console
+  console.log(`\nReceived ${signal}, closing DuckDB connection...`);
+  conn.close((err) => {
+    if (err) console.error('Error closing DB:', err);
+    process.exit(0);
+  });
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));

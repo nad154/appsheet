@@ -27,10 +27,8 @@ CREATE TABLE IF NOT EXISTS projects (
   id VARCHAR PRIMARY KEY,
   folder_name VARCHAR,
   project_name VARCHAR NOT NULL,
-  staff_assigned_id VARCHAR REFERENCES users(id),
+  staff_assigned_id VARCHAR,          -- FK dropped: DuckDB can't UPDATE FK-target tables
   drive_folder_id VARCHAR,
-
-  -- Customer section
   customer_name VARCHAR,
   market_segment VARCHAR,
   service_or_goods VARCHAR CHECK (service_or_goods IN ('service','goods')),
@@ -40,8 +38,6 @@ CREATE TABLE IF NOT EXISTS projects (
   customer_price INTEGER,
   customer_start_contract DATE,
   customer_end_contract DATE,
-
-  -- Vendor section
   vendor_name VARCHAR,
   vendor_revenue INTEGER,
   vendor_type VARCHAR CHECK (vendor_type IN ('service','goods')),
@@ -56,24 +52,20 @@ CREATE TABLE IF NOT EXISTS projects (
   vendor_start_contract DATE,
   vendor_end_contract DATE,
   current_stage VARCHAR CHECK (current_stage IN ('on_progress','finish')) DEFAULT 'on_progress',
-
-  -- PIC / Issues
   pic VARCHAR,
   issues VARCHAR,
-
-  -- Metadata
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
   updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
 CREATE TABLE IF NOT EXISTS pending_edits (
   id VARCHAR PRIMARY KEY,
-  project_id VARCHAR REFERENCES projects(id),
-  requested_by VARCHAR NOT NULL REFERENCES users(id),
+  project_id VARCHAR,                 -- FK dropped
+  requested_by VARCHAR NOT NULL,      -- FK dropped
   edit_type VARCHAR NOT NULL CHECK (edit_type IN ('CREATE','UPDATE')),
   changes_json VARCHAR NOT NULL,
   status VARCHAR NOT NULL CHECK (status IN ('pending','approved','rejected')) DEFAULT 'pending',
-  reviewed_by VARCHAR REFERENCES users(id),
+  reviewed_by VARCHAR,                -- FK dropped
   review_note VARCHAR,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
   reviewed_at TIMESTAMP
@@ -81,7 +73,7 @@ CREATE TABLE IF NOT EXISTS pending_edits (
 
 CREATE TABLE IF NOT EXISTS sessions (
   id VARCHAR PRIMARY KEY,
-  user_id VARCHAR NOT NULL REFERENCES users(id),
+  user_id VARCHAR NOT NULL,           -- FK dropped
   refresh_token_hash VARCHAR NOT NULL,
   expires_at TIMESTAMP NOT NULL,
   revoked BOOLEAN NOT NULL DEFAULT false
@@ -89,14 +81,18 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE TABLE IF NOT EXISTS notifications (
   id VARCHAR PRIMARY KEY,
-  recipient_id VARCHAR NOT NULL REFERENCES users(id),
+  recipient_id VARCHAR NOT NULL,      -- FK dropped
   type VARCHAR NOT NULL CHECK (type IN ('NEW_APPROVAL','AGING_ALERT')),
-  project_id VARCHAR REFERENCES projects(id),
-  pending_edit_id VARCHAR REFERENCES pending_edits(id),
+  project_id VARCHAR,                 -- FK dropped
+  pending_edit_id VARCHAR,            -- FK dropped
   message VARCHAR NOT NULL,
   is_read BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
+
+CREATE OR REPLACE VIEW v_users_public AS
+  SELECT id, name, email, role, is_active, created_at FROM users;
+;
 
 -- users.parquet must never include password_hash; export from this view.
 CREATE OR REPLACE VIEW v_users_public AS

@@ -27,11 +27,11 @@ export async function listNotifications(userId: string, limit: number = DEFAULT_
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
-  const rows = await runRead<{ count: number }>(
+  const rows = await runRead<{ count: number | bigint }>(
     `SELECT COUNT(*) AS count FROM notifications WHERE recipient_id = ? AND is_read = false`,
     [userId],
   );
-  return rows[0]?.count ?? 0;
+  return Number(rows[0]?.count ?? 0);
 }
 
 export async function markAsRead(notificationId: string, userId: string): Promise<void> {

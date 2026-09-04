@@ -322,72 +322,143 @@ export async function getDiff(id: string): Promise<PendingEditDiff> {
  * stale diff (e.g., if another admin approved a conflicting edit first).
  */
 export async function approve(id: string, admin: AuthUser): Promise<void> {
-  const edit = await getPendingEdit(id);
-  if (!edit) throw new PendingEditError('Pending edit not found', 404);
-  if (edit.status !== 'pending') {
-    throw new PendingEditError(`Edit is already ${edit.status}`, 400);
-  }
-  const changes = parseChanges(edit);
+  // Quick existence check outside the mutex (404 early).
+  const existing = await getPendingEdit(id);
+  if (!existing) throw new PendingEditError('Pending edit not found', 404);
 
   await runWrite(async (ex) => {
-    // Re-read the current project row inside the transaction.
-    let current: ProjectRow | null = null;
-    if (edit.project_id) {
-      const rows = await ex<ProjectRow>(`SELECT * FROM projects WHERE id = ?`, [edit.project_id]);
-      current = rows[0] ?? null;
-      if (!current) throw new PendingEditError('Project no longer exists', 409);
-    }
-
-    if (edit.edit_type === 'CREATE') {
-      const clean: Record<string, unknown> = { ...changes };
-      clean.id = uuid();
-      clean.created_at = 'current_timestamp';
-      clean.updated_at = 'current_timestamp';
-      if (!clean.project_name) throw new PendingEditError('project_name is required', 400);
-
-      // Create the 1:1 Drive folder (when configured) before inserting, so a
-      // Drive failure rolls back the whole approval — no orphaned project.
-      let driveFolderId: string | null = (clean.drive_folder_id as string | null | undefined) ?? null;
-      if (isGoogleConfigured() && !driveFolderId) {
-        driveFolderId = await createProjectFolder(String(clean.project_name));
-      }
-      clean.drive_folder_id = driveFolderId;
-
-      await ex(insertProjectSql(), buildInsertValues(String(clean.id), clean));
-    } else {
-      if (!current) throw new PendingEditError('Project not found', 404);
-      const sets: string[] = [];
-      const values: unknown[] = [];
-      for (const [field, value] of Object.entries(changes)) {
-        sets.push(`${field} = ?`);
-        values.push(value);
-      }
-      sets.push('updated_at = current_timestamp');
-      values.push(current.id);
-      await ex(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`, values);
-    }
-
-    await ex(
-      `UPDATE pending_edits SET status = 'approved', reviewed_by = ?, reviewed_at = current_timestamp WHERE id = ?`,
-      [admin.id, id],
+    // Re-read the pending edit INSIDE the write mutex so the status check and
+    // the subsequent update are atomic — no two concurrent approvals can both
+    // pass this guard.
+    const rows = await ex<PendingEditRow>(
+      `SELECT * FROM pending_edits WHERE id = ?`,
+      [id],
     );
+    const edit = rows[0] as PendingEditRow | undefined;
+    if (!edit) throw new PendingEditError('Pending edit not found', 404);
+    if (edit.status !== 'pending') {
+      throw new PendingEditError(`Edit is already ${edit.status}`, 400);
+    }
+    const changes = parseChanges(edit);
+
+    // Begin a DuckDB transaction so the project INSERT and the pending_edits
+    // status UPDATE are atomic — if either fails, neither is committed.
+    await ex('BEGIN');
+
+    try {
+      // Re-read the current project row inside the transaction.
+      let current: ProjectRow | null = null;
+      if (edit.project_id) {
+        const projectRows = await ex<ProjectRow>(`SELECT * FROM projects WHERE id = ?`, [edit.project_id]);
+        current = projectRows[0] ?? null;
+        if (!current) throw new PendingEditError('Project no longer exists', 409);
+      }
+
+      if (edit.edit_type === 'CREATE') {
+        const clean: Record<string, unknown> = { ...changes };
+        clean.id = uuid();
+        clean.created_at = 'current_timestamp';
+        clean.updated_at = 'current_timestamp';
+        if (!clean.project_name) throw new PendingEditError('project_name is required', 400);
+
+        // Create the 1:1 Drive folder (when configured) before inserting, so a
+        // Drive failure rolls back the whole approval — no orphaned project.
+        let driveFolderId: string | null = (clean.drive_folder_id as string | null | undefined) ?? null;
+        if (isGoogleConfigured() && !driveFolderId) {
+          driveFolderId = await createProjectFolder(String(clean.project_name));
+        }
+        clean.drive_folder_id = driveFolderId;
+
+        await ex(insertProjectSql(), buildInsertValues(String(clean.id), clean));
+      } else {
+        if (!current) throw new PendingEditError('Project not found', 404);
+        const sets: string[] = [];
+        const values: unknown[] = [];
+        for (const [field, value] of Object.entries(changes)) {
+          sets.push(`${field} = ?`);
+          values.push(value);
+        }
+        sets.push('updated_at = current_timestamp');
+        values.push(current.id);
+        await ex(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`, values);
+      }
+
+      // Conditional UPDATE: only flip status if it is still 'pending'.  The
+      // WHERE clause doubles as a guard — if another admin beat us to it
+      // (impossible under the mutex, but cheap defence-in-depth), the UPDATE
+      // touches zero rows and we roll back.
+      await ex(
+        `UPDATE pending_edits SET status = 'approved', reviewed_by = ?, reviewed_at = current_timestamp
+         WHERE id = ? AND status = 'pending'`,
+        [admin.id, id],
+      );
+
+      // DuckDB returns an array of row objects for UPDATE; check length to
+      // detect a no-op (status was already changed).
+      // DuckDB Node bindings via conn.all: for UPDATE, the returned array may
+      // be empty but we rely on re-reading below as the authoritative check.
+      const verify = await ex<PendingEditRow>(
+        `SELECT status FROM pending_edits WHERE id = ?`,
+        [id],
+      );
+      if ((verify[0] as PendingEditRow | undefined)?.status !== 'approved') {
+        await ex('ROLLBACK');
+        throw new PendingEditError('Edit is already approved', 400);
+      }
+
+      await ex('COMMIT');
+    } catch (err) {
+      // Ensure we roll back on any error inside the transaction block.
+      try { await ex('ROLLBACK'); } catch { /* ignore rollback errors */ }
+      throw err;
+    }
   });
 
-  await exportSnapshots(['projects', 'pending_edits']);
+  // Export Parquet snapshots after the transaction is committed.  A failure
+  // here is logged but does not surface as an error to the caller — the
+  // database write is already committed and the pending edit is resolved.
+  try {
+    await exportSnapshots(['projects', 'pending_edits']);
+  } catch (err) {
+    console.error('Parquet export failed after approval (non-fatal):', err);
+  }
 }
 
 export async function reject(id: string, admin: AuthUser, note?: string): Promise<void> {
-  const edit = await getPendingEdit(id);
-  if (!edit) throw new PendingEditError('Pending edit not found', 404);
-  if (edit.status !== 'pending') throw new PendingEditError(`Edit is already ${edit.status}`, 400);
+  const existing = await getPendingEdit(id);
+  if (!existing) throw new PendingEditError('Pending edit not found', 404);
 
   await runWrite(async (ex) => {
+    const rows = await ex<PendingEditRow>(
+      `SELECT * FROM pending_edits WHERE id = ?`,
+      [id],
+    );
+    const edit = rows[0] as PendingEditRow | undefined;
+    if (!edit) throw new PendingEditError('Pending edit not found', 404);
+    if (edit.status !== 'pending') {
+      throw new PendingEditError(`Edit is already ${edit.status}`, 400);
+    }
+
     await ex(
-      `UPDATE pending_edits SET status = 'rejected', reviewed_by = ?, review_note = ?, reviewed_at = current_timestamp WHERE id = ?`,
+      `UPDATE pending_edits SET status = 'rejected', reviewed_by = ?, review_note = ?, reviewed_at = current_timestamp
+       WHERE id = ? AND status = 'pending'`,
       [admin.id, note ?? null, id],
     );
+
+    const verify = await ex<PendingEditRow>(
+      `SELECT status FROM pending_edits WHERE id = ?`,
+      [id],
+    );
+    if ((verify[0] as PendingEditRow | undefined)?.status !== 'rejected') {
+      throw new PendingEditError('Edit is already rejected', 400);
+    }
   });
-  await exportSnapshots(['pending_edits']);
+
+  try {
+    await exportSnapshots(['pending_edits']);
+  } catch (err) {
+    console.error('Parquet export failed after rejection (non-fatal):', err);
+  }
 }
 
 async function fetchProject(id: string): Promise<ProjectRow | null> {

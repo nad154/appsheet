@@ -95,10 +95,14 @@ function textareaCol(accessorKey: keyof Project, header: string, size = 200): Co
 
 const driveLinkColumn: ColumnDef<Project> = {
   accessorKey: 'drive_folder_id',
-  header: 'Drive',
+  header: 'Folder',
   size: 100,
-  cell: ({ getValue }) => {
-    const id = getValue() as string | null | undefined;
+  cell: ({ row }) => {
+    // const id = getValue() as string | null | undefined;
+    const id = row.original.drive_folder_id;
+    const name = row.original.folder_name;
+
+    if (!id) return <span className="text-gray-300">—</span>;
     if (!id) return <span className="text-gray-300">—</span>;
     return (
       <a
@@ -108,7 +112,7 @@ const driveLinkColumn: ColumnDef<Project> = {
         className="text-sm text-blue-600 underline"
         aria-label="Open Drive folder"
       >
-        Folder
+        {name ?? "Folder"}
       </a>
     );
   },
@@ -159,10 +163,10 @@ export const projectColumns: ColumnDef<Project>[] = [
     header: 'Project Info',
     columns: [
       text('project_name', 'Project', 220),
-      text('folder_name', 'Folder', 160),
+      // text('folder_name', 'Folder', 160),
+      driveLinkColumn,
       text('staff_assigned_name', 'Sales', 140, false),
       text('pic', 'PIC', 120),
-      driveLinkColumn,
       selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
       // selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),
       statusColumn,

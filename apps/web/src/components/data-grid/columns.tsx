@@ -34,8 +34,8 @@ function numberCol(accessorKey: keyof Project, header: string, size = 120): Colu
     meta: { editable: true, editType: 'number' } as ColumnMeta,
     cell: ({ getValue }) => {
       const v = getValue();
-      if (v === null || v === undefined || v === '') return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800">{String(v)}</span>;
+      if (v === null || v === undefined || v === '') return <span className="text-gray-300">Rp —</span>;
+      return <span className="block truncate text-sm text-gray-800">Rp {Number(v).toLocaleString('en-US')}</span>;
     },
   };
 }
@@ -69,7 +69,7 @@ function selectDate(accessorKey: keyof Project, header: string, size = 130): Col
       const v = getValue() as string | null | undefined;
       if (!v) return <span className="text-gray-300">—</span>;
       const d = new Date(v);
-      const display = Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString();
+      const display = Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
       return <span className="block truncate text-sm text-gray-800">{display}</span>;
     },
   };
@@ -102,8 +102,23 @@ const driveLinkColumn: ColumnDef<Project> = {
     const id = row.original.drive_folder_id;
     const name = row.original.folder_name;
 
-    if (!id) return <span className="text-gray-300">—</span>;
-    if (!id) return <span className="text-gray-300">—</span>;
+    if (!name && !id) return <span className="text-gray-300">—</span>;
+    if(!id) return (
+      <p className="text-sm underline">
+        {name}
+      </p>
+    )
+    if(!name) return (
+      <a
+        href={`https://drive.google.com/drive/folders/${id}`}
+        target="_blank"
+        rel="noreferrer"
+        className="text-sm text-blue-600 underline"
+        aria-label="Open Drive folder"
+      >
+        Folder
+      </a>
+    )
     return (
       <a
         href={`https://drive.google.com/drive/folders/${id}`}
@@ -112,7 +127,7 @@ const driveLinkColumn: ColumnDef<Project> = {
         className="text-sm text-blue-600 underline"
         aria-label="Open Drive folder"
       >
-        {name ?? "Folder"}
+        {name}
       </a>
     );
   },
@@ -169,8 +184,8 @@ export const projectColumns: ColumnDef<Project>[] = [
       text('pic', 'PIC', 120),
       selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
       // selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),
-      statusColumn,
-      pendingColumn,
+      // statusColumn,
+      // pendingColumn,
     ],
   },
   {

@@ -17,11 +17,10 @@ function headerWidth(header: Header<Project, unknown>): number {
 
 interface ColumnGroupHeaderProps {
   header: Header<Project, unknown>;
-  index: number;
 }
 
-export function ColumnGroupHeader({ header, index }: ColumnGroupHeaderProps) {
-  const isSticky = index === 0 && header.column.parent?.id === STICKY_GROUP_ID;
+export function ColumnGroupHeader({ header }: ColumnGroupHeaderProps) {
+  const isSticky = header.column.id === STICKY_GROUP_ID;
   // const width = headerWidth(header);
 
   const style: CSSProperties = {

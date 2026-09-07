@@ -188,7 +188,18 @@ export function ProjectTable({
 
   const leafHeaders = table.getHeaderGroups().at(-1)?.headers ?? [];
   const gridTemplateColumns = leafHeaders.map((h) => `${h.getSize()}px`).join(' ');
-  const stickyLeafId = leafHeaders[0]?.column.id;
+
+  const stickyColIds: string[] = [];
+  let stickyAcc = 0;
+  const stickyLeftOffsets = new Map<string, number>();
+  for (const h of leafHeaders) {
+    if (h.column.parent?.id === STICKY_GROUP_ID) {
+      stickyLeftOffsets.set(h.column.id, stickyAcc);
+      stickyColIds.push(h.column.id);
+      stickyAcc += h.getSize();
+    }
+  }
+  const lastStickyColId = stickyColIds[stickyColIds.length - 1];
 
   const rowVirtualizer = useVirtualizer({
     count: modelRows.length,
@@ -271,15 +282,17 @@ export function ProjectTable({
               <div key={headerGroup.id} 
               role="row"
               style={{ display: 'grid', gridTemplateColumns, width: tableWidth }}>
-                {headerGroup.headers.map((header, index) => {
+                {headerGroup.headers.map((header) => {
                   const isGroup = header.subHeaders.length > 0;
                   if (isGroup) {
-                    return <ColumnGroupHeader key={header.id} header={header} index={index} />;
+                    return <ColumnGroupHeader key={header.id} header={header} />;
                   }
                   const accessorKey = (header.column.columnDef as { accessorKey?: string }).accessorKey;
                   const isSortable = typeof accessorKey === 'string' && header.column.getCanSort();
                   const isActiveSort = isSortable && accessorKey === sortBy;
-                  const isStickyCol = index === 0 && header.column.parent?.id === STICKY_GROUP_ID;
+                  const isStickyCol = header.column.parent?.id === STICKY_GROUP_ID;
+                  const stickyLeft = isStickyCol ? stickyLeftOffsets.get(header.column.id) ?? 0 : undefined;
+                  const isLastStickyCol = header.column.id === lastStickyColId;
                   // main table header 
                   return (
                     <div
@@ -293,10 +306,10 @@ export function ProjectTable({
                         alignItems: 'center',
                         overflow: 'hidden',
                         position: isStickyCol ? 'sticky' : undefined,
-                        left: isStickyCol ? 0 : undefined,
+                        left: isStickyCol ? stickyLeft : undefined,
                         zIndex: isStickyCol ? Z.stickyHeaderCol : undefined,
                         backgroundColor: isStickyCol ? '#f9fafb' : undefined,
-                        boxShadow: isStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.08)' : undefined,
+                        boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.08)' : undefined,
                         cursor: isSortable ? 'pointer' : undefined,
                       }}
                     >
@@ -337,8 +350,10 @@ export function ProjectTable({
                     width: tableWidth
                   }}
                 >
-                  {row.getVisibleCells().map((cell, index) => {
-                    const isStickyCol = index === 0 && cell.column.parent?.id === STICKY_GROUP_ID;
+                  {row.getVisibleCells().map((cell) => {
+                    const isStickyCol = cell.column.parent?.id === STICKY_GROUP_ID;
+                    const stickyLeft = isStickyCol ? stickyLeftOffsets.get(cell.column.id) ?? 0 : undefined;
+                    const isLastStickyCol = cell.column.id === lastStickyColId;
                     const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
                     const field = cell.column.id;
                     const isEditing = !!activeCell && activeCell.rowId === row.id && activeCell.columnId === field;
@@ -390,10 +405,10 @@ export function ProjectTable({
                           alignItems: 'center',
                           overflow: 'hidden',
                           position: isStickyCol ? 'sticky' : undefined,
-                          left: isStickyCol ? 0 : undefined,
+                          left: isStickyCol ? stickyLeft : undefined,
                           zIndex: isStickyCol ? Z.stickyBodyCol : undefined,
                           background: isStickyCol ? '#fff' : undefined,
-                          boxShadow: isStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.06)' : undefined,
+                          boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.06)' : undefined,
                           cursor: editable ? 'text' : undefined,
                         }}
                       >

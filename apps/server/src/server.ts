@@ -1,18 +1,17 @@
+// apps/server/src/server.ts
 import 'dotenv/config';
+import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { migrate } from './db/migrate.js';
 import { isGoogleConfigured, resolveRootFolderId } from './modules/google/auth.js';
 import { startAgingCron } from './jobs/agingCron.js';
-import { conn } from './db/connection.js';
+import { closeDb } from './db/connection.js';
 
-
+let server: Server;
 
 async function bootstrap(): Promise<void> {
   await migrate();
 
-  // Resolve the Drive root folder once at boot so a missing/misconfigured
-  // root is surfaced immediately. Silently skip when Google isn't configured
-  // (e.g. local dev) — the Drive endpoints report the error on use instead.
   if (isGoogleConfigured()) {
     try {
       await resolveRootFolderId();
@@ -37,7 +36,7 @@ async function bootstrap(): Promise<void> {
   }
 
   const app = createApp();
-  app.listen(port, () => {
+  server = app.listen(port, () => {
     // eslint-disable-next-line no-console
     console.log(`Server listening on http://localhost:${port}`);
   });
@@ -49,15 +48,22 @@ bootstrap().catch((err) => {
   process.exit(1);
 });
 
-
-function shutdown(signal: string) {
+async function handleShutdown(signal: string) {
   // eslint-disable-next-line no-console
-  console.log(`\nReceived ${signal}, closing DuckDB connection...`);
-  conn.close((err) => {
-    if (err) console.error('Error closing DB:', err);
-    process.exit(0);
-  });
+  console.log(`\nReceived ${signal}, starting graceful shutdown...`);
+
+  // Stop taking new incoming HTTP requests
+  if (server) {
+    await new Promise<void>((resolve) => {
+      server.close(() => resolve());
+    });
+  }
+
+  // Checkpoint & close DuckDB
+  await closeDb();
+
+  process.exit(0);
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));

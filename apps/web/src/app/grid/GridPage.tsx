@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useProjects, type ProjectQueryParams } from '../../hooks/useProjects';
+import { useProjects, useAssignableUsers, type ProjectQueryParams } from '../../hooks/useProjects';
 import { usePendingEdits, useMyPendingEdits } from '../../hooks/usePendingEdits';
 import { ProjectTable, type SortDir, type EditResult } from '../../components/data-grid/ProjectTable';
 import { apiClient, ApiError } from '../../lib/api-client';
@@ -18,7 +18,8 @@ const emptyForm = {
   vendor_price: '',
   service_or_goods: '',
   current_stage: 'on_progress',
-  pic: '',
+  staff_assigned_id: '',
+  pic_id: '',
   issues: '',
 };
 
@@ -39,6 +40,8 @@ export function GridPage() {
 
   const params: ProjectQueryParams = { page, page_size: pageSize, sort_by: sortBy, sort_dir: sortDir };
   const { data, isLoading, isError, refetch: refetchProjects } = useProjects(params);
+  const assignable = useAssignableUsers();
+  const users = assignable.data ?? [];
 
   const allPending = usePendingEdits('pending');
   const minePending = useMyPendingEdits();
@@ -99,8 +102,9 @@ export function GridPage() {
         vendor_price: toNumber(form.vendor_price),
         service_or_goods: (form.service_or_goods || null) as 'service' | 'goods' | null,
         current_stage: form.current_stage as 'on_progress' | 'finish',
-        pic: form.pic.trim() || null,
+        pic_id: form.pic_id || null,
         issues: form.issues.trim() || null,
+        ...(isAdmin ? { staff_assigned_id: form.staff_assigned_id || null } : {}),
       };
       const res = await apiClient.post<{ ok?: boolean; submitted?: boolean }>('/api/projects', payload);
       if (res?.submitted) {
@@ -179,9 +183,29 @@ export function GridPage() {
                 <option value="finish">finish</option>
               </select>
             </label>
+            {isAdmin && (
+              <label className="flex flex-col text-xs text-gray-600">
+                Sales
+                <select value={form.staff_assigned_id} onChange={(e) => setField('staff_assigned_id', e.target.value)} className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm">
+                  <option value="">–</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="flex flex-col text-xs text-gray-600">
               PIC
-              <input value={form.pic} onChange={(e) => setField('pic', e.target.value)} className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm" />
+              <select value={form.pic_id} onChange={(e) => setField('pic_id', e.target.value)} className="mt-1 rounded border border-gray-300 px-2 py-1 text-sm">
+                <option value="">–</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col text-xs text-gray-600">
               Issues
@@ -215,6 +239,8 @@ export function GridPage() {
         isLoading={isLoading}
         isError={isError}
         pendingProjectIds={pendingProjectIds}
+        users={users}
+        isAdmin={isAdmin}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         onSortChange={handleSortChange}

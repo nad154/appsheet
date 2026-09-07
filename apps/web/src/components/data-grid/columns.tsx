@@ -3,13 +3,14 @@ import type { Project } from '@tracker/shared';
 import { GOODS_OR_SERVICE, PROJECT_STAGES, computeAging } from '@tracker/shared';
 import { StatusFlagCell } from './StatusFlagCell';
 
-export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea';
+export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user';
 
 export interface ColumnMeta {
   editable?: boolean;
   editType?: EditType;
   options?: readonly string[];
   pendingFlag?: boolean;
+  adminOnly?: boolean;
 }
 
 function text(accessorKey: keyof Project, header: string, size = 150, editable = true): ColumnDef<Project> {
@@ -89,6 +90,39 @@ function textareaCol(accessorKey: keyof Project, header: string, size = 200): Co
           {v}
         </span>
       );
+    },
+  };
+}
+
+// PIC is an assignable user (stores pic_id, a user UUID). The cell displays the
+// resolved pic_name from the server JOIN; inline editing opens a user dropdown.
+function picColumn(size = 140): ColumnDef<Project> {
+  return {
+    accessorKey: 'pic_id',
+    header: 'PIC',
+    size,
+    meta: { editable: true, editType: 'user' } as ColumnMeta,
+    cell: ({ row }) => {
+      const name = row.original.pic_name;
+      if (!name) return <span className="text-gray-300">—</span>;
+      return <span className="block truncate text-sm text-gray-800">{name}</span>;
+    },
+  };
+}
+
+// Sales (assigned staff) is an assignable user, editable only by SUPER_ADMIN.
+// Stores staff_assigned_id; displays the resolved staff_assigned_name from the
+// server JOIN. STAFF can never reassign — the server enforces this.
+function salesColumn(size = 140): ColumnDef<Project> {
+  return {
+    accessorKey: 'staff_assigned_id',
+    header: 'Sales',
+    size,
+    meta: { editable: true, editType: 'user', adminOnly: true } as ColumnMeta,
+    cell: ({ row }) => {
+      const name = row.original.staff_assigned_name;
+      if (!name) return <span className="text-gray-300">—</span>;
+      return <span className="block truncate text-sm text-gray-800">{name}</span>;
     },
   };
 }
@@ -180,8 +214,8 @@ export const projectColumns: ColumnDef<Project>[] = [
       text('project_name', 'Project', 220),
       // text('folder_name', 'Folder', 160),
       driveLinkColumn,
-      text('staff_assigned_name', 'Sales', 140, false),
-      text('pic', 'PIC', 120),
+      salesColumn(),
+      picColumn(),
       selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
       // selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),
       // statusColumn,

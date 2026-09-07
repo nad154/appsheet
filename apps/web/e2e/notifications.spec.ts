@@ -18,10 +18,10 @@ test('staff edit generates a notification for the admin', async ({ page }) => {
   // Edit the PIC cell for Staff Project A (find the row, then an editable PIC cell).
   // The PIC button lives in the same row as the project name.
   const row = staffRow.locator('xpath=ancestor::div[@role="row"]');
-  const picButton = row.locator('button[title="Edit pic"]');
+  const picButton = row.locator('button[title="Edit pic_id"]');
   await picButton.click();
-  await page.getByLabel('Edit pic').fill('E2E PIC Updated');
-  await page.getByLabel('Edit pic').press('Enter');
+  await page.getByLabel('Edit pic_id').selectOption({ label: 'Admin' });
+  await page.getByLabel('Edit pic_id').press('Enter');
   await expect(page.getByText('Change submitted for approval.', { exact: true })).toBeVisible();
 
   // Log out and log in as SUPER_ADMIN.

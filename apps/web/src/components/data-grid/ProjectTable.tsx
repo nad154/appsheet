@@ -8,6 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Project } from '@tracker/shared';
 import { ColumnGroupHeader } from './ColumnGroupHeader';
 import { projectColumns, type ColumnMeta } from './columns';
+import type { AssignableUser } from '../../hooks/useProjects';
 import type { ToastVariant } from '../Toast';
 
 interface ProjectColumnDef {
@@ -36,6 +37,8 @@ interface ProjectTableProps {
   isLoading: boolean;
   isError: boolean;
   pendingProjectIds?: Set<string>;
+  users?: AssignableUser[];
+  isAdmin?: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   onSortChange: (sortBy: string, sortDir: SortDir) => void;
@@ -61,6 +64,7 @@ function EditableCell({
   initialValue,
   editType,
   options,
+  users,
   onCommit,
   onCancel,
 }: {
@@ -68,6 +72,7 @@ function EditableCell({
   initialValue: string;
   editType?: string;
   options?: readonly string[];
+  users?: AssignableUser[];
   onCommit: (value: string) => void;
   onCancel: () => void;
 }) {
@@ -93,6 +98,30 @@ function EditableCell({
         className={cls}
         aria-label={`Edit ${field}`}
       />
+    );
+  }
+
+  if (editType === 'user') {
+    return (
+      <select
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') onCancel();
+        }}
+        className={cls}
+        aria-label={`Edit ${field}`}
+      >
+        <option value="">–</option>
+        {(users ?? []).map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.name}
+          </option>
+        ))}
+      </select>
     );
   }
 
@@ -165,6 +194,8 @@ export function ProjectTable({
   isLoading,
   isError,
   pendingProjectIds,
+  users,
+  isAdmin,
   onPageChange,
   onPageSizeChange,
   onSortChange,
@@ -358,7 +389,7 @@ export function ProjectTable({
                     const field = cell.column.id;
                     const isEditing = !!activeCell && activeCell.rowId === row.id && activeCell.columnId === field;
                     const isSaving = savingCell === `${row.id}_${field}`;
-                    const editable = !!meta?.editable;
+                    const editable = !!meta?.editable && !(meta?.adminOnly && !isAdmin);
 
                     let content: ReactNode;
                     if (isEditing) {
@@ -370,6 +401,7 @@ export function ProjectTable({
                               initialValue={draftValue(row.original, field)}
                               editType={meta?.editType}
                               options={meta?.options}
+                              users={users}
                               onCommit={(v) => commitCell(row.original, field, v)}
                               onCancel={() => setActiveCell(null)}
                             />

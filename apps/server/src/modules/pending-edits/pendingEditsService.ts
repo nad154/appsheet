@@ -462,7 +462,12 @@ export async function reject(id: string, admin: AuthUser, note?: string): Promis
 }
 
 async function fetchProject(id: string): Promise<ProjectRow | null> {
-  const rows = await runRead<ProjectRow>(`SELECT * FROM projects WHERE id = ?`, [id]);
+  const rows = await runRead<ProjectRow>(
+    `SELECT p.*, pic_user.name AS pic_name
+     FROM projects p LEFT JOIN users pic_user ON pic_user.id = p.pic_id
+     WHERE p.id = ?`,
+    [id],
+  );
   return rows[0] ?? null;
 }
 
@@ -494,7 +499,7 @@ const PROJECT_COLUMNS: (keyof ProjectCreate)[] = [
   'vendor_start_contract',
   'vendor_end_contract',
   'current_stage',
-  'pic',
+  'pic_id',
   'issues',
 ];
 

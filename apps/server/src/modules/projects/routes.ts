@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
-import { listProjects, type ProjectListQuery } from './projectsService.js';
+import { listProjects, listAssignableUsers, type ProjectListQuery } from './projectsService.js';
 import {
   createDirect,
   updateDirect,
@@ -41,6 +41,15 @@ projectsRouter.get('/', async (req, res) => {
 
   const result = await listProjects(req.user!, query);
   res.json(result);
+});
+
+// GET /api/projects/users — active users eligible for PIC assignment.
+projectsRouter.get('/users', async (_req, res) => {
+  try {
+    res.json(await listAssignableUsers());
+  } catch (err) {
+    handleError(err, res);
+  }
 });
 
 // POST /api/projects — branches by role:

@@ -32,3 +32,22 @@ export function useProjects(params: ProjectQueryParams = {}) {
     refetch: query.refetch,
   };
 }
+
+// Active users eligible for PIC assignment (id + name). Available to any
+// authenticated role; the settings users list is SUPER_ADMIN-only.
+export type AssignableUser = { id: string; name: string };
+
+export function useAssignableUsers() {
+  const query = useQuery({
+    queryKey: ['projects', 'assignable-users'],
+    queryFn: () => apiClient.get<AssignableUser[]>('/api/projects/users'),
+    staleTime: 60_000,
+  });
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}

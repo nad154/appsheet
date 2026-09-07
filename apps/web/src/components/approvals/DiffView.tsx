@@ -28,7 +28,7 @@ const FIELD_LABELS: Record<string, string> = {
   vendor_start_contract: 'Vendor contract start',
   vendor_end_contract: 'Vendor contract end',
   current_stage: 'Stage',
-  pic: 'PIC',
+  pic_id: 'PIC',
   issues: 'Issues',
 };
 
@@ -38,7 +38,7 @@ const SECTION_OF: Record<string, string> = {
   staff_assigned_id: 'Project info',
   drive_folder_id: 'Project info',
   current_stage: 'Project info',
-  pic: 'Project info',
+  pic_id: 'Project info',
   customer_name: 'Customer',
   market_segment: 'Customer',
   service_or_goods: 'Customer',

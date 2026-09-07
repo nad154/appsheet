@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS projects (
   vendor_start_contract DATE,
   vendor_end_contract DATE,
   current_stage VARCHAR CHECK (current_stage IN ('on_progress','finish')) DEFAULT 'on_progress',
-  pic VARCHAR,
+  pic_id VARCHAR,
   issues VARCHAR,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
   updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
@@ -124,11 +124,23 @@ async function columnExists(table: string, column: string): Promise<boolean> {
 
 async function migrateColumns(): Promise<void> {
   const additions: Array<{ table: string; column: string; type: string }> = [
-    { table: 'projects', column: 'pic', type: 'VARCHAR' },
+    { table: 'projects', column: 'pic_id', type: 'VARCHAR' },
     { table: 'projects', column: 'issues', type: 'VARCHAR' },
   ];
 
-  let altered = false;
+  // PIC used to be a free-text string. Migrate it to pic_id (a user UUID) by
+  // renaming the column and clearing old values — a free-text name cannot be
+  // mapped to a user deterministically.
+  const hasPic = await columnExists('projects', 'pic');
+  const hasPicId = await columnExists('projects', 'pic_id');
+  if (hasPic && !hasPicId) {
+    await runWrite(async (exec) => {
+      await exec(`ALTER TABLE projects RENAME COLUMN pic TO pic_id`);
+      await exec(`UPDATE projects SET pic_id = NULL`);
+    });
+  }
+
+  let altered = hasPic;
   for (const { table, column, type } of additions) {
     if (!(await columnExists(table, column))) {
       await runWrite(async (exec) => {

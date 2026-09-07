@@ -19,11 +19,6 @@ export interface QueryResult {
   [key: string]: unknown;
 }
 
-// Open explicitly and wait for the callback before letting any query run.
-// Relying on the bindings' internal call queue (calling db.connect()
-// synchronously right after `new duckdb.Database()`) hides real open
-// failures behind a generic "Connection was never established" error later.
-// Waiting on this promise surfaces the real cause immediately.
 let db: duckdb.Database;
 let conn: duckdb.Connection;
 
@@ -88,43 +83,40 @@ export async function runRead<T extends QueryResult>(sql: string, params: unknow
   return execute<T>(sql, params);
 }
 
-// Release the lock cleanly on shutdown so restarts (or a script run right
-// after) don't collide with a still-open handle from this process.
+// Checkpoint and close database safely
 let closing = false;
 
-function closeConn(): Promise<void> {
-  return new Promise((resolve) => {
-    if (!conn) { resolve(); return; }
-    try { conn.close(() => resolve()); } catch { resolve(); }
-  });
-}
-
-function closeDatabase(): Promise<void> {
-  return new Promise((resolve) => {
-    if (!db) { resolve(); return; }
-    try { db.close(() => resolve()); } catch { resolve(); }
-  });
-}
-
-async function closeDb(): Promise<void> {
+export async function closeDb(): Promise<void> {
   if (closing) return;
   closing = true;
-  await closeConn();
-  await closeDatabase();
-}
 
-process.once('SIGINT', async () => {
-  await closeDb();
-  process.exit(0);
-});
-process.once('SIGTERM', async () => {
-  await closeDb();
-  process.exit(0);
-});
-process.once('exit', () => {
-  // Last-resort synchronous close on exit event (can't await here).
-  try { conn?.close?.(); } catch { /* ignore */ }
-  try { db?.close?.(); } catch { /* ignore */ }
-});
+  if (!conn || !db) return;
+
+  await writeMutex.runExclusive(async () => {
+    // 1. Force DuckDB to commit WAL entries into app.duckdb and delete .wal
+    await execStatement('CHECKPOINT;').catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('Failed to run CHECKPOINT prior to shutdown:', err);
+    });
+
+    // 2. Close Connection
+    await new Promise<void>((resolve) => {
+      try {
+        conn.close(() => resolve());
+      } catch {
+        resolve();
+      }
+    });
+
+    // 3. Close Database
+    await new Promise<void>((resolve) => {
+      try {
+        db.close(() => resolve());
+      } catch {
+        resolve();
+      }
+    });
+  });
+}
 
 export { conn, db };

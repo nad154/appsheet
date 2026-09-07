@@ -48,8 +48,9 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   if (isStaff) params.push(user.id);
 
   const rows = await runRead<ProjectRow>(
-    `SELECT p.*, u.name AS staff_assigned_name 
+    `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name
     FROM projects p LEFT JOIN users u ON u.id = p.staff_assigned_id
+     LEFT JOIN users pic_user ON pic_user.id = p.pic_id
      ${whereClause}
      ORDER BY ${sortBy} ${sortDir}
      LIMIT ? OFFSET ?`,
@@ -63,4 +64,12 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   const total = Number(countRows[0]?.total ?? 0);
 
   return { rows, total, page, page_size: pageSize };
+}
+
+// Active users that may be assigned as a project's PIC. The settings users
+// endpoints are SUPER_ADMIN-only; the grid needs this for both roles.
+export async function listAssignableUsers(): Promise<{ id: string; name: string }[]> {
+  return runRead<{ id: string; name: string }>(
+    `SELECT id, name FROM users WHERE is_active = true ORDER BY name ASC`,
+  );
 }

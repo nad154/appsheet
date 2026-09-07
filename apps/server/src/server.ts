@@ -48,22 +48,39 @@ bootstrap().catch((err) => {
   process.exit(1);
 });
 
+
+let shuttingDown = false;
+
 async function handleShutdown(signal: string) {
-  // eslint-disable-next-line no-console
+  if (shuttingDown) return;
+  shuttingDown = true;
+
   console.log(`\nReceived ${signal}, starting graceful shutdown...`);
 
-  // Stop taking new incoming HTTP requests
-  if (server) {
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
+  try {
+    if (server) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
+
+    await closeDb();
+
+    console.log('Graceful shutdown complete.');
+    process.exit(0);
+  } catch (err) {
+    console.error('Error during shutdown:', err);
+    process.exit(1);
   }
-
-  // Checkpoint & close DuckDB
-  await closeDb();
-
-  process.exit(0);
 }
 
-process.on('SIGINT', () => handleShutdown('SIGINT'));
-process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+process.once('SIGINT', () => {
+  void handleShutdown('SIGINT');
+});
+
+process.once('SIGTERM', () => {
+  void handleShutdown('SIGTERM');
+});
+
+// process.on('SIGINT', () => handleShutdown('SIGINT'));
+// process.on('SIGTERM', () => handleShutdown('SIGTERM'));

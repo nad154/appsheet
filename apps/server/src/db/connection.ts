@@ -86,35 +86,72 @@ export async function runRead<T extends QueryResult>(sql: string, params: unknow
 // Checkpoint and close database safely
 let closing = false;
 
+// export async function closeDb(): Promise<void> {
+//   if (closing) return;
+//   closing = true;
+
+//   if (!conn || !db) return;
+
+//   await writeMutex.runExclusive(async () => {
+//     // 1. Force DuckDB to commit WAL entries into app.duckdb and delete .wal
+//     await execStatement('CHECKPOINT;').catch((err) => {
+//       // eslint-disable-next-line no-console
+//       console.error('Failed to run CHECKPOINT prior to shutdown:', err);
+//     });
+
+//     // 2. Close Connection
+//     await new Promise<void>((resolve) => {
+//       try {
+//         conn.close(() => resolve());
+//       } catch {
+//         resolve();
+//       }
+//     });
+
+//     // 3. Close Database
+//     await new Promise<void>((resolve) => {
+//       try {
+//         db.close(() => resolve());
+//       } catch {
+//         resolve();
+//       }
+//     });
+//   });
+// }
+
 export async function closeDb(): Promise<void> {
   if (closing) return;
   closing = true;
 
+  await ready;
+
   if (!conn || !db) return;
 
   await writeMutex.runExclusive(async () => {
-    // 1. Force DuckDB to commit WAL entries into app.duckdb and delete .wal
-    await execStatement('CHECKPOINT;').catch((err) => {
-      // eslint-disable-next-line no-console
-      console.error('Failed to run CHECKPOINT prior to shutdown:', err);
+    console.log('Checkpointing DuckDB...');
+
+    try {
+      await execStatement('CHECKPOINT');
+    } catch (err) {
+      console.error('CHECKPOINT failed:', err);
+    }
+
+    console.log('Closing DuckDB connection...');
+
+    await new Promise<void>((resolve) => {
+      conn.close(() => {
+        console.log('DuckDB connection closed.');
+        resolve();
+      });
     });
 
-    // 2. Close Connection
-    await new Promise<void>((resolve) => {
-      try {
-        conn.close(() => resolve());
-      } catch {
-        resolve();
-      }
-    });
+    console.log('Closing DuckDB database...');
 
-    // 3. Close Database
     await new Promise<void>((resolve) => {
-      try {
-        db.close(() => resolve());
-      } catch {
+      db.close(() => {
+        console.log('DuckDB database closed.');
         resolve();
-      }
+      });
     });
   });
 }

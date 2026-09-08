@@ -30,6 +30,9 @@ export function AppLayout() {
             <NavLink to="/grid" className={navClass}>
               Grid
             </NavLink>
+            <NavLink to="/dashboard" className={navClass}>
+              Dashboard
+            </NavLink>
             {canSeeApprovals(user?.role) && (
               <NavLink to="/approvals" className={navClass}>
                 Approvals

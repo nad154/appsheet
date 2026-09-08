@@ -10,6 +10,8 @@ import {
   listUsers,
   createUser,
   updateUser,
+  getAgingThresholds,
+  updateAgingThresholds,
   SettingsError,
 } from './settingsService.js';
 
@@ -68,6 +70,24 @@ settingsRouter.patch('/users/:id', async (req, res) => {
   const { id } = idParam.parse(req.params);
   try {
     await updateUser(id, req.body, req.user!);
+    res.json({ ok: true });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// Aging thresholds
+settingsRouter.get('/aging-thresholds', async (_req, res) => {
+  try {
+    res.json(await getAgingThresholds());
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+settingsRouter.patch('/aging-thresholds', async (req, res) => {
+  try {
+    await updateAgingThresholds(req.body, req.user!);
     res.json({ ok: true });
   } catch (err) {
     handleError(err, res);

@@ -1,5 +1,7 @@
 import { runRead } from '../../db/connection.js';
+import { resolveAgingThresholds } from '../settings/agingThresholdsCache.js';
 import type { AuthUser } from '../../middleware/requireAuth.js';
+import { computeAging, computePriority } from '@tracker/shared';
 import type { Project, ProjectList } from '@tracker/shared';
 
 interface ProjectRow extends Project {
@@ -29,6 +31,21 @@ export interface ProjectListQuery {
 }
 
 /**
+ * RBAC row-scoping shared by the projects grid AND the dashboard aggregation
+ * (dashboardService.getChartData), so the two can never diverge over what a
+ * STAFF user is allowed to see.
+ *
+ * NOTE: this was extracted out of listProjects when the dashboard chart-data
+ * endpoint was added (planning_ex9 Phase 3.1) — the dashboard groups over the
+ * SAME scoped rows as the grid. Keep it as the single source of truth for
+ * row-level scoping.
+ */
+export function scopeClause(user: AuthUser): { whereClause: string; params: unknown[] } {
+  if (user.role === 'STAFF') return { whereClause: 'WHERE p.staff_assigned_id = ?', params: [user.id] };
+  return { whereClause: '', params: [] };
+}
+
+/**
  * List projects with server-side RBAC filtering. STAFF only ever sees the
  * projects assigned to them — the WHERE clause is injected server-side from the
  * authenticated user, never from a client-supplied filter. Pagination and sort
@@ -41,11 +58,7 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   const sortDir = query.sort_dir === 'asc' ? 'ASC' : 'DESC';
   const offset = (page - 1) * pageSize;
 
-  const isStaff = user.role === 'STAFF';
-  const whereClause = isStaff ? 'WHERE p.staff_assigned_id = ?' : '';
-
-  const params: unknown[] = [];
-  if (isStaff) params.push(user.id);
+  const { whereClause, params } = scopeClause(user);
 
   const rows = await runRead<ProjectRow>(
     `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name
@@ -63,7 +76,16 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   );
   const total = Number(countRows[0]?.total ?? 0);
 
-  return { rows, total, page, page_size: pageSize };
+  // Enrich each row with the derived Priority from Aging + the current
+  // thresholds. Priority is never persisted — it is computed per request so it
+  // always tracks the latest admin-configured aging thresholds.
+  const thresholds = await resolveAgingThresholds();
+  const enriched = rows.map((r) => ({
+    ...r,
+    priority: computePriority(computeAging(r), thresholds),
+  }));
+
+  return { rows: enriched, total, page, page_size: pageSize };
 }
 
 // Active users that may be assigned as a project's PIC. The settings users

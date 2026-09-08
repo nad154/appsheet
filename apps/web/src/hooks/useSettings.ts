@@ -83,3 +83,28 @@ export function useUpdateUser() {
     },
   });
 }
+
+export function useAgingThresholds() {
+  const query = useQuery({
+    queryKey: ['settings', 'aging-thresholds'],
+    queryFn: () => apiClient.get<{ low_max_days: number; medium_max_days: number }>('/api/settings/aging-thresholds'),
+  });
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+  };
+}
+
+export function useUpdateAgingThresholds() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { low_max_days: number; medium_max_days: number }) =>
+      apiClient.patch<{ ok: boolean }>('/api/settings/aging-thresholds', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings', 'aging-thresholds'] });
+      qc.invalidateQueries({ queryKey: ['projects'] }); // Priority column will change
+    },
+  });
+}

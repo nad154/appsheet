@@ -3,14 +3,19 @@ import { runWrite, runRead } from '../../db/connection.js';
 import { uuid } from '../../lib/uuid.js';
 import { exportSnapshots } from '../../db/export.js';
 import { revokeAllSessionsForUser } from '../auth/authService.js';
+import { invalidateAgingThresholdsCache } from './agingThresholdsCache.js';
 import type { AuthUser } from '../../middleware/requireAuth.js';
 import {
+  agingThresholdsSchema,
   marketSegmentCreateSchema,
   marketSegmentUpdateSchema,
   userCreateSchema,
   userUpdateSchema,
+  DEFAULT_AGING_LOW_MAX_DAYS,
+  DEFAULT_AGING_MEDIUM_MAX_DAYS,
 } from '@tracker/shared';
 import type {
+  AgingThresholds,
   MarketSegment,
   MarketSegmentCreate,
   MarketSegmentUpdate,
@@ -223,6 +228,34 @@ export async function updateUser(id: string, rawPayload: unknown, caller: AuthUs
   }
 
   await exportSnapshots(['users']);
+}
+
+// ---------------------------------------------------------------------------
+// Aging thresholds (singleton row, SUPER_ADMIN only, not part of parquet export)
+// ---------------------------------------------------------------------------
+
+export async function getAgingThresholds(): Promise<AgingThresholds> {
+  const rows = await runRead<{ low_max_days: number; medium_max_days: number }>(
+    `SELECT low_max_days, medium_max_days FROM aging_thresholds WHERE id = 'default'`,
+  );
+  const row = rows[0];
+  return row
+    ? { low_max_days: row.low_max_days, medium_max_days: row.medium_max_days }
+    : { low_max_days: DEFAULT_AGING_LOW_MAX_DAYS, medium_max_days: DEFAULT_AGING_MEDIUM_MAX_DAYS };
+}
+
+export async function updateAgingThresholds(rawPayload: unknown, caller: AuthUser): Promise<void> {
+  const payload = agingThresholdsSchema.parse(rawPayload);
+  await runWrite(async (ex) => {
+    await ex(
+      `UPDATE aging_thresholds SET low_max_days = ?, medium_max_days = ?, updated_by = ?, updated_at = current_timestamp
+       WHERE id = 'default'`,
+      [payload.low_max_days, payload.medium_max_days, caller.id],
+    );
+  });
+  // Priority is computed from these thresholds on every project-list request;
+  // drop the memoized value so the next read sees the new settings.
+  invalidateAgingThresholdsCache();
 }
 
 export type { MarketSegmentCreate, MarketSegmentUpdate, UserCreate, UserUpdate };

@@ -54,3 +54,22 @@ export function computeAging(project: AgingInput, today: Date = new Date()): num
   const end = project.approval_date ? project.approval_date : today;
   return networkDays(project.project_sent_date, end);
 }
+
+export const PRIORITY_LEVELS = ['low', 'medium', 'high'] as const;
+export type PriorityLevel = (typeof PRIORITY_LEVELS)[number];
+
+export interface AgingThresholds {
+  low_max_days: number;
+  medium_max_days: number;
+}
+
+/** Pure function — mirrors computeAging's null-propagation. */
+export function computePriority(
+  aging: number | null,
+  thresholds: AgingThresholds,
+): PriorityLevel | null {
+  if (aging === null) return null;
+  if (aging <= thresholds.low_max_days) return 'low';
+  if (aging <= thresholds.medium_max_days) return 'medium';
+  return 'high';
+}

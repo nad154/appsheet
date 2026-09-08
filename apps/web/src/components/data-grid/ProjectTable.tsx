@@ -8,6 +8,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Project } from '@tracker/shared';
 import { ColumnGroupHeader } from './ColumnGroupHeader';
 import { projectColumns, type ColumnMeta } from './columns';
+import { EditProjectModal } from './EditProjectModal';
 import type { AssignableUser } from '../../hooks/useProjects';
 import type { ToastVariant } from '../Toast';
 
@@ -42,7 +43,7 @@ interface ProjectTableProps {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   onSortChange: (sortBy: string, sortDir: SortDir) => void;
-  onCellUpdate: (row: Project, field: string, value: unknown) => Promise<EditResult>;
+  onRowUpdate: (row: Project, changes: Record<string, unknown>) => Promise<EditResult>;
   onNotice?: (message: string, variant?: ToastVariant) => void;
 }
 
@@ -199,11 +200,12 @@ export function ProjectTable({
   onPageChange,
   onPageSizeChange,
   onSortChange,
-  onCellUpdate,
+  onRowUpdate,
   onNotice,
 }: ProjectTableProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>(null);
   const [savingCell, setSavingCell] = useState<string | null>(null);
+  const [editModalRow, setEditModalRow] = useState<Project | null>(null);
 
   const table = useReactTable({
     data: rows,
@@ -276,7 +278,7 @@ export function ProjectTable({
             return value;
           })();
 
-    const result = await onCellUpdate(row, field, converted);
+    const result = await onRowUpdate(row, { [field]: converted });
     setSavingCell(null);
     if (result.ok) {
       setActiveCell(null);
@@ -409,8 +411,8 @@ export function ProjectTable({
                           {isSaving && <span className="shrink-0 text-[10px] text-gray-400">saving…</span>}
                         </div>
                       );
-                    } else if (editable) {
-                      content = (
+                    } else {
+                      const rendered = editable ? (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -422,9 +424,45 @@ export function ProjectTable({
                         >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </button>
+                      ) : (
+                        flexRender(cell.column.columnDef.cell, cell.getContext())
                       );
-                    } else {
-                      content = flexRender(cell.column.columnDef.cell, cell.getContext());
+
+                      // The project-name cell hosts the row-edit affordance: a
+                      // pencil revealed on row hover, opening the full-field modal.
+                      if (field === 'project_name') {
+                        content = (
+                          <div className="group relative flex w-full items-center">
+                            <span className="min-w-0 flex-1">{rendered}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditModalRow(row.original);
+                              }}
+                              className="ml-1 hidden shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 group-hover:inline-flex"
+                              aria-label={`Edit ${row.original.project_name}`}
+                              title="Edit project"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                              </svg>
+                            </button>
+                          </div>
+                        );
+                      } else {
+                        content = rendered;
+                      }
                     }
 
                     return (
@@ -492,6 +530,18 @@ export function ProjectTable({
           </button>
         </div>
       </div>
+
+      {editModalRow && (
+        <EditProjectModal
+          key={editModalRow.id}
+          project={editModalRow}
+          users={users ?? []}
+          isAdmin={!!isAdmin}
+          onClose={() => setEditModalRow(null)}
+          onSave={onRowUpdate}
+          onNotice={onNotice}
+        />
+      )}
     </div>
   );
 }

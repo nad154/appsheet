@@ -1,5 +1,6 @@
 import { runWrite, runRead, PARQUET_DIR } from './connection.js';
 import { exportSnapshots } from './export.js';
+import { DEFAULT_AGING_LOW_MAX_DAYS, DEFAULT_AGING_MEDIUM_MAX_DAYS } from '@tracker/shared';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -90,6 +91,27 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
+-- Per-user dashboard views. Operational/config data — NEVER exported to parquet.
+CREATE TABLE IF NOT EXISTS dashboard_views (
+  id VARCHAR PRIMARY KEY,
+  user_id VARCHAR NOT NULL,           -- FK dropped, DuckDB UPDATE limitation
+  chart_type VARCHAR NOT NULL CHECK (chart_type IN ('pie','bar')),
+  column_key VARCHAR NOT NULL,
+  label VARCHAR NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+-- Singleton aging→priority thresholds row (id is always 'default').
+-- Operational/config data — NEVER exported to parquet.
+CREATE TABLE IF NOT EXISTS aging_thresholds (
+  id VARCHAR PRIMARY KEY,
+  low_max_days INTEGER NOT NULL,
+  medium_max_days INTEGER NOT NULL,
+  updated_by VARCHAR,                 -- FK dropped
+  updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
 CREATE OR REPLACE VIEW v_users_public AS
   SELECT id, name, email, role, is_active, created_at FROM users;
 ;
@@ -111,6 +133,7 @@ export async function migrate(): Promise<void> {
   });
 
   await migrateColumns();
+  await seedAgingThresholds();
   await importLegacySnapshots();
 }
 
@@ -152,6 +175,24 @@ async function migrateColumns(): Promise<void> {
 
   if (altered) {
     await exportSnapshots(['projects']);
+  }
+}
+
+/**
+ * Seed the singleton aging_thresholds row ('default') with the shared default
+ * constants on first boot. No-op once the row exists so admin edits persist.
+ * Not part of the parquet export contract.
+ */
+async function seedAgingThresholds(): Promise<void> {
+  const rows = await runRead<{ id: string }>(`SELECT id FROM aging_thresholds WHERE id = 'default'`);
+  if (rows.length === 0) {
+    await runWrite(async (exec) => {
+      await exec(
+        `INSERT INTO aging_thresholds (id, low_max_days, medium_max_days, updated_at)
+         VALUES ('default', ?, ?, current_timestamp)`,
+        [DEFAULT_AGING_LOW_MAX_DAYS, DEFAULT_AGING_MEDIUM_MAX_DAYS],
+      );
+    });
   }
 }
 

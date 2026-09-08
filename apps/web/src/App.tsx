@@ -7,6 +7,7 @@ import { GridPage } from './app/grid/GridPage';
 import { ApprovalsPage } from './app/approvals/ApprovalsPage';
 import { SettingsPage } from './app/settings/SettingsPage';
 import { DriveBrowserPage } from './app/drive-browser/DriveBrowserPage';
+import { DashboardPage } from './app/dashboard/DashboardPage';
 
 export default function App() {
   return (
@@ -21,7 +22,8 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/grid" element={<GridPage />} />
+<Route path="/grid" element={<GridPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route
               path="/approvals"
               element={

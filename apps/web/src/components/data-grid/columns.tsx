@@ -206,6 +206,36 @@ const agingColumn: ColumnDef<Project> = {
   },
 };
 
+const PRIORITY_STYLES: Record<'low' | 'medium' | 'high', string> = {
+  low: 'bg-green-100 text-green-800 border-green-300',
+  medium: 'bg-amber-100 text-amber-800 border-amber-300',
+  high: 'bg-red-100 text-red-800 border-red-300',
+};
+const PRIORITY_LABEL: Record<'low' | 'medium' | 'high', string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+};
+
+// Derived server-side from Aging + current thresholds. Read-only in the grid:
+// no `meta.editable` — ProjectTable.tsx only renders the edit affordance when
+// meta.editable is true, so this column is non-editable by construction.
+const priorityColumn: ColumnDef<Project> = {
+  id: 'priority',
+  header: 'Priority',
+  size: 100,
+  enableSorting: false,
+  cell: ({ row }) => {
+    const p = row.original.priority;
+    if (!p) return <span className="text-gray-300">—</span>;
+    return (
+      <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${PRIORITY_STYLES[p]}`}>
+        {PRIORITY_LABEL[p]}
+      </span>
+    );
+  },
+};
+
 export const projectColumns: ColumnDef<Project>[] = [
   {
     id: 'project_info',
@@ -255,6 +285,7 @@ export const projectColumns: ColumnDef<Project>[] = [
       selectDate('vendor_start_contract', 'Start Contract2', 130),
       selectDate('vendor_end_contract', 'End Contract2', 130),
       agingColumn,
+      priorityColumn,
       textareaCol('issues', 'Issues', 200),
     ],
   },

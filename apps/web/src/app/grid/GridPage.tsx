@@ -52,15 +52,18 @@ export function GridPage() {
     [pendingList],
   );
 
-  const handleCellUpdate = async (
+  const handleRowUpdate = async (
     row: { id: string },
-    field: string,
-    value: unknown,
+    changes: Record<string, unknown>,
   ): Promise<EditResult> => {
+    // Nothing changed (modal opened and saved as-is) — no PATCH to send.
+    if (Object.keys(changes).length === 0) return { ok: true };
     try {
+      // One PATCH carrying only the changed fields, whether it came from a
+      // single inline cell edit or the full row-edit modal.
       const res = await apiClient.patch<{ ok?: boolean; submitted?: boolean }>(
         `/api/projects/${row.id}`,
-        { [field]: value },
+        changes,
       );
       if (res?.submitted) {
         await Promise.all([refetchProjects(), allPending.refetch(), minePending.refetch()]);
@@ -244,7 +247,7 @@ export function GridPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         onSortChange={handleSortChange}
-        onCellUpdate={handleCellUpdate}
+        onRowUpdate={handleRowUpdate}
         onNotice={showToast}
       />
       {/* {isLoading && <p className="mt-2 text-sm text-gray-500">Loading…</p>} */}

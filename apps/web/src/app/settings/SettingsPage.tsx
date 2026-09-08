@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useMarketSegments,
   useCreateMarketSegment,
@@ -6,6 +6,8 @@ import {
   useUsers,
   useCreateUser,
   useUpdateUser,
+  useAgingThresholds,
+  useUpdateAgingThresholds,
 } from '../../hooks/useSettings';
 import { useAuth } from '../../hooks/useAuth';
 import type { PublicUser, Role } from '@tracker/shared';
@@ -28,6 +30,7 @@ export function SettingsPage() {
 
       <UsersPanel me={me} />
       <MarketSegmentsPanel />
+      <AgingThresholdsPanel />
     </div>
   );
 }
@@ -323,6 +326,94 @@ function MarketSegmentsPanel() {
         </button>
         {addNotice && <span className="text-xs text-red-600">{addNotice}</span>}
       </form>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Aging → Priority thresholds                                                */
+/* -------------------------------------------------------------------------- */
+
+function AgingThresholdsPanel() {
+  const { data, isLoading, isError, error } = useAgingThresholds();
+  const updateThresholds = useUpdateAgingThresholds();
+
+  const [low, setLow] = useState('');
+  const [medium, setMedium] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (data) {
+      setLow(String(data.low_max_days));
+      setMedium(String(data.medium_max_days));
+    }
+  }, [data]);
+
+  const lowNum = Number(low);
+  const mediumNum = Number(medium);
+  const valid =
+    Number.isInteger(lowNum) &&
+    lowNum > 0 &&
+    Number.isInteger(mediumNum) &&
+    mediumNum > 0 &&
+    mediumNum > lowNum;
+
+  const handleSave = async () => {
+    setNotice(null);
+    try {
+      await updateThresholds.mutateAsync({ low_max_days: lowNum, medium_max_days: mediumNum });
+      setNotice('Thresholds updated.');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Update failed.');
+      // showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
+    }
+  };
+
+  return (
+    <section className="rounded border border-gray-200 p-4">
+      <h2 className="mb-3 text-sm font-semibold">Aging → Priority</h2>
+      <p className="mb-3 text-xs text-gray-500">
+        Projects are assigned a Priority from their Aging value. High priority is anything above the
+        Medium threshold.
+      </p>
+
+      {isLoading && <p className="text-xs text-gray-500">Loading thresholds…</p>}
+      {isError && (
+        <p className="text-xs text-red-600">{error instanceof Error ? error.message : 'Failed to load thresholds.'}</p>
+      )}
+
+      {data && (
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[11px] text-gray-500">Low priority — up to N days</span>
+            <input
+              type="number"
+              min={1}
+              value={low}
+              onChange={(e) => setLow(e.target.value)}
+              className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[11px] text-gray-500">Medium priority — up to N days</span>
+            <input
+              type="number"
+              min={1}
+              value={medium}
+              onChange={(e) => setMedium(e.target.value)}
+              className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm"
+            />
+          </label>
+          <span className="text-sm text-gray-600">High priority — anything above</span>
+          <button type="button" onClick={handleSave} disabled={!valid || updateThresholds.isPending} className={btnPrimary}>
+            {updateThresholds.isPending ? 'Saving…' : 'Save'}
+          </button>
+          {notice && <span className="text-xs text-green-700">{notice}</span>}
+          {!valid && (
+            <span className="text-xs text-amber-700">Medium must be greater than Low, both must be positive integers.</span>
+          )}
+        </div>
+      )}
     </section>
   );
 }

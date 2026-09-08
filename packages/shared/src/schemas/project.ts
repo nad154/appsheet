@@ -44,6 +44,10 @@ export const projectSchema = z.object({
   pic_name: z.string().nullable().optional(),
   issues: z.string().nullable().optional(),
 
+  // Derived by the server from Aging + current thresholds — never stored and
+  // never submittable (hence omitted from the create/update schemas below).
+  priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
+
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -51,13 +55,15 @@ export const projectSchema = z.object({
 export type Project = z.infer<typeof projectSchema>;
 
 // Fields a caller may submit when creating or editing a project. Id and
-// timestamps are managed by the server.
+// timestamps are managed by the server. priority is deliberately excluded —
+// it is always derived server-side from aging thresholds.
 export const projectCreateSchema = projectSchema.omit({
   id: true,
   created_at: true,
   updated_at: true,
   staff_assigned_name: true,
   pic_name: true,
+  priority: true,
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();

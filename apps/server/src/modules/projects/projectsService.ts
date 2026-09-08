@@ -10,6 +10,11 @@ interface ProjectRow extends Project {
 
 // Whitelist of sortable columns. Never interpolate caller-provided column
 // names into SQL directly — only these keys are allowed.
+//
+// `aging` and `priority` are NOT real columns: they are derived per request
+// (aging from project dates against today, priority from aging + the current
+// aging thresholds). They are allowed keys, but listProjects handles them as
+// in-memory sorts rather than SQL ORDER BY expressions.
 const SORTABLE_COLUMNS = new Set([
   'project_name',
   'customer_name',
@@ -21,7 +26,40 @@ const SORTABLE_COLUMNS = new Set([
   'current_stage',
   'updated_at',
   'created_at',
+  'aging',
+  'priority',
 ]);
+
+// Rank used for in-memory priority ordering. Null priority (no aging) always
+// sorts last regardless of direction, so rows without aging never crowd out
+// actionable projects.
+const PRIORITY_RANK: Record<NonNullable<Project['priority']>, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+};
+
+type DerivedSortKey = 'aging' | 'priority';
+
+/**
+ * In-memory comparator for the derived (non-SQL) sort keys. Values are
+ * computed per row; null values sort last in both directions.
+ */
+function compareDerived(
+  a: ProjectRow,
+  b: ProjectRow,
+  key: DerivedSortKey,
+  dir: 'ASC' | 'DESC',
+): number {
+  const sign = dir === 'ASC' ? 1 : -1;
+  const aVal = key === 'aging' ? computeAging(a) : (a.priority ? PRIORITY_RANK[a.priority] : null);
+  const bVal = key === 'aging' ? computeAging(b) : (b.priority ? PRIORITY_RANK[b.priority] : null);
+
+  if (aVal === null && bVal === null) return 0;
+  if (aVal === null) return 1; // nulls last
+  if (bVal === null) return -1;
+  return (aVal - bVal) * sign;
+}
 
 export interface ProjectListQuery {
   page?: number;
@@ -59,16 +97,42 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   const offset = (page - 1) * pageSize;
 
   const { whereClause, params } = scopeClause(user);
+  const thresholds = await resolveAgingThresholds();
 
-  const rows = await runRead<ProjectRow>(
-    `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name
-    FROM projects p LEFT JOIN users u ON u.id = p.staff_assigned_id
-     LEFT JOIN users pic_user ON pic_user.id = p.pic_id
-     ${whereClause}
-     ORDER BY ${sortBy} ${sortDir}
-     LIMIT ? OFFSET ?`,
-    [...params, pageSize, offset],
-  );
+  // Attach the derived Priority to each row (from Aging + the current
+  // thresholds). Priority is never persisted — computed per request so it
+  // always tracks the latest admin-configured aging thresholds.
+  const enrich = (rows: ProjectRow[]) =>
+    rows.map((r) => ({
+      ...r,
+      priority: computePriority(computeAging(r), thresholds),
+    }));
+
+  let rows: ProjectRow[];
+  if (sortBy === 'aging' || sortBy === 'priority') {
+    // Derived keys can't be expressed in SQL ORDER BY. The scoped result set
+    // is small (≤500 rows), so fetch it whole, sort in memory, then paginate.
+    const all = await runRead<ProjectRow>(
+      `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name
+      FROM projects p LEFT JOIN users u ON u.id = p.staff_assigned_id
+       LEFT JOIN users pic_user ON pic_user.id = p.pic_id
+       ${whereClause}`,
+      params,
+    );
+    rows = enrich(all)
+      .sort((a, b) => compareDerived(a, b, sortBy, sortDir))
+      .slice(offset, offset + pageSize);
+  } else {
+    rows = await runRead<ProjectRow>(
+      `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name
+      FROM projects p LEFT JOIN users u ON u.id = p.staff_assigned_id
+       LEFT JOIN users pic_user ON pic_user.id = p.pic_id
+       ${whereClause}
+       ORDER BY ${sortBy} ${sortDir}
+       LIMIT ? OFFSET ?`,
+      [...params, pageSize, offset],
+    );
+  }
 
   const countRows = await runRead<{ total: number }>(
     `SELECT count(*) AS total FROM projects p ${whereClause}`,
@@ -76,16 +140,7 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   );
   const total = Number(countRows[0]?.total ?? 0);
 
-  // Enrich each row with the derived Priority from Aging + the current
-  // thresholds. Priority is never persisted — it is computed per request so it
-  // always tracks the latest admin-configured aging thresholds.
-  const thresholds = await resolveAgingThresholds();
-  const enriched = rows.map((r) => ({
-    ...r,
-    priority: computePriority(computeAging(r), thresholds),
-  }));
-
-  return { rows: enriched, total, page, page_size: pageSize };
+  return { rows: enrich(rows), total, page, page_size: pageSize };
 }
 
 // Active users that may be assigned as a project's PIC. The settings users

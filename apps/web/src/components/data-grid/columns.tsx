@@ -76,11 +76,12 @@ function selectDate(accessorKey: keyof Project, header: string, size = 130): Col
   };
 }
 
-function textareaCol(accessorKey: keyof Project, header: string, size = 200): ColumnDef<Project> {
+function textareaCol(accessorKey: keyof Project, header: string, size = 200, isSortable = true): ColumnDef<Project> {
   return {
     accessorKey,
     header,
     size,
+    enableSorting: isSortable,
     meta: { editable: true, editType: 'textarea' } as ColumnMeta,
     cell: ({ getValue }) => {
       const v = getValue() as string | null | undefined;
@@ -98,7 +99,7 @@ function textareaCol(accessorKey: keyof Project, header: string, size = 200): Co
 // resolved pic_name from the server JOIN; inline editing opens a user dropdown.
 function picColumn(size = 140): ColumnDef<Project> {
   return {
-    accessorKey: 'pic_id',
+    accessorKey: 'pic_name',
     header: 'PIC',
     size,
     meta: { editable: true, editType: 'user' } as ColumnMeta,
@@ -198,7 +199,7 @@ const agingColumn: ColumnDef<Project> = {
   id: 'aging',
   header: 'Aging',
   size: 90,
-  enableSorting: false,
+  accessorFn: (row) => computeAging(row),
   cell: ({ row }) => {
     const aging = computeAging(row.original);
     if (aging === null) return <span className="text-gray-300">—</span>;
@@ -224,7 +225,7 @@ const priorityColumn: ColumnDef<Project> = {
   id: 'priority',
   header: 'Priority',
   size: 100,
-  enableSorting: false,
+  accessorKey: 'priority',
   cell: ({ row }) => {
     const p = row.original.priority;
     if (!p) return <span className="text-gray-300">—</span>;
@@ -286,7 +287,7 @@ export const projectColumns: ColumnDef<Project>[] = [
       selectDate('vendor_end_contract', 'End Contract2', 130),
       agingColumn,
       priorityColumn,
-      textareaCol('issues', 'Issues', 200),
+      textareaCol('issues', 'Issues', 200, false),
     ],
   },
 ];

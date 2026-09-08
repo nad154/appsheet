@@ -246,11 +246,10 @@ export function ProjectTable({
 
   const resetEditing = () => setActiveCell(null);
 
-  const handleSortClick = (accessorKey: string | undefined) => {
-    if (!accessorKey) return;
+  const handleSortClick = (columnId: string) => {
     resetEditing();
-    const nextDir: SortDir = sortBy === accessorKey && sortDir === 'asc' ? 'desc' : 'asc';
-    onSortChange(accessorKey, nextDir);
+    const nextDir: SortDir = sortBy === columnId && sortDir === 'asc' ? 'desc' : 'asc';
+    onSortChange(columnId, nextDir);
   };
 
   const handlePageChange = (next: number) => {
@@ -320,9 +319,9 @@ export function ProjectTable({
                   if (isGroup) {
                     return <ColumnGroupHeader key={header.id} header={header} />;
                   }
-                  const accessorKey = (header.column.columnDef as { accessorKey?: string }).accessorKey;
-                  const isSortable = typeof accessorKey === 'string' && header.column.getCanSort();
-                  const isActiveSort = isSortable && accessorKey === sortBy;
+                  const columnId = header.column.id;
+                  const isSortable = header.column.getCanSort();
+                  const isActiveSort = isSortable && columnId === sortBy;
                   const isStickyCol = header.column.parent?.id === STICKY_GROUP_ID;
                   const stickyLeft = isStickyCol ? stickyLeftOffsets.get(header.column.id) ?? 0 : undefined;
                   const isLastStickyCol = header.column.id === lastStickyColId;
@@ -331,7 +330,7 @@ export function ProjectTable({
                     <div
                       key={header.id}
                       role="columnheader"
-                      onClick={isSortable ? () => handleSortClick(accessorKey) : undefined}
+                      onClick={isSortable ? () => handleSortClick(columnId) : undefined}
                       aria-sort={isActiveSort ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
                       style={{

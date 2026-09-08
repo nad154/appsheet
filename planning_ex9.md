@@ -732,3 +732,21 @@ The work is executed in the following batches (each batch is one working session
 - `npm run typecheck -w @tracker/web` — clean except the 3 known pre-existing TS6133 errors (`ColumnGroupHeader.tsx` `headerWidth`, `columns.tsx` `statusColumn`/`pendingColumn`); **no new errors**.
 - `npx vite build` (bypassing the `tsc` gate that the pre-existing errors block) — succeeds; bundle 831.9 kB (recharts adds weight; chunk-size warning is informational).
 - No shared/server changes in Batch 3, so those typechecks are unaffected.
+
+## Batch 4 (Phase 6–7) — File-by-file execution checklist
+
+- [ ] `apps/web/e2e/dashboard.spec.ts` — **new file**: admin creates a Stage pie view (unique label) and asserts the legend shows `on_progress` + `finish`, then deletes it; staff creates their own view and asserts a per-run-unique admin label is never visible (per-user view isolation).
+- [ ] `apps/web/e2e/edit-modal.spec.ts` — **new file**: hovering a project name reveals the pencil; admin edits `customer_name` + `issues` in one modal save → "Saved." + grid reflects both; STAFF modal save → "Change submitted for approval." + row unchanged; `staff_assigned_id` is not rendered in the modal for STAFF.
+- [ ] `apps/web/e2e/priority.spec.ts` — **new file**: admin sets Staff Project A's `project_sent_date` to 30 calendar days ago (~20–22 business days) → Medium badge with defaults; changing thresholds (5/8 → High, 60/120 → Low) via the Settings panel flips the badge; restores 15/30 and clears the sent date; staff route-guard redirects `/settings` → `/grid` and a direct `PATCH /api/settings/aging-thresholds` with a valid staff token returns 403.
+- [ ] `AGENTS.md` — Data Model: added `notifications`, `dashboard_views`, `aging_thresholds`; note that the latter two are operational/config data never exported to parquet; new "Always-Derived Fields" section (`priority` derived-never-stored, `DASHBOARD_COLUMNS` single-whitelist location); REST API surface + modules list updated. NO toast/dead-code cleanup (cancelled per decision #5).
+
+## Batch 4 — Verification results
+
+- `npx playwright test --list` — all 17 tests load (7 new across 3 files + 10 existing across 2 files). Specs are not typechecked by the web workspace tsconfig (`include: ["src", "vite.config.ts"]`), so runtime is the real gate.
+- Full run **not yet executed** — needs `_rbac_setup.ts` (destructive: wipes `projects`/`pending_edits`/`sessions` + staff user) which would destroy the manual DB rows the user created since (`john@example.com`, `HII`, `test 5`, `test proposal`). Requires user confirmation first.
+
+## Batch 4 — Known issues to inform the user about
+
+1. **Live DB is out of sync with the e2e fixture.** The current `apps/server/data/app.duckdb` contains manual dev data (`john@example.com` STAFF; projects `HII`, `test 5`, `test proposal`) and is missing the fixture rows the existing + new Playwright specs expect (`staff1@example.com`/`staff12345`, `Admin Project A/B`, `Staff Project A/B`). The existing `grid.spec.ts`/`notifications.spec.ts` would fail too, already, against the current DB. The tracked `apps/server/_rbac_setup.ts` re-creates the fixture but **deletes** the manual rows.
+2. **Cross-file pending-edit interplay (pre-existing fragility).** `notifications.spec.ts` exact-badges `toHaveText('1')`; the new `edit-modal.spec.ts` staff test also submits a pending edit. If both files run in parallel workers, the notification badge test can flake. Not fixed (out of scope); flagging as a follow-up if the suite runs in CI.
+3. **Time-robust aging math used in priority.spec.ts** — 30 calendar days back ≈ 20–22 business days (networkDays), which stays inside (15, 30] for the default Medium assertion regardless of the week/date the suite runs.

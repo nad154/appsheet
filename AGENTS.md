@@ -118,11 +118,18 @@ Key architectural decisions the agent must respect:
 
 ## Data Model (DuckDB DDL lives in `apps/server/src/db/migrate.ts`)
 
-Tables: `users`, `market_segments`, `projects`, `pending_edits`, `sessions`.
+Tables: `users`, `market_segments`, `projects`, `pending_edits`, `sessions`, `notifications`, `dashboard_views`, `aging_thresholds`.
 
 - `projects` has a Customer section and a Vendor section (dates, prices, contract IDs) plus `drive_folder_id` for deep-linking to Google Drive and `current_stage` (`on_progress` | `finish`).
 - `pending_edits.project_id` is nullable — null means the pending edit is a proposed **new** row (`edit_type = 'CREATE'`).
 - `sessions` backs refresh-token revocation (deactivating a user must revoke their sessions rows immediately).
+- `dashboard_views` (per-user chart views) and `aging_thresholds` (singleton `'default'` row) are **operational/config data — never exported to parquet**. `exportSnapshots` only covers `projects`/`users`/`pending_edits`; write routes for these two tables must not call it.
+- Aging thresholds seed from `DEFAULT_AGING_LOW_MAX_DAYS` / `DEFAULT_AGING_MEDIUM_MAX_DAYS` in `packages/shared/src/thresholds.ts`, and are read through `resolveAgingThresholds()` (cached, invalidated on update).
+
+## Always-Derived Fields
+
+- `priority` is **always derived** from `Aging` + current thresholds (`computePriority(computeAging(row), thresholds)` in `packages/shared/src/lib/aging.ts`). It is never stored in `projects` and never submittable — it is excluded from `projectCreateSchema`/`projectUpdateSchema` in `packages/shared/src/schemas/project.ts`. Anyone adding a new project field must **not** add `priority` to the create/update schemas.
+- Chartable dashboard columns come from the single `DASHBOARD_COLUMNS` whitelist in `packages/shared/src/schemas/dashboardView.ts` (server validates the query param against it before interpolating into SQL). If a new chartable column is added later, update that one location — frontend labels and the server whitelist both derive from it.
 
 ## Folder Structure
 
@@ -139,7 +146,7 @@ apps/web/src/
 
 apps/server/src/
   db/                   # connection.ts (mutex), migrate.ts, export.ts
-  modules/               # auth/ users/ projects/ pending-edits/ settings/ drive/ gmail/
+  modules/               # auth/ users/ projects/ pending-edits/ settings/ dashboard/ drive/ gmail/
   jobs/                  # dailyDigest.ts (node-cron)
   middleware/            # requireAuth, requireRole, auditLog
   app.ts, server.ts
@@ -206,7 +213,8 @@ migration.
 - **Auth:** `POST /api/auth/login|refresh|logout`, `POST /api/auth/dev-switch-role` (dev-only, must be gated on `NODE_ENV !== 'production'`)
 - **Projects:** `GET /api/projects` (RBAC-filtered, paginated), `GET/PATCH/DELETE /api/projects/:id`, `POST /api/projects`
 - **Pending Edits:** `GET /api/pending-edits?status=pending`, `GET /api/pending-edits/:id/diff`, `POST /api/pending-edits/:id/approve|reject`, `GET /api/pending-edits/mine`
-- **Settings:** `GET/POST/PATCH /api/settings/market-segments`, `GET/POST/PATCH /api/settings/users`
+- **Settings:** `GET/POST/PATCH /api/settings/market-segments`, `GET/POST/PATCH /api/settings/users`, `GET/PATCH /api/settings/aging-thresholds`
+- **Dashboard (all authenticated roles, per-user):** `GET/POST /api/dashboard/views`, `DELETE /api/dashboard/views/:id`, `GET /api/dashboard/chart-data?column=`
 - **Drive:** `GET /api/drive/resolve/:projectId`, `GET /api/drive/browse?folderId=`
 - **Gmail:** `POST /api/admin/digest/send-now`, `GET /api/admin/digest/preview`
 

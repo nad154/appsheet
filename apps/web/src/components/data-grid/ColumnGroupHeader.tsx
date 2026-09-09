@@ -19,6 +19,15 @@ interface ColumnGroupHeaderProps {
   header: Header<Project, unknown>;
 }
 
+// Section header tints, keyed by the column-group ids defined in columns.tsx:
+// the Customer section renders green, the Vendor section renders purple.
+// Non-sticky (scrollable) groups only; the sticky Project Info band keeps its
+// neutral gray so it doesn't fight with the colored sections beside it.
+const GROUP_HEADER_TINT: Record<string, string> = {
+  customer: 'bg-green-200 text-green-800',
+  vendor: 'bg-purple-200 text-purple-800',
+};
+
 export function ColumnGroupHeader({ header }: ColumnGroupHeaderProps) {
   const isSticky = header.column.id === STICKY_GROUP_ID;
   // const width = headerWidth(header);
@@ -44,7 +53,7 @@ export function ColumnGroupHeader({ header }: ColumnGroupHeaderProps) {
         key={header.id}
         role="columnheader"
         style={style}
-        className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
+        className={`border-b border-r border-gray-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${GROUP_HEADER_TINT[header.column.id] ?? 'bg-gray-100 text-gray-600'}`}
       >
         <span className="block truncate">
           {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}

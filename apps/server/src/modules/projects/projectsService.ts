@@ -8,27 +8,39 @@ interface ProjectRow extends Project {
   [key: string]: unknown;
 }
 
-// Whitelist of sortable columns. Never interpolate caller-provided column
-// names into SQL directly — only these keys are allowed.
+// Whitelist of sortable columns: each allowed client-provided sort key maps to
+// the exact SQL ORDER BY expression to use. Never interpolate caller-provided
+// column names into SQL directly — only these keys are allowed.
 //
-// `aging` and `priority` are NOT real columns: they are derived per request
+// The Sales and PIC columns sort by their JOINed display names: the grid sends
+// `pic_name` and `staff_assigned_id` as sort keys, and they order by
+// `pic_user.name` / `u.name` (the display names), never by the stored user
+// UUID.
+//
+// `aging` and `priority` are NOT in this map: they are derived per request
 // (aging from project dates against today, priority from aging + the current
-// aging thresholds). They are allowed keys, but listProjects handles them as
-// in-memory sorts rather than SQL ORDER BY expressions.
-const SORTABLE_COLUMNS = new Set([
-  'project_name',
-  'customer_name',
-  'vendor_name',
-  'customer_price',
-  'vendor_price',
-  'customer_end_contract',
-  'vendor_end_contract',
-  'current_stage',
-  'updated_at',
-  'created_at',
-  'aging',
-  'priority',
-]);
+// aging thresholds) and listProjects handles them as in-memory sorts rather
+// than SQL ORDER BY expressions.
+const SORTABLE_COLUMNS: Record<string, string> = {
+  project_name: 'project_name',
+  customer_name: 'customer_name',
+  vendor_name: 'vendor_name',
+  customer_price: 'customer_price',
+  vendor_price: 'vendor_price',
+  customer_end_contract: 'customer_end_contract',
+  vendor_end_contract: 'vendor_end_contract',
+  current_stage: 'current_stage',
+  updated_at: 'updated_at',
+  created_at: 'created_at',
+  pic_name: 'pic_user.name',
+  staff_assigned_id: 'u.name',
+};
+
+// The joined-name sort keys order by a LEFT-JOINed user name, which is NULL
+// when no PIC/Sales is assigned to a project. Append NULLS LAST so unassigned
+// rows always sink to the end, matching the nulls-last behavior of the
+// in-memory derived sorts above.
+const NULLS_LAST_SORT_KEYS = new Set(['pic_name', 'staff_assigned_id']);
 
 // Rank used for in-memory priority ordering. Null priority (no aging) always
 // sorts last regardless of direction, so rows without aging never crowd out
@@ -92,7 +104,7 @@ export function scopeClause(user: AuthUser): { whereClause: string; params: unkn
 export async function listProjects(user: AuthUser, query: ProjectListQuery): Promise<ProjectList> {
   const page = Math.max(1, query.page ?? 1);
   const pageSize = Math.min(500, Math.max(1, query.page_size ?? 50));
-  const sortBy = SORTABLE_COLUMNS.has(query.sort_by ?? '') ? (query.sort_by as string) : 'updated_at';
+  const sortKey = query.sort_by ?? '';
   const sortDir = query.sort_dir === 'asc' ? 'ASC' : 'DESC';
   const offset = (page - 1) * pageSize;
 
@@ -109,7 +121,7 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
     }));
 
   let rows: ProjectRow[];
-  if (sortBy === 'aging' || sortBy === 'priority') {
+  if (sortKey === 'aging' || sortKey === 'priority') {
     // Derived keys can't be expressed in SQL ORDER BY. The scoped result set
     // is small (≤500 rows), so fetch it whole, sort in memory, then paginate.
     const all = await runRead<ProjectRow>(
@@ -120,15 +132,19 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
       params,
     );
     rows = enrich(all)
-      .sort((a, b) => compareDerived(a, b, sortBy, sortDir))
+      .sort((a, b) => compareDerived(a, b, sortKey, sortDir))
       .slice(offset, offset + pageSize);
   } else {
+    // Real-column keys ORDER BY themselves; the two joined-name keys resolve to
+    // the mapped expressions above and pin NULL (unassigned) rows last.
+    const sortExpr = SORTABLE_COLUMNS[sortKey] ?? 'updated_at';
+    const nullsLast = NULLS_LAST_SORT_KEYS.has(sortKey) ? ' NULLS LAST' : '';
     rows = await runRead<ProjectRow>(
       `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name
       FROM projects p LEFT JOIN users u ON u.id = p.staff_assigned_id
        LEFT JOIN users pic_user ON pic_user.id = p.pic_id
        ${whereClause}
-       ORDER BY ${sortBy} ${sortDir}
+       ORDER BY ${sortExpr} ${sortDir}${nullsLast}
        LIMIT ? OFFSET ?`,
       [...params, pageSize, offset],
     );

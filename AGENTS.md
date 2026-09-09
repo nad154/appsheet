@@ -135,29 +135,32 @@ Tables: `users`, `market_segments`, `projects`, `pending_edits`, `sessions`, `no
 
 ```
 apps/web/src/
-  app/                  # routes: login/, grid/, approvals/, settings/, drive-browser/
+  app/                  # routes: login/, grid/, approvals/, settings/, dashboard/, drive-browser/
   components/
-    data-grid/          # ProjectTable, ColumnGroupHeader, StatusFlagCell
+    data-grid/          # ProjectTable, EditProjectModal, columns, ColumnGroupHeader, StatusFlagCell
     approvals/          # DiffView, ApprovalQueueList
-    ui/                 # shadcn components
-  hooks/                # useProjects, usePendingEdits, useAuth
-  lib/                  # api-client, rbac
-  store/                # auth-store (Zustand/context)
+    dashboard/          # ChartCard, AddViewForm
+    AppLayout.tsx, NotificationBell.tsx, ProtectedRoute.tsx, Toast.tsx   # no shadcn ui/ folder
+  hooks/                # useProjects, usePendingEdits, useAuth, useSettings, useNotifications, useDrive, useDashboard
+  lib/                  # api-client, projectFields, projectStatus, rbac, tokenStore
+  store/                # auth-store.tsx (React context)
 
 apps/server/src/
   db/                   # connection.ts (mutex), migrate.ts, export.ts
-  modules/               # auth/ users/ projects/ pending-edits/ settings/ dashboard/ drive/ gmail/
-  jobs/                  # dailyDigest.ts (node-cron)
-  middleware/            # requireAuth, requireRole, auditLog
-  app.ts, server.ts
+  modules/              # auth/ projects/ pending-edits/ settings/ notifications/ dashboard/ drive/ google/
+  jobs/                 # agingCron.ts (node-cron)
+  middleware/           # requireAuth, requireRole, rateLimit
+  lib/                  # uuid.ts
+  app.ts, server.ts, seed.ts
 
 apps/server/data/
   app.duckdb
   parquet/
 
 packages/shared/
-  src/thresholds.ts       # IDLE_THRESHOLD_DAYS, DEADLINE_WARNING_DAYS
-  (Zod schemas for Project, User, PendingEdit)
+  src/thresholds.ts       # IDLE_THRESHOLD_DAYS, DEADLINE_WARNING_DAYS, AGING_ALERT_DAYS, DEFAULT_AGING_*_MAX_DAYS
+  src/lib/aging.ts        # networkDays, computeAging, computePriority
+  src/schemas/            # Zod schemas for Project, User, PendingEdit, market segment, aging thresholds, dashboard view, drive
 ```
 
 ## Pending Edit Invariants
@@ -290,4 +293,10 @@ Do not interrupt for trivial implementation details.
 
 For non-critical implementation choices, follow existing project
 conventions and choose the simplest reasonable solution.
+
+## Additional Rules
+
+Don't remove commented code without permission.
+
+Ignore "declared but never used" errors from existing code, unless instructed to remove. 
 

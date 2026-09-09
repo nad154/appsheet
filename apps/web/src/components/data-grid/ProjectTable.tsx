@@ -49,6 +49,15 @@ interface ProjectTableProps {
 
 const STICKY_GROUP_ID = 'project_info';
 
+// Leaf-header tints, keyed by the parent column-group id from columns.tsx:
+// headers under the Customer group render light green, under Vendor light
+// purple (lighter than the group bands). The sticky Project Info group keeps
+// its neutral gray.
+const LEAF_HEADER_TINT: Record<string, string> = {
+  customer: 'bg-green-100 text-green-700',
+  vendor: 'bg-purple-100 text-purple-700',
+};
+
 const Z = {
   thead: 20,
   stickyHeaderCol: 40,
@@ -325,6 +334,7 @@ export function ProjectTable({
                   const isStickyCol = header.column.parent?.id === STICKY_GROUP_ID;
                   const stickyLeft = isStickyCol ? stickyLeftOffsets.get(header.column.id) ?? 0 : undefined;
                   const isLastStickyCol = header.column.id === lastStickyColId;
+                  const leafTint = LEAF_HEADER_TINT[header.column.parent?.id ?? ''] ?? '';
                   // main table header 
                   return (
                     <div
@@ -332,7 +342,7 @@ export function ProjectTable({
                       role="columnheader"
                       onClick={isSortable ? () => handleSortClick(columnId) : undefined}
                       aria-sort={isActiveSort ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      className="border-b border-r border-gray-200 bg-gray-100 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-600"
+                      className={`border-b border-r border-gray-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-gray-100 text-gray-600'}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',

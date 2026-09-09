@@ -1,10 +1,18 @@
 # Technical Specification & Implementation Plan
 ## AppSheet-Style Administrative Project Tracking Web App
 
-**Version:** 1.0
-**Author:** Senior Software Architect (Claude)
+**Version:** 2.0
+**Author:** Senior Software Architect (Claude) + implementation tracking
 **Deployment context:** Small team, LAN, 2–10 concurrent users, 10–50 staff accounts, 50–500 projects
 **Google integration:** Single shared service account
+
+> **Status:** v2.0 reflects the *implemented* state of the codebase (Phases 0–5,
+> Phase 6A Google Drive, plus post-plan extensions: PIC/Issues/Aging,
+> Aging→Priority thresholds, in-app notifications, per-user Dashboard, row-edit
+> modal, and the Playwright E2E suite). Phase 6B (Gmail digest) and the
+> remaining Phase 7 hardening items are still open — see §10.1 and §11.
+> Sections that describe the *original plan* but have since been superseded
+> (e.g. the Gmail digest as the alerting channel) are called out inline.
 
 ---
 
@@ -75,8 +83,9 @@ If any of these are wrong, flag it before implementation starts — they affect 
 | Layer | Choice |
 |---|---|
 | Frontend | React 18 + Vite + TypeScript |
-| Styling/UI | Tailwind CSS + shadcn/ui |
+| Styling/UI | Tailwind CSS + hand-rolled components (no shadcn/ui package — see §6.1) |
 | Data grid | TanStack Table v8 (headless) + TanStack Virtual (row virtualization for 500-row grids) |
+| Charts | `recharts` (pie/bar for the per-user Dashboard views) |
 | Data fetching/cache | TanStack Query |
 | Forms/validation | React Hook Form + Zod |
 | Backend | Node.js + Express (TypeScript) |
@@ -180,6 +189,24 @@ CREATE TABLE sessions (                      -- enables server-side JWT revocati
 - Added `sessions` table for refresh-token revocation (offboarding a staff member should immediately kill their session).
 - Added `drive_folder_id` to `projects` — needed to reliably resolve the Drive deep link (matching on folder *name* is fragile if folders get renamed).
 
+### 3.1.1 Implemented schema (deltas from the v1.0 DDL above)
+
+The live DDL lives in `apps/server/src/db/migrate.ts` (idempotent `CREATE TABLE IF NOT EXISTS`, safe to run on every boot). Compared to §3.1 as originally written, the implementation differs:
+
+- **IDs are `VARCHAR PRIMARY KEY`, not `UUID DEFAULT uuid()`.** DuckDB's Node bindings have no native `uuid()` default, so every id is an app-generated UUID string (`apps/server/src/lib/uuid.ts`) supplied explicitly on INSERT.
+- **Foreign-key constraints are dropped** (plain `VARCHAR` columns). DuckDB can't `UPDATE` rows in a table that is the target of an FK, so `projects.staff_assigned_id`, `pending_edits.project_id`, etc. are not declared as FKs — referential integrity is enforced at the app layer. (Mirrors existing comments in `migrate.ts`.)
+- **`projects` gained `pic_id` (VARCHAR) and `issues` (VARCHAR).** The original free-text `pic` column is migrated away: on boot, if `pic` exists and `pic_id` doesn't, `migrateColumns()` renames `pic → pic_id` and clears old values (a free-text name can't be mapped to a user deterministically). `pic_id` is a user reference resolved to `pic_name` via a left join.
+- **Three new tables** beyond the original DDL:
+  - `notifications` — in-app alerting (types `NEW_APPROVAL`, `AGING_ALERT`).
+  - `dashboard_views` — per-user chart views (pie/bar of a whitelisted column).
+  - `aging_thresholds` — singleton `'default'` row seeding the Aging→Priority thresholds.
+- **`v_users_public` view** (`CREATE OR REPLACE VIEW`) selects `users` **without `password_hash`**; `users.parquet` is exported from this view, never the raw table.
+- Migration extras: `migrateColumns()` (ALTER TABLE to add `pic_id`/`issues` when missing, then re-exports `projects.parquet`), `seedAgingThresholds()` (inserts the `'default'` thresholds row from shared constants), and `importLegacySnapshots()` (imports `projects.parquet`/`pending_edits.parquet` into empty tables on first boot — `users` is never imported since it must be created by the seed script with proper argon2 hashes).
+
+### 3.1.2 Parquet export contract (implemented)
+
+`exportSnapshots(['projects' | 'pending_edits' | 'users'])` in `apps/server/src/db/export.ts` re-`COPY`s the listed tables to Parquet. Only `projects`, `pending_edits`, and `users` are ever exported. `users.parquet` is exported from `v_users_public`. The operational/config tables **`notifications`, `dashboard_views`, and `aging_thresholds` are never exported** — their write routes must not call `exportSnapshots`.
+
 ### 3.2 Parquet Export Mapping
 
 After every committed transaction touching a table, the server runs:
@@ -188,40 +215,50 @@ COPY projects TO '/data/parquet/projects.parquet' (FORMAT PARQUET);
 COPY users TO '/data/parquet/users.parquet' (FORMAT PARQUET);           -- password_hash excluded, see below
 COPY pending_edits TO '/data/parquet/pending_edits.parquet' (FORMAT PARQUET);
 ```
-`users.parquet` is exported from a view that excludes `password_hash` — the raw table is never dumped to the portable snapshot file.
+As implemented (see §3.1.2), `exportSnapshots(table)` only re-Copies the **affected** table(s)
+inside the same write-mutex block — it does not dump all three files after every write. The
+exclusion contract stands: only `projects`, `pending_edits`, and `users` are ever exported, never
+`notifications`, `dashboard_views`, or `aging_thresholds`.
+`users.parquet` is exported from the `v_users_public` view that excludes `password_hash` — the raw table is never dumped to the portable snapshot file.
 
 ---
 
 ## 4. Backend Architecture
 
-### 4.1 Folder Structure
+### 4.1 Folder Structure (implemented)
 
 ```
 apps/server/
   src/
     db/
-      connection.ts        # singleton DuckDB connection + write mutex
-      migrate.ts            # runs DDL on first boot, imports existing parquet if present
-      export.ts             # COPY ... TO parquet helpers, called after every write
+      connection.ts        # singleton DuckDB connection + async write mutex (runWrite/runRead)
+      migrate.ts           # idempotent DDL + column/seed migrations + legacy parquet import
+      export.ts            # exportSnapshots() / readSnapshot() (projects, pending_edits, users)
     modules/
-      auth/                  # login, refresh, logout, mock-switcher (dev only)
-      users/
-      projects/
-      pending-edits/
-      settings/              # market_segments CRUD
-      drive/                 # Drive link resolution + file-tree browse
-      gmail/                 # digest generation + send
+      auth/                # login, refresh, logout, /me, dev-switch-role (dev only)
+      users/               # user CRUD lives under settings/ (see below)
+      projects/            # list (scoped/sorted/paginated), assignable users, ROLE-BRANCH writes
+      pending-edits/       # submit create/update, list, mine, diff, approve, reject
+      settings/            # market_segments CRUD + users + aging-thresholds (+ agingThresholdsCache)
+      notifications/       # in-app alerts (list, unread-count, mark read/read-all)
+      dashboard/           # per-user views CRUD + chart-data aggregation
+      drive/               # Drive resolve + lazy browse + createProjectFolder
+      google/              # shared service-account auth client, root-root_folder resolution
     jobs/
-      dailyDigest.ts         # node-cron entrypoint
+      agingCron.ts         # node-cron 07:00 aging-alert check (Gmail digest pending — see §7.3)
     middleware/
       requireAuth.ts
       requireRole.ts
-      auditLog.ts
-    app.ts
-    server.ts
+      rateLimit.ts         # fixed-window in-memory limiter (login)
+      # auditLog.ts        # NOT implemented yet (Phase 7)
+    lib/
+      uuid.ts              # app-generated UUID string ids
+    app.ts                 # API routers only; no static SPA serving yet (see §11)
+    server.ts              # bootstrap (migrate → google init → cron), graceful shutdown
+    seed.ts                # CLI-only first SUPER_ADMIN + default market segments
   data/
     app.duckdb
-    parquet/
+    parquet/               # projects.parquet, pending_edits.parquet, users.parquet
 ```
 
 ### 4.2 Write Serialization Pattern
@@ -245,39 +282,51 @@ export async function runRead<T>(sql: string, params: unknown[] = []): Promise<T
 ```
 Every mutating route handler goes through `runWrite`, which guarantees only one write executes at a time across all concurrent requests from all users, then triggers the relevant table's Parquet export inside the same exclusive block (so the snapshot is never out of sync with the DB even under load).
 
-### 4.3 REST API Surface
+### 4.3 REST API Surface (implemented)
 
 **Auth**
-- `POST /api/auth/login` — email + password → access + refresh token
-- `POST /api/auth/refresh`
-- `POST /api/auth/logout`
-- `POST /api/auth/dev-switch-role` — **dev-only**, gated behind `NODE_ENV !== 'production'`
+- `POST /api/auth/login` — email + password → access + refresh token (rate-limited, 10/min/IP)
+- `POST /api/auth/refresh` — refresh rotation: revokes the used session, issues a fresh pair
+- `POST /api/auth/logout` — revokes the refresh session
+- `GET /api/auth/me` — current authenticated user (session restore on page reload)
+- `POST /api/auth/dev-switch-role` — **dev-only**, returns 404 when `NODE_ENV === 'production'`
 
 **Projects**
-- `GET /api/projects` — RBAC-filtered server-side (STAFF gets only their assigned rows; SUPER_ADMIN gets all). Supports pagination/sort/filter query params.
-- `GET /api/projects/:id`
-- `POST /api/projects` — SUPER_ADMIN: direct insert. STAFF: creates a `pending_edits` row (`edit_type=CREATE`) instead, response indicates "submitted for approval."
-- `PATCH /api/projects/:id` — same branch: SUPER_ADMIN writes directly; STAFF creates a `pending_edits` row (`edit_type=UPDATE`).
-- `DELETE /api/projects/:id` — SUPER_ADMIN only.
+- `GET /api/projects` — RBAC-filtered server-side (STAFF gets only their assigned rows via `scopeClause`; SUPER_ADMIN gets all). Paginated + sortable; derived keys `aging`/`priority` are sorted in-memory after the (≤500-row) scoped fetch.
+- `GET /api/projects/users` — active users eligible for PIC / Sales assignment (any authenticated role).
+- `POST /api/projects` — SUPER_ADMIN: direct insert (+ auto-create Drive folder when configured). STAFF: creates a `pending_edits` row (`edit_type=CREATE`) → `202`/`submitted`.
+- `PATCH /api/projects/:id` — same role branch (`202` + `submitted` for STAFF).
+- `DELETE /api/projects/:id` — SUPER_ADMIN only (also removes that project's pending edits).
+- *(`GET /api/projects/:id` from the v1.0 plan was never implemented — the grid reads lists, and the diff view uses the pending-edit diff endpoint.)*
 
 **Pending Edits**
 - `GET /api/pending-edits?status=pending` — SUPER_ADMIN only
-- `GET /api/pending-edits/:id/diff` — returns `{ current: {...}, proposed: {...}, changedFields: [...] }`
-- `POST /api/pending-edits/:id/approve` — applies `changes_json` to `projects` via `runWrite`, sets status
+- `GET /api/pending-edits/mine` — STAFF: their own submission history
+- `GET /api/pending-edits/:id/diff` — `{ editId, editType, current, proposed, changedFields, conflicts }` (conflicts flag other pending edits touching the same field)
+- `POST /api/pending-edits/:id/approve` — applies `changes_json` inside `runWrite` with a re-read of the current row, sets status, exports Parquet
 - `POST /api/pending-edits/:id/reject` — sets status + optional `review_note`
-- `GET /api/pending-edits/mine` — STAFF: see their own submission history/status
 
-**Settings**
-- `GET/POST/PATCH /api/settings/market-segments`
-- `GET/POST/PATCH /api/settings/users` — SUPER_ADMIN manages roles/active status
+**Settings** (entire router gated `requireAuth + requireRole('SUPER_ADMIN')`)
+- `GET/POST/PATCH /api/settings/market-segments` (+ PATCH per segment with soft-delete `is_active`)
+- `GET/POST/PATCH /api/settings/users` (deactivating a user also revokes their `sessions`)
+- `GET/PATCH /api/settings/aging-thresholds` — the `'default'` Low/Medium aging→priority thresholds (cached server-side, invalidated on update)
+
+**Notifications** (*all authenticated roles, per-user scoped*)
+- `GET /api/notifications` — this user's notifications (default 50)
+- `GET /api/notifications/unread-count`
+- `POST /api/notifications/:id/read` — ownership baked into the `UPDATE ... WHERE id = ? AND recipient_id = ?`
+- `POST /api/notifications/read-all`
+
+**Dashboard** (*all authenticated roles, per-user views*)
+- `GET/POST /api/dashboard/views`, `DELETE /api/dashboard/views/:id` (ownership in WHERE)
+- `GET /api/dashboard/chart-data?column=...` — grouped counts for a column, validated against the `DASHBOARD_COLUMNS` whitelist before SQL interpolation, RBAC-scoped like the grid
 
 **Drive**
-- `GET /api/drive/resolve/:projectId` — returns the Drive folder URL for a project
-- `GET /api/drive/browse?folderId=` — lists children of the Root Storage folder or a subfolder (proxies Drive API, service account must have at least Viewer access to the root folder — see §7)
+- `GET /api/drive/resolve/:projectId` — returns the Drive folder URL for a project from its stored `drive_folder_id` (any role)
+- `GET /api/drive/browse?folderId=` — lists one level of children (SUPER_ADMIN, lazy-load tree)
+- Folder **auto-creation**: `createProjectFolder()` is called inside the same `runWrite` as project create/approve when Google is configured, so a Drive failure rolls back the whole write.
 
-**Gmail / Digest**
-- `POST /api/admin/digest/send-now` — manual trigger for testing (SUPER_ADMIN only)
-- `GET /api/admin/digest/preview` — renders the HTML digest without sending
+**Gmail / Digest — NOT IMPLEMENTED (Phase 6B, deferred).** The v1.0 endpoints `POST /api/admin/digest/send-now` and `GET /api/admin/digest/preview` do not exist yet; in-app notifications replaced the digest as the v1 alerting channel.
 
 ### 4.4 RBAC Enforcement Pattern
 
@@ -311,53 +360,82 @@ RBAC is enforced **twice**, deliberately:
 
 ## 6. Frontend Architecture
 
-### 6.1 Folder Structure
+### 6.1 Folder Structure (implemented)
 
 ```
 apps/web/src/
   app/                      # routes (React Router)
     login/
-    grid/                   # main spreadsheet view
-    approvals/              # approval dashboard
-    settings/
-    drive-browser/
+    grid/                   # main spreadsheet view + add-project form + row-edit modal
+    approvals/              # approval dashboard (SUPER_ADMIN)
+    settings/               # market segments / users / aging thresholds (SUPER_ADMIN)
+    dashboard/              # per-user chart Dashboard (all roles)
+    drive-browser/          # Drive tree browser (SUPER_ADMIN)
   components/
     data-grid/
-      ProjectTable.tsx       # TanStack Table + virtualization
-      ColumnGroupHeader.tsx  # sticky "Project Info / Customer / Vendor" groups
-      StatusFlagCell.tsx     # idle/deadline highlighting
+      ProjectTable.tsx      # TanStack Table + virtualization, inline EditableCell, hover pencil
+      EditProjectModal.tsx  # full-row editor (hover project name → pencil)
+      columns.tsx           # column defs (text/number/select/date/textarea/user factories)
+      ColumnGroupHeader.tsx # sticky "Project Info / Customer / Vendor" groups
+      StatusFlagCell.tsx    # idle/deadline highlighting
     approvals/
-      DiffView.tsx
+      DiffView.tsx          # side-by-side current vs proposed, conflict flags
       ApprovalQueueList.tsx
-    ui/                     # shadcn components
+    dashboard/
+      ChartCard.tsx         # recharts Pie/Bar + legend, per view card
+      AddViewForm.tsx       # chart type / column / label form
+    AppLayout.tsx           # nav, role-aware links, NotificationBell, dev role switcher
+    NotificationBell.tsx    # unread badge + dropdown panel (polled)
+    ProtectedRoute.tsx      # route guard (roles optional)
+    Toast.tsx               # toast system (useToast)
   hooks/
-    useProjects.ts           # TanStack Query wrappers
+    useProjects.ts          # + useAssignableUsers (PIC/Sales options)
     usePendingEdits.ts
     useAuth.ts
+    useSettings.ts          # + useAgingThresholds / useUpdateAgingThresholds
+    useNotifications.ts     # list (30s), unread-count (15s), mark-read mutations
+    useDrive.ts
+    useDashboard.ts         # views CRUD + chart-data
   lib/
-    api-client.ts
-    rbac.ts
+    api-client.ts           # fetch wrapper with 401 auto-refresh (deduped)
+    projectFields.ts        # FIELD_LABELS / SECTION_OF / FIELD_TYPES — shared by DiffView + modal
+    projectStatus.ts        # computeProjectFlag (idle/deadline/finish/ok)
+    rbac.ts                 # UX-only role helpers (server is the security boundary)
+    tokenStore.ts           # localStorage token persistence
   store/
-    auth-store.ts            # Zustand or React context for current user/role
+    auth-store.tsx          # AuthProvider React context (login/restore/logout/switchRole)
 ```
 
-### 6.2 Main Grid Behavior
+Routes (`App.tsx`): `/login`, `/grid`, `/dashboard` (any role), `/approvals` + `/settings` +
+`/drive-browser` (SUPER_ADMIN only via `ProtectedRoute roles={['SUPER_ADMIN']}`), `/` → `/grid`.
+Note: there is no `components/ui/` shadcn folder — the frontend uses hand-rolled Tailwind
+components (buttons, inputs, modal, toast) rather than the shadcn CLI-generated set.
 
-- Columns grouped via TanStack Table's `columnGroups`: **Project Info** (sticky left), **Customer Section**, **Vendor Section**.
-- Inline cell editing (shadcn `Input`/`Select`/`DatePicker` in edit mode) → on blur/confirm, calls `PATCH /api/projects/:id` with only the changed field(s).
-- Row-level status flags computed **client-side from server-provided fields** (`current_stage`, `updated_at`, `*_end_contract`) but the *thresholds* (14 days idle, 7 days to deadline) should live as constants in `packages/shared` so frontend and the Gmail digest job use identical logic — avoids the UI and the email disagreeing about what counts as "idle."
-- Cells with an outstanding pending edit (for STAFF's own submissions) render a small amber indicator + tooltip showing proposed value and status.
+### 6.2 Main Grid Behavior (implemented)
 
-### 6.3 Settings Page
+- Columns grouped via TanStack Table's `columnGroups`: **Project Info** (sticky left), **Customer Section**, **Vendor Section**. Sortable keys whitelisted server-side include the two derived keys (`aging`, `priority`).
+- Field widgets: `text` input, `number` input, `date` picker, `select` (stage / service-or-goods / vendor type), `user` dropdown (PIC, Sales), and `textarea` (Issues — commit on Ctrl/Cmd+Enter or blur). Editable cells commit to `PATCH /api/projects/:id` with only the changed field(s).
+- **Row-edit modal:** hovering a project-name cell reveals a pencil icon → `EditProjectModal` (full row, grouped Project info / Customer / Vendor), saving sends **one** PATCH containing only the changed fields. STAFF sees "Change submitted for approval.", SUPER_ADMIN sees "Saved.".
+- **Status flags** (`computeProjectFlag` in `lib/projectStatus.ts`): `finish` / `deadline` (within `DEADLINE_WARNING_DAYS` of a contract end) / `idle` (`on_progress`, no `updated_at` activity for `IDLE_THRESHOLD_DAYS`) / `ok`. Thresholds are imported from `packages/shared/src/thresholds.ts` — never re-hardcoded.
+- **Aging** and **Priority** columns are read-only, unsortable client-side. Aging is computed with `computeAging()` from `@tracker/shared`; Priority is the server-computed badge (green Low / amber Medium / red High) derived from the configurable aging thresholds.
+- Pending-edit awareness for STAFF (`GET /api/pending-edits/mine`): a computed `pendingProjectIds` set drives an amber "Pending" indicator on rows awaiting approval (the `pending_flag` column exists in `columns.tsx` though it's currently commented out of the visible grid).
+- The add-project form supports Project name, Folder, Customer, segment, Vendor, prices, Type, Stage, Sales (admin only), PIC, and Issues. "Propose new project" for STAFF.
 
-- Market segment CRUD (add/deactivate — avoid hard delete if segments are referenced by existing rows; use `is_active` soft-delete).
-- User management: list users, change role, activate/deactivate (deactivating should also revoke their `sessions` rows).
+### 6.3 Dashboard, Settings, and Drive Browser Pages
+
+- **Settings** (SUPER_ADMIN): market segment CRUD (soft-delete via `is_active`), user management (create / change role / deactivate — deactivation revokes `sessions`, and a user can't deactivate/demote themselves), and the **Aging → Priority** thresholds panel (two number inputs, save disabled unless `medium > low`, mirrors the zod `.refine`).
+- **Dashboard** (all roles): per-user grid of view cards; each view is a Pie or Bar chart of one column from the `DASHBOARD_COLUMNS` whitelist (`current_stage`, `service_or_goods`, `vendor_type`, `market_segment`, `staff_assigned_id`, `pic_id`, `priority`). Views are not shared.
+- **Drive Browser** (SUPER_ADMIN): lazy one-level tree from the cached root folder; folder click loads children; "Open in Drive" uses the stored folder id / webViewLink.
 
 ---
 
 ## 7. Google Integration Details
 
-### 7.1 Service Account Setup (do this before writing integration code)
+> **Status:** Phase 6A (Google Drive) is **implemented**. Phase 6B (Gmail digest) is **not started** —
+> the daily digest was deferred in favor of in-app notifications (see §10.2). The `googleapis`
+> dependency and `.env` digest variables exist but the Gmail code paths are not written.
+
+### 7.1 Service Account Setup (required before first Google call)
 
 1. In Google Cloud Console, create a project → enable **Drive API** and **Gmail API**.
 2. Create a service account, download the JSON key, store as `apps/server/secrets/service-account.json` (git-ignored).
@@ -368,19 +446,17 @@ apps/web/src/
    - The server then constructs a JWT client with `subject: 'admin@yourcompany.com'` to send "as" that mailbox.
    - **If the organization is not on Google Workspace** (i.e., using plain consumer Gmail), domain-wide delegation is not available — the fallback is OAuth2 with a stored refresh token for one designated Gmail account, or an SMTP app password via Nodemailer. Confirm which applies before building §7.3.
 
-### 7.2 Drive Deep Links & Browser
+### 7.2 Drive Deep Links & Browser (implemented)
 
-- Store `drive_folder_id` on each project row at creation time (resolved once via a Drive `files.list` search by name under the root, or entered manually in the create form).
-- Deep link = `https://drive.google.com/drive/folders/{drive_folder_id}`, opened in a new tab.
-- **Drive Browser tab:** calls `files.list(q="'{folderId}' in parents", ...)` recursively/on-demand (lazy-load children on folder expand, not a full recursive tree fetch up front — with 50–500 projects each potentially having their own folder, an eager full tree walk would be slow and hit Drive API rate limits).
+- Store `drive_folder_id` on each project row at creation time. **Auto-created**: `createProjectFolder(projectName)` creates a subfolder under the cached `root_folder` inside the same `runWrite` as project create/approve, so a Drive failure rolls the write back (no orphaned project). When Google is not configured, folder creation is skipped and the app still works.
+- Deep link = `https://drive.google.com/drive/folders/{drive_folder_id}` (grid "Folder" column) or the Drive Browser's `webViewLink`.
+- **Drive Browser tab:** calls `files.list(q="'{folderId}' in parents and trashed = false", ...)` lazily — one level per folder expand, not an eager full recursive tree (avoids Drive API rate limits at 50–500 projects).
+- Root folder is a Drive folder named exactly **`root_folder`**, resolved once at startup (`resolveRootFolderId()`, cached); it must be shared with the service account as Editor so subfolders can be created. Boot fails loudly if configured but the folder is missing; if Google isn't configured at all the server boots with a warning.
 
-### 7.3 Daily Digest Job
+### 7.3 Daily Digest Job — NOT IMPLEMENTED (Phase 6B)
 
-- `node-cron` schedule, e.g. `0 6 * * *` (06:00 server local time).
-- Query: idle = `current_stage = 'on_progress' AND updated_at < now() - INTERVAL 14 DAY`; upcoming deadline = `customer_end_contract BETWEEN today AND today + 7` OR same for `vendor_end_contract`.
-- Render HTML via a small template (can reuse a React server-rendered email template or a plain Handlebars/EJS template — recommend a simple table-based HTML email, since rich CSS support in Gmail is limited).
-- Send via `gmail.users.messages.send` (base64url-encoded RFC 2822 MIME message) using the impersonated JWT client from §7.1.
-- Log each send (success/failure) — a failed send shouldn't crash the cron job; catch and log, retry next day.
+- Plan (from `pre_phase_6.md`): `node-cron` daily 06:00; idle = `current_stage = 'on_progress' AND updated_at < now() - INTERVAL 14 DAY`; upcoming deadline = `customer_end_contract`/`vendor_end_contract` within 7 days; HTML-table email sent via `gmail.users.messages.send` with the impersonated JWT client.
+- Superseded for v1 by in-app notifications (`notifications` table + `jobs/agingCron.ts` at 07:00) — the alerting requirement is met in-app; the Gmail path remains the plan for when an email channel is wanted. Requires the Workspace domain-wide-delegation decision in §7.1 (item 4) before any code lands.
 
 ---
 
@@ -390,8 +466,17 @@ Define once in `packages/shared/src/thresholds.ts`:
 ```ts
 export const IDLE_THRESHOLD_DAYS = 14;
 export const DEADLINE_WARNING_DAYS = 7;
+export const AGING_ALERT_DAYS = 30;                    // aging-cron threshold
+export const DEFAULT_AGING_LOW_MAX_DAYS = 15;          // seed for aging_thresholds
+export const DEFAULT_AGING_MEDIUM_MAX_DAYS = 30;
 ```
-Both the frontend grid highlighting and the backend digest query import these — never hardcode the numbers in two places.
+These are the single source of truth: the frontend grid highlighting (`projectStatus.ts`),
+the aging cron (`agingCron.ts`), the Aging→Priority seed row (`migrate.ts`), and (when built)
+the digest job all import them — never hardcode the numbers in two places.
+
+Aging itself is computed by `networkDays()`/`computeAging()` in `packages/shared/src/lib/aging.ts`
+(a business-day `NETWORKDAYS(Q,U)-1`-style port of the source spreadsheet, no holiday awareness),
+and `computePriority(aging, thresholds)` maps an aging value to `low`/`medium`/`high`.
 
 ---
 
@@ -459,22 +544,66 @@ Both the frontend grid highlighting and the backend digest query import these �
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| **Phase 0 — Project Scaffolding** | ✅ Complete | Monorepo structure with workspaces; `apps/web` scaffolded (Vite + React + Tailwind + TanStack); `apps/server` scaffolded (Express + TypeScript + all npm packages); `packages/shared` with Zod schemas + thresholds. |
-| **Phase 1 — Data Layer** | ✅ Complete | `db/connection.ts` (singleton + write mutex), `db/migrate.ts`, `db/export.ts` implemented. `app.duckdb` + WAL + parquet snapshots present. |
-| **Phase 2 — Auth & RBAC** | ✅ Complete | `modules/auth/` (login, refresh, logout, tokens, config, authService); `middleware/requireAuth.ts`, `requireRole.ts`, `rateLimit.ts`; `auth-store.tsx` + `useAuth.ts` on frontend. |
-| **Phase 3 — Core Grid (read path)** | ✅ Complete | `components/data-grid/` (ProjectTable, ColumnGroupHeader, StatusFlagCell, columns); `hooks/useProjects.ts`; `app/grid/GridPage.tsx`. |
-| **Phase 4 — Write Path & Approval Queue** | ✅ Complete | `modules/projects/` (routes + service); `modules/pending-edits/` (routes + service); `components/approvals/` (DiffView, ApprovalQueueList); `app/approvals/ApprovalsPage.tsx`. |
-| **Phase 5 — Settings** | ✅ Complete | `modules/settings/` (routes + settingsService); `hooks/useSettings.ts`; `app/settings/SettingsPage.tsx`. |
-| **Phase 6 — Google Integrations** | ⬜ Not Started | Missing: `modules/drive/`, `modules/gmail/`, `jobs/dailyDigest.ts`, `app/drive-browser/` on frontend. |
-| **Phase 7 — Hardening & Deployment** | ⬜ Not Started | Rate limiting implemented; audit logging, HTTPS config, production build steps remain. |
+| **Phase 0 — Project Scaffolding** | ✅ Complete | Monorepo workspaces; `apps/web` (Vite + React + TS + Tailwind + TanStack Table/Query/Virtual + recharts); `apps/server` (Express + TS + duckdb/async-mutex/jsonwebtoken/argon2/node-cron/googleapis/zod); `packages/shared` with Zod schemas + thresholds. |
+| **Phase 1 — Data Layer** | ✅ Complete | `db/connection.ts` (singleton + `runWrite` async-mutex), `db/migrate.ts` (idempotent DDL + column migrations + threshold seed + legacy parquet import), `db/export.ts`. `app.duckdb` + WAL + parquet snapshots present (projects/users on disk; pending_edits exported on first write). |
+| **Phase 2 — Auth & RBAC** | ✅ Complete | `modules/auth/` (login w/ rate limit, refresh with rotation, logout, `/me`, `dev-switch-role` dev-only, argon2); `middleware/requireAuth.ts`, `requireRole.ts`, `rateLimit.ts`; frontend `auth-store.tsx` context + `useAuth` + `api-client` with deduped 401 refresh. |
+| **Phase 3 — Core Grid (read path)** | ✅ Complete | `components/data-grid/` (ProjectTable w/ virtualization + sticky groups + inline `EditableCell`, ColumnGroupHeader, StatusFlagCell, typed column factories); `hooks/useProjects.ts`; `app/grid/GridPage.tsx`. Sortable server-side incl. derived `aging`/`priority` (in-memory). |
+| **Phase 4 — Write Path & Approval Queue** | ✅ Complete | `modules/projects/` (role-branch POST/PATCH/DELETE), `modules/pending-edits/` (submit-create/update, list, mine, diff-with-conflicts, approve w/ re-read inside mutex + transaction, reject); `components/approvals/` (DiffView, ApprovalQueueList); `ApprovalsPage`. |
+| **Phase 5 — Settings** | ✅ Complete | `modules/settings/` (market segments soft-delete, users incl. session revocation on deactivate + self-lockout guard, **aging thresholds**); `useSettings.ts`; `SettingsPage` w/ `AgingThresholdsPanel`. |
+| **Phase 6A — Google Drive** | ✅ Complete | `modules/google/auth.ts` (service-account client, root-`root_folder` resolution, configured-or-degrade); `modules/drive/` (resolve, listChildren lazy browse, `createProjectFolder` called inside create/approve `runWrite` for all-or-nothing); `app/drive-browser/` UI + grid Folder column. |
+| **Phase 6B — Gmail Digest** | ⬜ Not Started | **Deferred** — replaced for v1 by in-app notifications (§10.2). `pre_phase_6.md` retains the plan (send-now/preview endpoints, `jobs/digestJob.ts`, digest HTML). |
+| **Phase 7 — Hardening & Deployment** | 🟡 Partial | Done: login rate limiting, `.env`/secrets handling, `users.parquet` excludes `password_hash` (exported from `v_users_public`), graceful shutdown w/ DuckDB `CHECKPOINT`, `closeDb`. **Remaining:** audit logging (approval/rejection/auth events), Express serving the built SPA in production, HTTPS decision, LAN access docs. |
+
+### 10.2 Implemented Extensions (added after the v1.0 plan)
+
+These shipped as follow-ups and are now part of the current spec. Planning docs: `planning_ex8.md`, `planning_ex9.md`, `pre_phase_6.md`.
+
+**1. PIC / Issues / Aging columns** (planning_ex8)
+- `projects.pic_id` (user reference, JOINed to `pic_name`) and `projects.issues` (free-text notes, textarea widget). Grid: PIC is a `user` dropdown, Issues is a `<textarea>`, Aging is a non-editable computed column.
+- `Aging` is **derived**, never stored: `networkDays(project_sent_date, approval_date ?? today) - 1` (business days, no holidays) in `packages/shared/src/lib/aging.ts`. The earlier free-text PIC column is migrated to `pic_id` and its values cleared.
+
+**2. In-app notifications** (planning_ex8) — the v1 alerting channel
+- `notifications` table (types `NEW_APPROVAL`, `AGING_ALERT`). `NEW_APPROVAL` rows are created inside the same `runWrite` as a pending-edit submission — one per active SUPER_ADMIN.
+- `jobs/agingCron.ts` runs daily at 07:00: computes Aging for all `on_progress` projects and alerts all active SUPER_ADMINs when Aging ≥ `AGING_ALERT_DAYS` (30), de-duplicated by an existing unread AGING_ALERT for that project. Wrapped in try/catch — a bad run never crashes the process.
+- Frontend `NotificationBell` in the header (all roles) polls unread count every 15s and the list every 30s; click navigates to `/approvals` (NEW_APPROVAL) or `/grid` (AGING_ALERT). Reads are per-user scoped.
+- **Not** part of the Parquet export contract.
+
+**3. Aging → Priority with configurable thresholds** (planning_ex9)
+- `aging_thresholds` singleton `'default'` row seeded from `DEFAULT_AGING_LOW_MAX_DAYS`/`DEFAULT_AGING_MEDIUM_MAX_DAYS` (15/30). SUPER_ADMIN edits via Settings (`GET/PATCH /api/settings/aging-thresholds`); server caches via `agingThresholdsCache.ts`, invalidated on update.
+- `priority` is **always derived** (`computePriority(computeAging(row), thresholds)`) — never stored, never submittable (deliberately omitted from the create/update Zod schemas). Computed server-side in `listProjects` and in dashboard chart-data; rendered as a read-only badge in the grid.
+- **Not** part of the Parquet export contract.
+
+**4. Per-user Dashboard** (planning_ex9)
+- `dashboard_views` table + `GET/POST/DELETE /api/dashboard/views` + `GET /api/dashboard/chart-data?column=`. The column is validated against the single `DASHBOARD_COLUMNS` whitelist (`packages/shared/src/schemas/dashboardView.ts`) before any SQL interpolation, and aggregated over the **same `scopeClause`** as the grid (extracted for exactly this reason — grid and dashboard can't diverge on STAFF row-scoping).
+- recharts Pie/Bar cards with legends; views are per-user. **Not** part of the Parquet export contract.
+
+**5. Row-edit modal** (planning_ex9 Phase 5)
+- Hover a project-name cell → pencil → `EditProjectModal` renders the full row grouped into Project info / Customer / Vendor (`lib/projectFields.ts` centralizes `FIELD_LABELS`/`SECTION_OF`/`FIELD_TYPES`, shared with `DiffView`). Save sends **one** PATCH with only the changed fields (client-side diff). Per the recorded decision, the modal duplicates field-rendering logic rather than extracting a shared `FieldInput`.
+
+**6. Google Drive (Phase 6A)** — see §7.2.
+
+**7. Playwright E2E suite**
+- 5 spec files / 17 tests in `apps/web/e2e/`: `grid.spec.ts`, `notifications.spec.ts`, `dashboard.spec.ts`, `priority.spec.ts`, `edit-modal.spec.ts`. `playwright.config.ts` boots the API server (port 3000, `npm run start -w @tracker/server`) + Vite dev (port 5173).
+- Known dev caveats recorded in `planning_ex9.md` Batch 4: the full suite needs the `_rbac_setup.ts` fixture database (`staff1@example.com`/`Admin Project A`, etc.); the live `apps/server/data/app.duckdb` currently holds manual dev rows, so the fixture-based specs can't run against it without resetting the DB. `notifications.spec.ts`'s exact `'1'` badge assert can flake if run in parallel with edit-modal's STAFF submit.
+- Typecheck note: the web workspace has 3 pre-existing TS6133 "declared but never used" errors (`ColumnGroupHeader.tsx` `headerWidth`, `columns.tsx` `statusColumn`/`pendingColumn`); per the project rule these are left in place, and `npx vite build` (bypassing the `tsc` gate) is used to verify the build.
 
 ---
 
-## 11. Open Items to Confirm Before/During Build
+## 11. Open Items / Remaining Work
 
-*(Storage engine, §1.2/§1.3, is now confirmed — DuckDB native local file as source of truth, Parquet as local snapshots.)*
+*(Storage engine and Phase 6A architecture — §1.2/§1.3 — are confirmed and implemented.)*
 
-- Confirm the Google Workspace assumption (§1.3) — determines the exact Gmail auth path in Phase 6.
-- Decide whether `audit_log` is a full table (queryable "activity history" UI) or just structured server logs for now — table is recommended if you'll want an activity view later, but it's more upfront work.
-- Confirm whether project "folders" are 1:1 with a single Drive folder per project (assumed) or something more nested.
-- Confirm digest send time (assumed 06:00 server-local) and recipient(s) — currently scoped to "the Super Admin"; confirm if there are multiple Super Admins and whether all should receive it.
+**Outstanding implementation work:**
+- **Phase 6B — Gmail digest.** Not started; superseded for v1 by in-app notifications. To build it later you'll need the Workspace/domain-wide-delegation decision from §7.1 item 4 (or the consumer-Gmail OAuth/SMTP fallback), a real `DIGEST_RECIPIENT_EMAIL`, and the `send-now`/`preview` endpoints + `jobs/digestJob.ts` from `pre_phase_6.md`.
+- **Audit logging (Phase 7).** Nothing is recorded today for approvals/rejections/auth events beyond the `pending_edits.reviewed_by/reviewed_at` columns. Decide table vs. structured logs if an "activity history" UI is wanted.
+- **Production single-process deployment.** Express does not yet serve the built SPA (`apps/server/src/app.ts` is API-only); `apps/web` is still run via Vite dev. Needs `express.static` of the Vite build + same-origin serving.
+- **HTTPS decision (Phase 7)** for the LAN (self-signed/internal CA) if the network isn't fully trusted.
+- **LAN docs** — access URL/hostname and staff onboarding steps.
+
+**Decisions still needed before Phase 6B:**
+- Confirm the Google Workspace assumption (§1.3) — determines the exact Gmail auth path.
+- Confirm digest send time (assumed 06:00 server-local) and recipients (single SUPER_ADMIN via `DIGEST_RECIPIENT_EMAIL`, or all active SUPER_ADMINs).
+
+**Dev-environment notes:**
+- The live `apps/server/data/app.duckdb` is out of sync with the E2E fixtures (it holds manual dev rows instead of `staff1@example.com` / `Admin Project A` etc.). The Playwright suite that depends on fixtures requires re-running the fixture setup, which is destructive to the manual rows.
+- `notifications.spec.ts`'s exact unread-badge assert (`'1'`) can flake if the suite runs its STAFF-submit tests in parallel workers.

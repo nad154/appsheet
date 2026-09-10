@@ -13,3 +13,16 @@
     background-color: transparent;
   }
 }
+
+/* Same flash for the sticky Project Info cells, which must never go
+   transparent (rows scroll beneath them). The animation overrides the cells'
+   inline white background during the flash, then reverts seamlessly to white.
+   Applied via `animate-[row-flash-sticky_1.2s_ease-in-out]`. */
+@keyframes row-flash-sticky {
+  0% {
+    background-color: #fef08a;
+  }
+  100% {
+    background-color: #ffffff;
+  }
+}

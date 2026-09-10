@@ -56,6 +56,31 @@ test('admin drills into a pie slice and lands on the highlighted grid row', asyn
   await expect(highlighted).toBeVisible({ timeout: 15000 });
   await expect(highlighted).toContainText(projectName);
 
+  // The sticky Project Info cells run their own opaque yellow→white flash; the
+  // flash's row-flash-sticky animation temporarily overrides their inline white
+  // background. Sample the first (Project) cell's computed background over the
+  // remaining flash window and require at least one non-white reading.
+  const stickyCell = highlighted.locator('div[role="cell"]').first();
+  const sawStickyFlash = await stickyCell.evaluate((el: HTMLElement) => {
+    return new Promise<boolean>((resolve) => {
+      const start = performance.now();
+      const check = () => {
+        const color = getComputedStyle(el).backgroundColor;
+        if (color && color !== 'rgb(255, 255, 255)' && color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') {
+          resolve(true);
+          return;
+        }
+        if (performance.now() - start > 2000) {
+          resolve(false);
+          return;
+        }
+        requestAnimationFrame(check);
+      };
+      check();
+    });
+  });
+  expect(sawStickyFlash, 'sticky Project Info cell should flash during the row highlight').toBe(true);
+
   // Cleanup: the flash clears itself and the highlight is consumed.
   await expect(highlighted).toHaveCount(0, { timeout: 15000 });
 

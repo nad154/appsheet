@@ -429,7 +429,7 @@ export function ProjectTable({
                   role="row"
                   data-testid={flashActive && row.original.id === highlightedRowId ? 'highlighted-row' : undefined}
                   className={`border-b border-gray-100 hover:bg-gray-50 ${
-                    flashActive && row.original.id === highlightedRowId ? 'bg-yellow-100 animate-[row-flash_1.2s_ease-in-out]' : ''
+                    flashActive && row.original.id === highlightedRowId ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
                   }`}
                   style={{
                     display: 'grid', 
@@ -525,7 +525,11 @@ export function ProjectTable({
                       <div
                         key={cell.id}
                         role="cell"
-                        className="px-3 py-2 text-gray-700"
+                        className={`px-3 py-2 text-gray-700 ${
+                          isStickyCol && flashActive && row.original.id === highlightedRowId
+                            ? 'animate-[row-flash-sticky_1.2s_ease-in-out]'
+                            : ''
+                        }`}
                         style={{
                           display: 'flex',
                           alignItems: 'center',

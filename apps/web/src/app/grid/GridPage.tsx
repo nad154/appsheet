@@ -30,8 +30,8 @@ export function GridPage() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortBy, setSortBy] = useState<string | undefined>('updated_at');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   // const [notice, setNotice] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export function GridPage() {
     setPageSize(size);
     setPage(1);
   };
-  const handleSortChange = (nextSortBy: string | undefined, nextSortDir: SortDir) => {
+  const handleSortChange = (nextSortBy: string, nextSortDir: SortDir) => {
     setSortBy(nextSortBy);
     setSortDir(nextSortDir);
     setPage(1);

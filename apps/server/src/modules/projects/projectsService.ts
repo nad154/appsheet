@@ -136,10 +136,8 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
       .slice(offset, offset + pageSize);
   } else {
     // Real-column keys ORDER BY themselves; the two joined-name keys resolve to
-    // the mapped expressions above and pin NULL (unassigned) rows last. An
-    // absent/unknown key falls back to the default ordering: creation date,
-    // oldest first.
-    const sortExpr = SORTABLE_COLUMNS[sortKey] ?? 'created_at';
+    // the mapped expressions above and pin NULL (unassigned) rows last.
+    const sortExpr = SORTABLE_COLUMNS[sortKey] ?? 'updated_at';
     const nullsLast = NULLS_LAST_SORT_KEYS.has(sortKey) ? ' NULLS LAST' : '';
     rows = await runRead<ProjectRow>(
       `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name

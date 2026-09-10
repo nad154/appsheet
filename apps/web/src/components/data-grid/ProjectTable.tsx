@@ -42,7 +42,7 @@ interface ProjectTableProps {
   isAdmin?: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
-  onSortChange: (sortBy: string | undefined, sortDir: SortDir) => void;
+  onSortChange: (sortBy: string, sortDir: SortDir) => void;
   onRowUpdate: (row: Project, changes: Record<string, unknown>) => Promise<EditResult>;
   onNotice?: (message: string, variant?: ToastVariant) => void;
 }
@@ -257,13 +257,6 @@ export function ProjectTable({
 
   const handleSortClick = (columnId: string) => {
     resetEditing();
-    // Third click on an already-active column (asc → desc) clears the sort:
-    // returns to the default creation-date ordering (oldest first) and drops
-    // the active-sort indicator.
-    if (sortBy === columnId && sortDir === 'desc') {
-      onSortChange(undefined, 'asc');
-      return;
-    }
     const nextDir: SortDir = sortBy === columnId && sortDir === 'asc' ? 'desc' : 'asc';
     onSortChange(columnId, nextDir);
   };

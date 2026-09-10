@@ -7,13 +7,18 @@ export interface ProjectQueryParams {
   page_size?: number;
   sort_by?: string;
   sort_dir?: 'asc' | 'desc';
+  // When false the query stays disabled (e.g. the grid's one-off locator query
+  // that runs only while a drill-down highlight is pending). Not part of the
+  // query key, so toggling it never invalidates the cached data.
+  enabled?: boolean;
 }
 
 export function useProjects(params: ProjectQueryParams = {}) {
-  const { page = 1, page_size = 50, sort_by, sort_dir } = params;
+  const { page = 1, page_size = 50, sort_by, sort_dir, enabled = true } = params;
 
   const query = useQuery({
     queryKey: ['projects', { page, page_size, sort_by, sort_dir }],
+    enabled,
     queryFn: async () => {
       const qs = new URLSearchParams();
       qs.set('page', String(page));

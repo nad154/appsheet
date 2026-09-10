@@ -1,3 +1,15 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Drill-down arrival: brief highlight of the grid row the user navigated to
+   from a dashboard chart. Applied via the arbitrary-value class
+   `animate-[row-flash_1.2s_ease-in-out]` on the row element. */
+@keyframes row-flash {
+  0% {
+    background-color: #fef08a;
+  }
+  100% {
+    background-color: transparent;
+  }
+}

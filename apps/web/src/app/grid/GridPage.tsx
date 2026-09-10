@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useProjects, useAssignableUsers, type ProjectQueryParams } from '../../hooks/useProjects';
 import { usePendingEdits, useMyPendingEdits } from '../../hooks/usePendingEdits';
 import { ProjectTable, type SortDir, type EditResult } from '../../components/data-grid/ProjectTable';
@@ -27,6 +28,8 @@ export function GridPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'SUPER_ADMIN';
   const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -38,10 +41,46 @@ export function GridPage() {
   const [addSaving, setAddSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
+  // Set only when arriving via a dashboard drill-down click
+  // (navigate('/grid', { state: { highlightProjectId } })).
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
+    () => (location.state?.highlightProjectId as string | undefined) ?? null,
+  );
+
+  // Consume the navigation state once so a plain refresh of /grid doesn't
+  // re-trigger the highlight.
+  useEffect(() => {
+    if (location.state?.highlightProjectId) {
+      navigate('.', { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const params: ProjectQueryParams = { page, page_size: pageSize, sort_by: sortBy, sort_dir: sortDir };
   const { data, isLoading, isError, refetch: refetchProjects } = useProjects(params);
   const assignable = useAssignableUsers();
   const users = assignable.data ?? [];
+
+  // Locator query: while a highlight is pending, fetch the full scoped set so
+  // the target row's page can be computed even when it isn't on page 1.
+  const locator = useProjects(
+    highlightedRowId
+      ? { page: 1, page_size: 500, sort_by: 'updated_at', sort_dir: 'desc' }
+      : { page: 1, page_size: 500, enabled: false },
+  );
+
+  // Jump to the page containing the highlighted row as soon as the locator data
+  // is available. Drops the highlight silently if the row isn't in the user's
+  // scoped set (deleted, or not visible to this role).
+  useEffect(() => {
+    if (!highlightedRowId || !locator.data) return;
+    const idx = locator.data.rows.findIndex((r) => r.id === highlightedRowId);
+    if (idx === -1) {
+      setHighlightedRowId(null);
+      return;
+    }
+    setPage(Math.floor(idx / pageSize) + 1);
+  }, [highlightedRowId, locator.data, pageSize]);
 
   const allPending = usePendingEdits('pending');
   const minePending = useMyPendingEdits();
@@ -249,6 +288,8 @@ export function GridPage() {
         onSortChange={handleSortChange}
         onRowUpdate={handleRowUpdate}
         onNotice={showToast}
+        highlightedRowId={highlightedRowId}
+        onHighlightDone={() => setHighlightedRowId(null)}
       />
       {/* {isLoading && <p className="mt-2 text-sm text-gray-500">Loading…</p>} */}
     </div>

@@ -4,7 +4,13 @@ import { scopeClause } from '../projects/projectsService.js';
 import { resolveAgingThresholds } from '../settings/agingThresholdsCache.js';
 import { computeAging, computePriority, DASHBOARD_COLUMNS } from '@tracker/shared';
 import type { AuthUser } from '../../middleware/requireAuth.js';
-import type { DashboardView, DashboardViewCreate, ChartData, DashboardColumn } from '@tracker/shared';
+import type {
+  DashboardView,
+  DashboardViewCreate,
+  ChartData,
+  DashboardColumn,
+  DrillDownResult,
+} from '@tracker/shared';
 
 export class DashboardError extends Error {
   constructor(message: string, public statusCode = 400) {
@@ -67,6 +73,16 @@ interface ProjectGroupRow {
   [key: string]: unknown;
 }
 
+// Rows returned by the drill-down queries. project_sent_date / approval_date
+// are only needed for the priority branch (aging inputs).
+interface DrillDownRow {
+  id: string;
+  project_name: string;
+  project_sent_date?: string | null;
+  approval_date?: string | null;
+  [key: string]: unknown;
+}
+
 /**
  * Groups & counts rows for one column, applying the SAME RBAC scoping as the
  * grid (scopeClause), so a STAFF user's charts only ever reflect the projects
@@ -111,4 +127,62 @@ export async function getChartData(user: AuthUser, columnKey: DashboardColumn): 
     params,
   );
   return { labels: rows.map((r) => r.label), values: rows.map((r) => Number(r.cnt)) };
+}
+
+/**
+ * Returns the RBAC-scoped projects that fall under one chart slice/segment,
+ * so clicking "Low" on a Priority pie or "Enterprise" on a market-segment bar
+ * lists exactly the projects that slice counted. Must reuse scopeClause so
+ * the drill-down can never diverge from the grid/chart over what a STAFF user
+ * is allowed to see.
+ */
+export async function getDrillDown(
+  user: AuthUser,
+  columnKey: DashboardColumn,
+  value: string,
+): Promise<DrillDownResult> {
+  if (!DASHBOARD_COLUMNS.includes(columnKey)) {
+    throw new DashboardError('Unsupported column', 400);
+  }
+  const { whereClause, params } = scopeClause(user);
+
+  // Priority is derived (never stored), so it can't be matched in SQL — fetch
+  // the aging inputs for the scoped rows and compute the priority in JS,
+  // identical to getChartData's priority branch. Chart labels are capitalized
+  // (Low/Medium/High) while computePriority returns lowercase, so match on
+  // value.toLowerCase().
+  if (columnKey === 'priority') {
+    const thresholds = await resolveAgingThresholds();
+    const rows = await runRead<DrillDownRow>(
+      `SELECT id, project_name, project_sent_date, approval_date
+       FROM projects p ${whereClause}`,
+      params,
+    );
+    const target = value.toLowerCase();
+    return {
+      projects: rows
+        .filter((r) => computePriority(computeAging(r), thresholds) === target)
+        .sort((a, b) => a.project_name.localeCompare(b.project_name))
+        .map((r) => ({ id: r.id, project_name: r.project_name })),
+    };
+  }
+
+  // User columns group by the joined display name; plain columns group by the
+  // raw value with NULLs folded to 'Unset'. Match on the SAME derived label
+  // getChartData produced, or clicking "Unassigned" / "Unset" would return
+  // nothing.
+  const isUserColumn = columnKey === 'staff_assigned_id' || columnKey === 'pic_id';
+  const criteria = isUserColumn
+    ? `COALESCE(u.name, 'Unassigned') = ?`
+    : `COALESCE(p.${columnKey}::VARCHAR, 'Unset') = ?`;
+  const joinClause = isUserColumn ? `LEFT JOIN users u ON u.id = p.${columnKey}` : '';
+  const whereFull = whereClause ? `${whereClause} AND ${criteria}` : `WHERE ${criteria}`;
+
+  const rows = await runRead<DrillDownRow>(
+    `SELECT p.id, p.project_name
+     FROM projects p ${joinClause} ${whereFull}
+     ORDER BY p.project_name ASC`,
+    [...params, value],
+  );
+  return { projects: rows.map((r) => ({ id: r.id, project_name: r.project_name })) };
 }

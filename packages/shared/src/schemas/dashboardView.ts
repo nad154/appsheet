@@ -41,3 +41,10 @@ export const chartDataSchema = z.object({
   values: z.array(z.number()),
 });
 export type ChartData = z.infer<typeof chartDataSchema>;
+
+// Response shape for GET /api/dashboard/drill-down — the RBAC-scoped projects
+// that fall under one chart slice/segment.
+export const drillDownSchema = z.object({
+  projects: z.array(z.object({ id: z.string().uuid(), project_name: z.string() })),
+});
+export type DrillDownResult = z.infer<typeof drillDownSchema>;

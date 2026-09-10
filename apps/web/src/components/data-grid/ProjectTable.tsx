@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -45,6 +45,10 @@ interface ProjectTableProps {
   onSortChange: (sortBy: string, sortDir: SortDir) => void;
   onRowUpdate: (row: Project, changes: Record<string, unknown>) => Promise<EditResult>;
   onNotice?: (message: string, variant?: ToastVariant) => void;
+  // Id of a row to scroll to and briefly flash (set when arriving from a
+  // dashboard drill-down click).
+  highlightedRowId?: string | null;
+  onHighlightDone?: () => void;
 }
 
 const STICKY_GROUP_ID = 'project_info';
@@ -211,10 +215,13 @@ export function ProjectTable({
   onSortChange,
   onRowUpdate,
   onNotice,
+  highlightedRowId,
+  onHighlightDone,
 }: ProjectTableProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>(null);
   const [savingCell, setSavingCell] = useState<string | null>(null);
   const [editModalRow, setEditModalRow] = useState<Project | null>(null);
+  const [flashActive, setFlashActive] = useState(false);
 
   const table = useReactTable({
     data: rows,
@@ -249,6 +256,43 @@ export function ProjectTable({
     estimateSize: () => 44,
     overscan: 10,
   });
+
+  // Drill-down arrival: once the highlighted row is present in the loaded page,
+  // scroll it into view and start the flash. Re-runs as the target page's data
+  // arrives; the row handles the rest via flashActive below.
+  const scrolledForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!highlightedRowId) {
+      setFlashActive(false);
+      return;
+    }
+    if (scrolledForRef.current === highlightedRowId) return;
+    // row.id is the table's positional id (index string) — the project UUID
+    // lives on row.original.id.
+    const idx = modelRows.findIndex((r) => r.original.id === highlightedRowId);
+    if (idx === -1) return;
+    scrolledForRef.current = highlightedRowId;
+    setFlashActive(true);
+    requestAnimationFrame(() => {
+      // Center the highlighted row without depending on the virtualizer's
+      // measurement timing (a fresh mount may not have measurements yet).
+      const el = parentRef.current;
+      if (el) {
+        const rowOffset = idx * 44; // matches the virtualizer estimateSize
+        el.scrollTop = Math.max(0, rowOffset - Math.floor(el.clientHeight / 2) + 22);
+      }
+    });
+  }, [highlightedRowId, modelRows, rowVirtualizer]);
+
+  // End the flash after ~1.8s, then tell the page to clear the highlight.
+  useEffect(() => {
+    if (!flashActive) return;
+    const t = window.setTimeout(() => {
+      setFlashActive(false);
+      onHighlightDone?.();
+    }, 1800);
+    return () => window.clearTimeout(t);
+  }, [flashActive, onHighlightDone]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const tableWidth = table.getTotalSize();
@@ -383,7 +427,10 @@ export function ProjectTable({
                 <div
                   key={row.id}
                   role="row"
-                  className="border-b border-gray-100 hover:bg-gray-50"
+                  data-testid={flashActive && row.original.id === highlightedRowId ? 'highlighted-row' : undefined}
+                  className={`border-b border-gray-100 hover:bg-gray-50 ${
+                    flashActive && row.original.id === highlightedRowId ? 'bg-yellow-100 animate-[row-flash_1.2s_ease-in-out]' : ''
+                  }`}
                   style={{
                     display: 'grid', 
                     gridTemplateColumns, 

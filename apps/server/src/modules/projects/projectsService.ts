@@ -30,8 +30,8 @@ const SORTABLE_COLUMNS: Record<string, string> = {
   customer_end_contract: 'customer_end_contract',
   vendor_end_contract: 'vendor_end_contract',
   current_stage: 'current_stage',
-  updated_at: 'updated_at',
-  created_at: 'created_at',
+  updated_at: 'p.updated_at',
+  created_at: 'p.created_at',
   pic_name: 'pic_user.name',
   staff_assigned_id: 'u.name',
 };
@@ -105,7 +105,9 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   const page = Math.max(1, query.page ?? 1);
   const pageSize = Math.min(500, Math.max(1, query.page_size ?? 50));
   const sortKey = query.sort_by ?? '';
-  const sortDir = query.sort_dir === 'asc' ? 'ASC' : 'DESC';
+  const sortDir = query.sort_dir
+    ? (query.sort_dir === 'asc' ? 'ASC' : 'DESC')
+    : (query.sort_by ? 'DESC' : 'ASC');
   const offset = (page - 1) * pageSize;
 
   const { whereClause, params } = scopeClause(user);
@@ -137,7 +139,7 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   } else {
     // Real-column keys ORDER BY themselves; the two joined-name keys resolve to
     // the mapped expressions above and pin NULL (unassigned) rows last.
-    const sortExpr = SORTABLE_COLUMNS[sortKey] ?? 'updated_at';
+    const sortExpr = SORTABLE_COLUMNS[sortKey] ?? 'p.created_at';
     const nullsLast = NULLS_LAST_SORT_KEYS.has(sortKey) ? ' NULLS LAST' : '';
     rows = await runRead<ProjectRow>(
       `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name

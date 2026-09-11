@@ -22,7 +22,7 @@ function text(accessorKey: keyof Project, header: string, size = 150, editable =
     cell: ({ getValue }) => {
       const v = getValue();
       if (v === null || v === undefined || v === '') return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800">{String(v)}</span>;
+      return <span className="block truncate text-sm text-gray-800" title={String(v)}>{String(v)}</span>;
     },
   };
 }
@@ -60,7 +60,7 @@ function selectCol(
   };
 }
 
-function selectDate(accessorKey: keyof Project, header: string, size = 130): ColumnDef<Project> {
+function selectDate(accessorKey: keyof Project, header: string, size = 170): ColumnDef<Project> {
   return {
     accessorKey,
     header,
@@ -71,7 +71,7 @@ function selectDate(accessorKey: keyof Project, header: string, size = 130): Col
       if (!v) return <span className="text-gray-300">—</span>;
       const d = new Date(v);
       const display = Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-      return <span className="block truncate text-sm text-gray-800">{display}</span>;
+      return <span className="block truncate text-sm text-gray-800" title={display}>{display}</span>;
     },
   };
 }
@@ -260,12 +260,12 @@ export const projectColumns: ColumnDef<Project>[] = [
       text('customer_name', 'Customer', 160),
       text('market_segment', 'Market Segment', 140),
       selectCol('service_or_goods', 'Service/Goods', 120, GOODS_OR_SERVICE), 
-      selectDate('date_customer_received_doc1', 'Tanggal Terima SP Customer', 140),
-      selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 140),
-      text('doc2_number_id', 'No PO/PKS Customer', 120),
+      selectDate('date_customer_received_doc1', 'Tanggal Terima SP Customer', 170),
+      selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 170),
+      text('doc2_number_id', 'No PO/PKS Customer', 170),
       numberCol('customer_price', 'Amount PO/PKS Customer', 110),
-      selectDate('customer_start_contract', 'Start Contract - Cust', 130),
-      selectDate('customer_end_contract', 'End Contract - Cust', 130),
+      selectDate('customer_start_contract', 'Start Contract - Cust', 170),
+      selectDate('customer_end_contract', 'End Contract - Cust', 170),
     ],
   },
   {
@@ -275,16 +275,16 @@ export const projectColumns: ColumnDef<Project>[] = [
       text('vendor_name', 'Vendor', 160),
       numberCol('vendor_revenue', 'Nilai RAB', 120),
       selectCol('vendor_type', 'Type Vendor Service/Goods', 120, GOODS_OR_SERVICE),
-      selectDate('project_sent_date', 'Tgl Kirim FPT', 130),
-      selectDate('project_finish_date', 'Tgl Finish FPT', 130),
-      text('vendor_project_id', 'No FPT', 130),
-      selectDate('negotiation_date', 'Tanggal Nego Vendor', 130),
-      selectDate('approval_date', 'Tanggal Terima SP Vendor', 130),
-      selectDate('document_sent_date', 'Tanggal kirim PO/PKS vendor', 130),
-      text('document_id', 'No PO/PKS', 130),
+      selectDate('project_sent_date', 'Tgl Kirim FPT', 170),
+      selectDate('project_finish_date', 'Tgl Finish FPT', 170),
+      text('vendor_project_id', 'No FPT', 170),
+      selectDate('negotiation_date', 'Tanggal Nego Vendor', 170),
+      selectDate('approval_date', 'Tanggal Terima SP Vendor', 170),
+      selectDate('document_sent_date', 'Tanggal kirim PO/PKS vendor', 170),
+      text('document_id', 'No PO/PKS', 170),
       numberCol('vendor_price', 'Nilai PO/PKS', 120),
-      selectDate('vendor_start_contract', 'Start Contract2', 130),
-      selectDate('vendor_end_contract', 'End Contract2', 130),
+      selectDate('vendor_start_contract', 'Start Contract2', 170),
+      selectDate('vendor_end_contract', 'End Contract2', 170),
       agingColumn,
       priorityColumn,
       textareaCol('issues', 'Issues', 200, false),

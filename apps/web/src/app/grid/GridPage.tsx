@@ -33,8 +33,8 @@ export function GridPage() {
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [sortBy, setSortBy] = useState<string | undefined>('updated_at');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<SortDir | undefined>(undefined);
   // const [notice, setNotice] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -62,10 +62,12 @@ export function GridPage() {
   const users = assignable.data ?? [];
 
   // Locator query: while a highlight is pending, fetch the full scoped set so
-  // the target row's page can be computed even when it isn't on page 1.
+  // the target row's page can be computed even when it isn't on page 1. It
+  // sorts with the same (possibly default) sort as the grid, so the computed
+  // page always matches the order actually displayed.
   const locator = useProjects(
     highlightedRowId
-      ? { page: 1, page_size: 500, sort_by: 'updated_at', sort_dir: 'desc' }
+      ? { page: 1, page_size: 500, sort_by: sortBy, sort_dir: sortDir }
       : { page: 1, page_size: 500, enabled: false },
   );
 
@@ -120,7 +122,7 @@ export function GridPage() {
     setPageSize(size);
     setPage(1);
   };
-  const handleSortChange = (nextSortBy: string, nextSortDir: SortDir) => {
+  const handleSortChange = (nextSortBy: string | undefined, nextSortDir: SortDir | undefined) => {
     setSortBy(nextSortBy);
     setSortDir(nextSortDir);
     setPage(1);

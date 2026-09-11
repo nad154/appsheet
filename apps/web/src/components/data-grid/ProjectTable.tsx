@@ -42,7 +42,7 @@ interface ProjectTableProps {
   isAdmin?: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
-  onSortChange: (sortBy: string, sortDir: SortDir) => void;
+  onSortChange: (sortBy: string | undefined, sortDir: SortDir | undefined) => void;
   onRowUpdate: (row: Project, changes: Record<string, unknown>) => Promise<EditResult>;
   onNotice?: (message: string, variant?: ToastVariant) => void;
   // Id of a row to scroll to and briefly flash (set when arriving from a
@@ -301,8 +301,14 @@ export function ProjectTable({
 
   const handleSortClick = (columnId: string) => {
     resetEditing();
-    const nextDir: SortDir = sortBy === columnId && sortDir === 'asc' ? 'desc' : 'asc';
-    onSortChange(columnId, nextDir);
+    if (sortBy !== columnId) {
+      onSortChange(columnId, 'asc');
+    } else if (sortDir === 'asc') {
+      onSortChange(columnId, 'desc');
+    } else {
+      // Third click on the same column: release back to the app default.
+      onSortChange(undefined, undefined);
+    }
   };
 
   const handlePageChange = (next: number) => {

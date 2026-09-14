@@ -149,6 +149,8 @@ async function migrateColumns(): Promise<void> {
   const additions: Array<{ table: string; column: string; type: string }> = [
     { table: 'projects', column: 'pic_id', type: 'VARCHAR' },
     { table: 'projects', column: 'issues', type: 'VARCHAR' },
+    { table: 'projects', column: 'uploaded_doc_id', type: 'VARCHAR' },
+    { table: 'projects', column: 'uploaded_doc_name', type: 'VARCHAR' },
   ];
 
   // PIC used to be a free-text string. Migrate it to pic_id (a user UUID) by

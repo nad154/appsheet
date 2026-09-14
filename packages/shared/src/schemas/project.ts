@@ -44,6 +44,10 @@ export const projectSchema = z.object({
   pic_name: z.string().nullable().optional(),
   issues: z.string().nullable().optional(),
 
+  // Uploaded document reference (temporary single-slot, not approval-gated).
+  uploaded_doc_id: z.string().nullable().optional(),
+  uploaded_doc_name: z.string().nullable().optional(),
+
   // Derived by the server from Aging + current thresholds — never stored and
   // never submittable (hence omitted from the create/update schemas below).
   priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
@@ -64,6 +68,8 @@ export const projectCreateSchema = projectSchema.omit({
   staff_assigned_name: true,
   pic_name: true,
   priority: true,
+  uploaded_doc_id: true,
+  uploaded_doc_name: true,
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();

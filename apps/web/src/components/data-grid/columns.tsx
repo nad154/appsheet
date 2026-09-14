@@ -1,7 +1,10 @@
+import { useRef, type ChangeEvent } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Project } from '@tracker/shared';
 import { GOODS_OR_SERVICE, PROJECT_STAGES, computeAging } from '@tracker/shared';
-import { StatusFlagCell } from './StatusFlagCell';
+import { useAuth } from '../../hooks/useAuth';
+import { useUploadDocument } from '../../hooks/useDriveActions';
+import { useToast } from '../Toast';
 
 export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user';
 
@@ -168,31 +171,101 @@ const driveLinkColumn: ColumnDef<Project> = {
   },
 };
 
-const statusColumn: ColumnDef<Project> = {
-  id: 'status_flag',
-  header: 'Status',
-  size: 110,
-  enableSorting: false,
-  cell: ({ row }) => <StatusFlagCell project={row.original} />,
-};
+const UploadIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+);
 
-const pendingColumn: ColumnDef<Project> = {
-  id: 'pending_flag',
-  header: 'Pending',
-  size: 90,
-  enableSorting: false,
-  meta: { pendingFlag: true } as ColumnMeta,
-  cell: ({ row, table }) => {
-    const pendingIds = (table.options.meta as { pendingProjectIds?: Set<string> } | undefined)
-      ?.pendingProjectIds;
-    const hasPending = pendingIds?.has(row.original.id);
-    if (!hasPending) return <span />;
+function UploadedDocCell({ row }: { row: Project }) {
+  const { user } = useAuth();
+  const uploadDoc = useUploadDocument();
+  const { showToast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const docId = row.uploaded_doc_id;
+  const docName = row.uploaded_doc_name;
+  const hasFolder = Boolean(row.drive_folder_id);
+  const isOwner = user?.id === row.staff_assigned_id;
+  const canUpload = user?.role === 'SUPER_ADMIN' || isOwner;
+  const enabled = canUpload && hasFolder;
+
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadDoc.mutate(
+      { projectId: row.id, file },
+      {
+        onSuccess: () => showToast('Document uploaded.', 'success'),
+        onError: (err) => showToast(err instanceof Error ? err.message : 'Could not upload.', 'error'),
+      },
+    );
+    e.target.value = '';
+  };
+
+  if (docId) {
     return (
-      <span className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-        Pending
+      <span className="flex items-center gap-1">
+        <a
+          href={`https://drive.google.com/file/d/${docId}/view`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sm text-blue-600 underline"
+          title={docName ?? 'Uploaded document'}
+        >
+          <span className="block max-w-[130px] truncate">{docName ?? 'Document'}</span>
+        </a>
+        {enabled && (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            title="Replace document"
+          >
+            <UploadIcon />
+          </button>
+        )}
+        <input ref={inputRef} type="file" className="hidden" onChange={handleFileChange} />
       </span>
     );
-  },
+  }
+
+  if (enabled) {
+    return (
+      <span>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+          title="Upload document"
+        >
+          <UploadIcon />
+        </button>
+        <input ref={inputRef} type="file" className="hidden" onChange={handleFileChange} />
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled
+      className="cursor-not-allowed rounded p-0.5 text-gray-300"
+      title={!hasFolder ? 'Link a Drive folder first' : 'No permission to upload'}
+    >
+      <UploadIcon />
+    </button>
+  );
+}
+
+const uploadedDocColumn: ColumnDef<Project> = {
+  accessorKey: 'uploaded_doc_id',
+  header: 'Document',
+  size: 150,
+  cell: ({ row }) => <UploadedDocCell row={row.original} />,
 };
 
 const agingColumn: ColumnDef<Project> = {
@@ -245,12 +318,11 @@ export const projectColumns: ColumnDef<Project>[] = [
       text('project_name', 'Project', 220),
       // text('folder_name', 'Folder', 160),
       driveLinkColumn,
+      uploadedDocColumn,
       salesColumn(),
       picColumn(),
       selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
       // selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),
-      // statusColumn,
-      // pendingColumn,
     ],
   },
   {

@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Project } from '@tracker/shared';
 import type { AssignableUser } from '../../hooks/useProjects';
+import { useLinkFolder, useCreateFolder } from '../../hooks/useDriveActions';
+import { useToast } from '../Toast';
 import {
   FIELD_LABELS,
   FIELD_SELECT_OPTIONS,
@@ -126,9 +128,36 @@ function FieldInput({
   );
 }
 
-function ReadOnlyBadges({ project }: { project: Project }) {
+// Mirrors driveService.extractFolderId for display state only — shows the newly
+// linked folder in the modal without a refetch. The server remains the single
+// authority for the actual link.
+function folderIdFromInput(input: string): string {
+  const match = input.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  const raw = match ? match[1] : input.trim();
+  const qIdx = raw.indexOf('?');
+  return qIdx === -1 ? raw : raw.slice(0, qIdx);
+}
+
+function ReadOnlyBadges({
+  project,
+  isAdmin,
+  driveFolderId,
+  linkInput,
+  busy,
+  onLinkInput,
+  onLinkFolder,
+  onCreateFolder,
+}: {
+  project: Project;
+  isAdmin: boolean;
+  driveFolderId: string | null;
+  linkInput: string;
+  busy: 'link' | 'create' | null;
+  onLinkInput: (value: string) => void;
+  onLinkFolder: () => void;
+  onCreateFolder: () => void;
+}) {
   const priority = project.priority;
-  const urn = project.drive_folder_id;
   const folderName = project.folder_name;
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
@@ -147,9 +176,9 @@ function ReadOnlyBadges({ project }: { project: Project }) {
       )}
       <span className="text-gray-400">
         Folder:{' '}
-        {urn ? (
+        {driveFolderId ? (
           <a
-            href={`https://drive.google.com/drive/folders/${urn}`}
+            href={`https://drive.google.com/drive/folders/${driveFolderId}`}
             target="_blank"
             rel="noreferrer"
             className="text-blue-600 underline"
@@ -160,6 +189,36 @@ function ReadOnlyBadges({ project }: { project: Project }) {
           folderName || '—'
         )}
       </span>
+      {isAdmin && (
+        <>
+          <span className="flex items-center gap-1">
+            <input
+              type="text"
+              value={linkInput}
+              onChange={(e) => onLinkInput(e.target.value)}
+              placeholder="Drive folder URL or ID"
+              aria-label="Drive folder URL or ID"
+              className="w-48 rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            <button
+              type="button"
+              onClick={onLinkFolder}
+              disabled={busy !== null || !linkInput.trim()}
+              className="rounded border border-blue-300 px-2 py-0.5 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+            >
+              {busy === 'link' ? 'Linking…' : 'Link existing folder'}
+            </button>
+          </span>
+          <button
+            type="button"
+            onClick={onCreateFolder}
+            disabled={busy !== null}
+            className="rounded bg-blue-600 px-2 py-0.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {busy === 'create' ? 'Creating…' : 'Create folder'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -169,15 +228,52 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [driveFolderId, setDriveFolderId] = useState<string | null>(project.drive_folder_id ?? null);
+  const [linkInput, setLinkInput] = useState('');
+  const [busy, setBusy] = useState<'link' | 'create' | null>(null);
+
+  const linkFolder = useLinkFolder();
+  const createFolder = useCreateFolder();
+  const { showToast } = useToast();
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && (e.target as HTMLElement | null)?.tagName !== 'INPUT') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
   const setField = (key: string, value: string) => setDraft((d) => ({ ...d, [key]: value }));
+
+  const handleLinkFolder = async () => {
+    if (busy || !linkInput.trim()) return;
+    setBusy('link');
+    try {
+      await linkFolder.mutateAsync({ projectId: project.id, folderInput: linkInput.trim() });
+      setDriveFolderId(folderIdFromInput(linkInput.trim()));
+      setLinkInput('');
+      showToast('Folder linked.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not link folder.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (busy) return;
+    setBusy('create');
+    try {
+      const result = await createFolder.mutateAsync({ projectId: project.id });
+      setDriveFolderId(result.folderId);
+      showToast('Folder created.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not create folder.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const sections = SECTION_ORDER.map((section) => ({
     section,
@@ -218,7 +314,16 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
 
   const renderBody = (): ReactNode => (
     <div className="px-5 py-4">
-      <ReadOnlyBadges project={project} />
+      <ReadOnlyBadges
+        project={project}
+        isAdmin={isAdmin}
+        driveFolderId={driveFolderId}
+        linkInput={linkInput}
+        busy={busy}
+        onLinkInput={setLinkInput}
+        onLinkFolder={handleLinkFolder}
+        onCreateFolder={handleCreateFolder}
+      />
       {sections.map(({ section, fields }) => (
         <fieldset key={section} className="mb-5">
           <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{section}</legend>

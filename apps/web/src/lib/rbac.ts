@@ -13,3 +13,7 @@ export function canSeeApprovals(role: Role | undefined): boolean {
 export function canManageSettings(role: Role | undefined): boolean {
   return role === 'SUPER_ADMIN';
 }
+
+export function canManageDriveFolder(role: Role | undefined): boolean {
+  return role === 'SUPER_ADMIN';
+}

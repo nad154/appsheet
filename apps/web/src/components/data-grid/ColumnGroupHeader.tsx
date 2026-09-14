@@ -7,14 +7,6 @@ import type { Project } from '@tracker/shared';
 // while the Customer/Vendor sections scroll horizontally.
 export const STICKY_GROUP_ID = 'project_info';
 
-function headerWidth(header: Header<Project, unknown>): number {
-  const leafs = header.getLeafHeaders();
-  if (leafs.length > 0) {
-    return leafs.reduce((sum, h) => sum + h.getSize(), 0);
-  }
-  return header.getSize();
-}
-
 interface ColumnGroupHeaderProps {
   header: Header<Project, unknown>;
 }
@@ -30,7 +22,6 @@ const GROUP_HEADER_TINT: Record<string, string> = {
 
 export function ColumnGroupHeader({ header }: ColumnGroupHeaderProps) {
   const isSticky = header.column.id === STICKY_GROUP_ID;
-  // const width = headerWidth(header);
 
   const style: CSSProperties = {
     gridColumn: `span ${header.colSpan} / span ${header.colSpan}`,

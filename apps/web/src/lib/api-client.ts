@@ -47,11 +47,12 @@ async function doRequest(
   useAuth = true,
   retry = true,
 ): Promise<unknown> {
-  const isJson = body !== undefined;
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  const isJson = body !== undefined && !isFormData;
   const res = await fetch(path, {
     method,
     headers: buildHeaders(useAuth, isJson),
-    body: isJson ? JSON.stringify(body) : undefined,
+    body: isFormData ? body : isJson ? JSON.stringify(body) : undefined,
   });
 
   if (res.status === 401 && useAuth && retry) {

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import type { Response } from 'express';
-import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { requireRole } from '../../middleware/requireRole.js';
@@ -9,8 +8,6 @@ import {
   listChildren,
   linkFolder,
   createAndLinkFolder,
-  uploadDocument,
-  fetchProjectOwnerCheck,
   resolveProjectFolderId,
   DriveError,
 } from './driveService.js';
@@ -18,13 +15,6 @@ import { linkDriveFolderSchema, createDriveFolderSchema } from '@tracker/shared'
 
 const idParamSchema = z.object({ projectId: z.string().uuid() });
 const browseQuerySchema = z.object({ folderId: z.string().optional() });
-
-// Uploads are buffered in memory (deliberate trade-off for a small LAN app —
-// "true" zero-buffer streaming would require dropping multer's memory storage).
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 },
-});
 
 export const driveRouter = Router();
 driveRouter.use(requireAuth);
@@ -74,46 +64,6 @@ driveRouter.post('/:projectId/create-folder', requireRole('SUPER_ADMIN'), async 
   }
 });
 
-// POST /api/drive/:projectId/upload — upload a document into the project's
-// linked folder and store the reference on the project row. Any authenticated
-// role reaches the handler (router-level requireAuth); the owner/role check
-// below mirrors projectsService.assertStaffOwnership's ownership rule.
-driveRouter.post('/:projectId/upload', async (req, res) => {
-  try {
-    const { projectId } = idParamSchema.parse(req.params);
-
-    // Parse the multipart body inside the try/catch so multer errors (e.g.
-    // exceeding the 25MB cap) flow into handleError instead of Express's
-    // default HTML error handler.
-    await new Promise<void>((resolve, reject) => {
-      upload.single('file')(req, res, (err: unknown) => (err ? reject(err) : resolve()));
-    });
-
-    const project = await fetchProjectOwnerCheck(projectId);
-    if (!project) {
-      res.status(404).json({ error: 'Project not found' });
-      return;
-    }
-    if (req.user!.role !== 'SUPER_ADMIN' && project.staff_assigned_id !== req.user!.id) {
-      res.status(403).json({ error: 'Cannot upload documents to a project assigned to another staff member' });
-      return;
-    }
-    if (!req.file) {
-      res.status(400).json({ error: 'No file uploaded' });
-      return;
-    }
-
-    const doc = await uploadDocument(projectId, {
-      buffer: req.file.buffer,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-    });
-    res.json(doc);
-  } catch (err) {
-    handleError(err, res);
-  }
-});
-
 // GET /api/drive/:projectId/files — list contents of a project's linked folder
 // (any authenticated role, matching /resolve/:projectId's openness).
 driveRouter.get('/:projectId/files', async (req, res) => {
@@ -134,10 +84,6 @@ function handleError(err: unknown, res: Response): void {
   }
   if (err instanceof z.ZodError) {
     res.status(400).json({ error: 'Invalid input', details: err.flatten() });
-    return;
-  }
-  if (err instanceof multer.MulterError) {
-    res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 25MB)' : err.message });
     return;
   }
   // eslint-disable-next-line no-console

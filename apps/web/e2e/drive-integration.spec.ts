@@ -4,8 +4,6 @@ import { test, expect } from '@playwright/test';
 // real Google Drive API (no service-account.json in the dev/test environment),
 // so they only cover the RBAC + UI-gating surface:
 //   - link/create-folder endpoints are SUPER_ADMIN-only
-//   - upload requires ownership (SUPER_ADMIN or assigned staff)
-//   - the upload control is hard-disabled when a project has no linked folder
 
 // Deterministic project ids seeded by apps/server/_rbac_setup.ts.
 const ADMIN_PROJECT_A_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
@@ -74,34 +72,6 @@ test('staff cannot call the create-folder endpoint directly', async ({ page, req
   const res = await request.post(`/api/drive/${ADMIN_PROJECT_A_ID}/create-folder`, {
     headers: { Authorization: `Bearer ${token}` },
     data: { folderName: 'E2E Should Never Be Created' },
-  });
-  expect(res.status()).toBe(403);
-});
-
-test('upload control is disabled when the project has no linked Drive folder', async ({ page }) => {
-  await login(page, 'staff1@example.com', 'staff12345');
-
-  const nameCell = page.getByText('Staff Project A', { exact: true });
-  const row = nameCell.locator('xpath=ancestor::div[@role="row"]');
-
-  // The upload control exists (the assigned staff member may upload) but is
-  // hard-disabled until a Drive folder is linked.
-  const upload = row.locator('button[title="Link a Drive folder first"]');
-  await expect(upload).toHaveCount(1);
-  await expect(upload).toBeDisabled();
-});
-
-test('staff cannot upload to a project assigned to another staff member', async ({ page, request }) => {
-  const token = await staffToken(page);
-  const res = await request.post(`/api/drive/${ADMIN_PROJECT_A_ID}/upload`, {
-    headers: { Authorization: `Bearer ${token}` },
-    multipart: {
-      file: {
-        name: 'e2e-unsigned.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('not allowed'),
-      },
-    },
   });
   expect(res.status()).toBe(403);
 });

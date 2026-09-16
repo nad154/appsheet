@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 
-// Drive mutations for the folder link/create controls and the document upload
-// cell. On success each invalidates the projects query so the grid/modal
-// refetch and show the updated drive_folder_id / uploaded_doc_* values.
+// Drive mutations for the folder link/create controls. On success each
+// invalidates the projects query so the grid/modal refetch and show the
+// updated drive_folder_id value.
 
 export function useLinkFolder() {
   const qc = useQueryClient();
@@ -29,23 +29,6 @@ export function useCreateFolder() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] });
       qc.invalidateQueries({ queryKey: ['drive'] });
-    },
-  });
-}
-
-export function useUploadDocument() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { projectId: string; file: File }) => {
-      const formData = new FormData();
-      formData.append('file', input.file);
-      return apiClient.post<{ id: string; name: string }>(
-        `/api/drive/${input.projectId}/upload`,
-        formData,
-      );
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 }

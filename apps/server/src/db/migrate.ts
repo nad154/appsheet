@@ -133,6 +133,7 @@ export async function migrate(): Promise<void> {
   await dropPendingEdits();
   await seedAgingThresholds();
   await importLegacySnapshots();
+  await dropUploadedDocColumns();
 }
 
 /**
@@ -153,6 +154,29 @@ async function columnExists(table: string, column: string): Promise<boolean> {
     [table, column],
   );
   return rows.length > 0;
+}
+
+/**
+ * The uploaded-document feature was removed entirely. Drop the two now-unused
+ * projects columns (data loss of the stored drive references is intended).
+ * Runs AFTER importLegacySnapshots so a fresh boot importing a legacy parquet
+ * that still contains these columns matches the table shape; the additive
+ * migration above then gets cleaned up here. Safe on every startup — no-op
+ * once the columns are gone.
+ */
+async function dropUploadedDocColumns(): Promise<void> {
+  let altered = false;
+  for (const column of ['uploaded_doc_id', 'uploaded_doc_name']) {
+    if (await columnExists('projects', column)) {
+      await runWrite(async (exec) => {
+        await exec(`ALTER TABLE projects DROP COLUMN ${column}`);
+      });
+      altered = true;
+    }
+  }
+  if (altered) {
+    await exportSnapshots(['projects']);
+  }
 }
 
 async function migrateColumns(): Promise<void> {

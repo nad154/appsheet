@@ -26,12 +26,5 @@ export const createDriveFolderSchema = z.object({
   folderName: z.string().min(1).optional(),
 });
 
-// Shape of an uploaded document reference stored on a project.
-export const uploadedDocSchema = z.object({
-  id: z.string().nullable(),
-  name: z.string().nullable(),
-});
-export type UploadedDoc = z.infer<typeof uploadedDocSchema>;
-
 export type DriveFolderInfo = z.infer<typeof driveFolderInfoSchema>;
 export type DriveFileEntry = z.infer<typeof driveFileEntrySchema>;

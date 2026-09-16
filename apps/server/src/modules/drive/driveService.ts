@@ -1,8 +1,7 @@
 import { runRead, runWrite } from '../../db/connection.js';
 import { exportSnapshots } from '../../db/export.js';
-import { Readable } from 'node:stream';
 import { getDriveClient, resolveRootFolderId, isGoogleConfigured, GoogleError } from '../google/auth.js';
-import type { DriveFolderInfo, DriveFileEntry, UploadedDoc } from '@tracker/shared';
+import type { DriveFolderInfo, DriveFileEntry } from '@tracker/shared';
 
 export class DriveError extends Error {
   constructor(message: string, public statusCode = 400) {
@@ -151,62 +150,8 @@ export async function createAndLinkFolder(projectId: string, folderName?: string
 }
 
 /**
- * Upload a document into the project's linked Drive folder and store the
- * reference on the project row. The drive_folder_id is re-read server-side
- * (never trusted from the client); the upload requires a linked folder.
- * Replacing a document orphans the previous Drive file (not deleted).
+ * Look up a project's linked Drive folder id (null when unlinked/not found).
  */
-export async function uploadDocument(
-  projectId: string,
-  file: { buffer: Buffer; originalname: string; mimetype: string },
-): Promise<UploadedDoc> {
-  requireConfigured();
-  const rows = await runRead<{ drive_folder_id: string | null }>(
-    `SELECT drive_folder_id FROM projects WHERE id = ?`,
-    [projectId],
-  );
-  const folderId = rows[0]?.drive_folder_id ?? null;
-  if (!folderId) {
-    throw new DriveError('Project has no linked Google Drive folder', 400);
-  }
-
-  const drive = getDriveClient();
-  const body = Readable.from(file.buffer);
-  const res = await drive.files.create({
-    requestBody: { name: file.originalname, parents: [folderId] },
-    media: { mimeType: file.mimetype, body },
-    fields: 'id, name',
-  });
-  if (!res.data.id) {
-    throw new DriveError('Drive API returned no file id', 502);
-  }
-
-  const uploadId = res.data.id;
-  const uploadName = res.data.name ?? file.originalname;
-
-  await runWrite(async (ex) => {
-    await ex(
-      `UPDATE projects SET uploaded_doc_id = ?, uploaded_doc_name = ? WHERE id = ?`,
-      [uploadId, uploadName, projectId],
-    );
-  });
-  await exportSnapshots(['projects']);
-
-  return { id: uploadId, name: uploadName };
-}
-
-/** Minimal owner lookup for the upload route's ownership check (SELECT only). */
-export async function fetchProjectOwnerCheck(
-  projectId: string,
-): Promise<{ staff_assigned_id: string | null } | null> {
-  const rows = await runRead<{ staff_assigned_id: string | null }>(
-    `SELECT staff_assigned_id FROM projects WHERE id = ?`,
-    [projectId],
-  );
-  return rows[0] ?? null;
-}
-
-/** Look up a project's linked Drive folder id (null when unlinked/not found). */
 export async function resolveProjectFolderId(projectId: string): Promise<string | null> {
   const rows = await runRead<{ drive_folder_id: string | null }>(
     `SELECT drive_folder_id FROM projects WHERE id = ?`,

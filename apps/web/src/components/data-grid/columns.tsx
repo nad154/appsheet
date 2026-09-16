@@ -5,6 +5,7 @@ import { GOODS_OR_SERVICE, PROJECT_STAGES, computeAging } from '@tracker/shared'
 import { useAuth } from '../../hooks/useAuth';
 import { useUploadDocument } from '../../hooks/useDriveActions';
 import { useToast } from '../Toast';
+import { StatusFlagCell } from './StatusFlagCell';
 
 export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user';
 
@@ -151,6 +152,7 @@ const driveLinkColumn: ColumnDef<Project> = {
         href={`https://drive.google.com/drive/folders/${id}`}
         target="_blank"
         rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
         className="text-sm text-blue-600 underline"
         aria-label="Open Drive folder"
       >
@@ -162,6 +164,7 @@ const driveLinkColumn: ColumnDef<Project> = {
         href={`https://drive.google.com/drive/folders/${id}`}
         target="_blank"
         rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
         className="text-sm text-blue-600 underline"
         aria-label="Open Drive folder"
       >
@@ -213,6 +216,7 @@ function UploadedDocCell({ row }: { row: Project }) {
           href={`https://drive.google.com/file/d/${docId}/view`}
           target="_blank"
           rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
           className="text-sm text-blue-600 underline"
           title={docName ?? 'Uploaded document'}
         >
@@ -221,7 +225,10 @@ function UploadedDocCell({ row }: { row: Project }) {
         {enabled && (
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={(e) => {
+              e.stopPropagation();
+              inputRef.current?.click();
+            }}
             className="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
             title="Replace document"
           >
@@ -238,7 +245,10 @@ function UploadedDocCell({ row }: { row: Project }) {
       <span>
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
+          onClick={(e) => {
+            e.stopPropagation();
+            inputRef.current?.click();
+          }}
           className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
           title="Upload document"
         >
@@ -310,58 +320,129 @@ const priorityColumn: ColumnDef<Project> = {
   },
 };
 
-export const projectColumns: ColumnDef<Project>[] = [
-  {
-    id: 'project_info',
-    header: 'Project Info',
-    columns: [
-      text('project_name', 'Project', 220),
-      // text('folder_name', 'Folder', 160),
-      driveLinkColumn,
-      uploadedDocColumn,
-      salesColumn(),
-      picColumn(),
-      selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
-      // selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),
-    ],
-  },
-  {
-    id: 'customer',
-    header: 'Customer Section',
-    columns: [
-      text('customer_name', 'Customer', 160),
-      text('market_segment', 'Market Segment', 140),
-      selectCol('service_or_goods', 'Service/Goods', 120, GOODS_OR_SERVICE), 
-      selectDate('date_customer_received_doc1', 'Tanggal Terima SP Customer', 170),
-      selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 170),
-      text('doc2_number_id', 'No PO/PKS Customer', 170),
-      numberCol('customer_price', 'Amount PO/PKS Customer', 110),
-      selectDate('customer_start_contract', 'Start Contract - Cust', 170),
-      selectDate('customer_end_contract', 'End Contract - Cust', 170),
-    ],
-  },
-  {
-    id: 'vendor',
-    header: 'Vendor Section',
-    columns: [
-      text('vendor_name', 'Vendor', 160),
-      numberCol('vendor_revenue', 'Nilai RAB', 120),
-      selectCol('vendor_type', 'Type Vendor Service/Goods', 120, GOODS_OR_SERVICE),
-      selectDate('project_sent_date', 'Tgl Kirim FPT', 170),
-      selectDate('project_finish_date', 'Tgl Finish FPT', 170),
-      text('vendor_project_id', 'No FPT', 170),
-      selectDate('negotiation_date', 'Tanggal Nego Vendor', 170),
-      selectDate('approval_date', 'Tanggal Terima SP Vendor', 170),
-      selectDate('document_sent_date', 'Tanggal kirim PO/PKS vendor', 170),
-      text('document_id', 'No PO/PKS', 170),
-      numberCol('vendor_price', 'Nilai PO/PKS', 120),
-      selectDate('vendor_start_contract', 'Start Contract2', 170),
-      selectDate('vendor_end_contract', 'End Contract2', 170),
-      agingColumn,
-      priorityColumn,
-      textareaCol('issues', 'Issues', 200, false),
-    ],
-  },
-];
+// Far-right column: latest STAFF update-progress note, with a yellow unread dot
+// when SUPER_ADMIN hasn't opened the history modal yet. Read-only in the grid
+// (no meta.editable) — clickable only by SUPER_ADMIN, who opens the history
+// modal; STAFF just sees the note text.
+function UpdateProgressCell({
+  row,
+  isAdmin,
+  onOpenHistory,
+}: {
+  row: Project;
+  isAdmin: boolean;
+  onOpenHistory: (project: Project) => void;
+}) {
+  const text = row.update_progress;
+  const unread = !!row.has_unread_update;
+  const content = text ? (
+    <span className="block truncate text-sm text-gray-800" title={text}>{text}</span>
+  ) : (
+    <span className="text-gray-300">—</span>
+  );
+
+  if (!isAdmin) return content;
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenHistory(row);
+      }}
+      className="flex w-full items-center gap-1.5 text-left hover:underline"
+      title="View update history"
+    >
+      {unread && (
+        <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-label="Unread update" data-testid="unread-update-dot" />
+      )}
+      {content}
+    </button>
+  );
+}
+
+function updateProgressColumn(
+  onOpenHistory: (project: Project) => void,
+  isAdmin: boolean,
+): ColumnDef<Project> {
+  return {
+    accessorKey: 'update_progress',
+    header: 'Update Progress',
+    size: 220,
+    cell: ({ row }) => (
+      <UpdateProgressCell row={row.original} isAdmin={isAdmin} onOpenHistory={onOpenHistory} />
+    ),
+  };
+}
+
+export function buildProjectColumns({ isAdmin, onOpenHistory }: {
+  isAdmin: boolean;
+  onOpenHistory: (project: Project) => void;
+}): ColumnDef<Project>[] {
+  return [
+    {
+      id: 'project_info',
+      header: 'Project Info',
+      columns: [
+        text('project_name', 'Project', 220),
+        // text('folder_name', 'Folder', 160),
+        driveLinkColumn,
+        salesColumn(),
+        picColumn(),
+        selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
+        {
+          id: 'status_flag',
+          header: 'Status',
+          size: 110,
+          enableSorting: false,
+          cell: ({ row }) => <StatusFlagCell project={row.original} />,
+        },
+        // selectCol('service_or_goods', 'Type', 120, GOODS_OR_SERVICE),
+      ],
+    },
+    {
+      id: 'customer',
+      header: 'Customer Section',
+      columns: [
+        text('customer_name', 'Customer', 160),
+        text('market_segment', 'Market Segment', 140),
+        selectCol('service_or_goods', 'Service/Goods', 120, GOODS_OR_SERVICE),
+        selectDate('date_customer_received_doc1', 'Tanggal Terima SP Customer', 170),
+        selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 170),
+        text('doc2_number_id', 'No PO/PKS Customer', 170),
+        numberCol('customer_price', 'Amount PO/PKS Customer', 110),
+        selectDate('customer_start_contract', 'Start Contract - Cust', 170),
+        selectDate('customer_end_contract', 'End Contract - Cust', 170),
+      ],
+    },
+    {
+      id: 'vendor',
+      header: 'Vendor Section',
+      columns: [
+        text('vendor_name', 'Vendor', 160),
+        numberCol('vendor_revenue', 'Nilai RAB', 120),
+        selectCol('vendor_type', 'Type Vendor Service/Goods', 120, GOODS_OR_SERVICE),
+        selectDate('project_sent_date', 'Tgl Kirim FPT', 170),
+        selectDate('project_finish_date', 'Tgl Finish FPT', 170),
+        text('vendor_project_id', 'No FPT', 170),
+        selectDate('negotiation_date', 'Tanggal Nego Vendor', 170),
+        selectDate('approval_date', 'Tanggal Terima SP Vendor', 170),
+        selectDate('document_sent_date', 'Tanggal kirim PO/PKS vendor', 170),
+        text('document_id', 'No PO/PKS', 170),
+        numberCol('vendor_price', 'Nilai PO/PKS', 120),
+        selectDate('vendor_start_contract', 'Start Contract2', 170),
+        selectDate('vendor_end_contract', 'End Contract2', 170),
+        agingColumn,
+        priorityColumn,
+        textareaCol('issues', 'Issues', 200, false),
+      ],
+    },
+    {
+      id: 'update_progress',
+      header: 'Update Progress',
+      columns: [updateProgressColumn(onOpenHistory, isAdmin)],
+    },
+  ];
+}
 
 export type ActiveCell = { rowId: string; field: string } | null;

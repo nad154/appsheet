@@ -34,7 +34,7 @@ export const authRouter = Router();
 
 authRouter.post(
   '/login',
-  rateLimit({ windowMs: 60_000, max: 10 }),
+  rateLimit({ windowMs: 60_000, max: Number(process.env.LOGIN_RATE_LIMIT_MAX ?? 10) }),
   async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {

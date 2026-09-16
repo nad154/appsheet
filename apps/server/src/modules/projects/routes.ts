@@ -2,15 +2,16 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
-import { listProjects, listAssignableUsers, type ProjectListQuery } from './projectsService.js';
 import {
-  createDirect,
-  updateDirect,
+  listProjects,
+  listAssignableUsers,
+  createProject,
+  updateProject,
   deleteProject,
-  submitCreate,
-  submitUpdate,
-  PendingEditError,
-} from '../pending-edits/pendingEditsService.js';
+  ProjectWriteError,
+  type ProjectListQuery,
+} from './projectsService.js';
+import { updateProgressFieldSchema } from '@tracker/shared';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -52,36 +53,34 @@ projectsRouter.get('/users', async (_req, res) => {
   }
 });
 
-// POST /api/projects — branches by role:
-// SUPER_ADMIN writes directly to projects; STAFF submits a CREATE pending edit.
+// POST /api/projects — direct write for BOTH roles (STAFF writes apply
+// immediately now; there is no pending approval queue).
 projectsRouter.post('/', async (req, res) => {
-  const user = req.user!;
   try {
-    if (user.role === 'SUPER_ADMIN') {
-      const result = await createDirect(user, req.body);
-      res.status(201).json(result);
-      return;
-    }
-    const result = await submitCreate(user, req.body);
-    res.status(202).json({ ...result, submitted: true });
+    const result = await createProject(req.user!, req.body);
+    res.status(201).json(result);
   } catch (err) {
     handleError(err, res);
   }
 });
 
-// PATCH /api/projects/:id — branches by role:
-// SUPER_ADMIN updates directly; STAFF submits an UPDATE pending edit (202).
+// PATCH /api/projects/:id — direct write for both roles. STAFF must include
+// update_progress, which is peeled off here before the rest of the body is
+// validated as an ordinary projectUpdateSchema payload.
 projectsRouter.patch('/:id', async (req, res) => {
   const user = req.user!;
   const { id } = idParamSchema.parse(req.params);
   try {
-    if (user.role === 'SUPER_ADMIN') {
-      await updateDirect(user, id, req.body);
-      res.json({ ok: true });
-      return;
+    let updateProgress: string | undefined;
+    let body = req.body;
+    if (user.role === 'STAFF') {
+      const { update_progress } = updateProgressFieldSchema.parse(req.body);
+      updateProgress = update_progress;
+      const { update_progress: _drop, ...rest } = req.body;
+      body = rest;
     }
-    const result = await submitUpdate(user, id, req.body);
-    res.status(202).json({ ...result, submitted: true });
+    await updateProject(user, id, body, updateProgress);
+    res.json({ ok: true });
   } catch (err) {
     handleError(err, res);
   }
@@ -100,7 +99,7 @@ projectsRouter.delete('/:id', async (req, res) => {
 });
 
 function handleError(err: unknown, res: Response): void {
-  if (err instanceof PendingEditError) {
+  if (err instanceof ProjectWriteError) {
     res.status(err.statusCode).json({ error: err.message });
     return;
   }

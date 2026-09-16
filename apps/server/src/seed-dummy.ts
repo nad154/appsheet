@@ -3,6 +3,7 @@ import { migrate } from './db/migrate.js';
 import { runWrite, conn } from './db/connection.js';
 import { uuid } from './lib/uuid.js';
 import { exportSnapshots } from './db/export.js';
+import { recordProjectUpdate } from './modules/project-updates/projectUpdatesService.js';
 import { networkDays } from '@tracker/shared';
 import { DEFAULT_AGING_LOW_MAX_DAYS, DEFAULT_AGING_MEDIUM_MAX_DAYS } from '@tracker/shared';
 
@@ -236,18 +237,15 @@ const PROJECT_COLUMNS = [
 const PROJECT_COLUMN_SQL = PROJECT_COLUMNS.join(', ');
 const PROJECT_PLACEHOLDERS = PROJECT_COLUMNS.map(() => '?').join(', ');
 
-interface PendingEditSpec {
+interface UpdateProgressSpec {
   projectName: string;
   changes: Record<string, unknown>;
+  note: string;
 }
 
-const PENDING_EDIT_SPECS: PendingEditSpec[] = [
-  { projectName: `${NAME_PREFIX} 004`, changes: { customer_price: 875_000_000 } },
-  { projectName: `${NAME_PREFIX} 010`, changes: { issues: 'Vendor requested revised pricing; awaiting internal approval.' } },
-  { projectName: `${NAME_PREFIX} 015`, changes: { customer_end_contract: '2027-03-31', customer_price: 1_250_000_000 } },
-  { projectName: `${NAME_PREFIX} 022`, changes: { market_segment: 'Enterprise' } },
-  { projectName: `${NAME_PREFIX} 030`, changes: { vendor_price: 640_000_000 } },
-  { projectName: `${NAME_PREFIX} 042`, changes: { customer_start_contract: '2026-10-01', customer_end_contract: '2028-09-30' } },
+const UPDATE_PROGRESS_SPECS: UpdateProgressSpec[] = [
+  { projectName: `${NAME_PREFIX} 004`, changes: { customer_price: 875_000_000 }, note: 'Customer confirmed new PO amount over the phone.' },
+  { projectName: `${NAME_PREFIX} 010`, changes: { issues: 'Vendor requested revised pricing; awaiting internal approval.' }, note: 'Flagging vendor pricing issue for visibility.' },
 ];
 
 async function main(): Promise<void> {
@@ -287,32 +285,55 @@ async function main(): Promise<void> {
       users.find((u) => u.role === 'STAFF' && u.is_active) ??
       users.find((u) => u.is_active);
 
-    // 6 pending UPDATE edits referencing stable dummy rows so the Pending badge
-    // shows up in the grid and the approvals queue has content.
-    const existingPending = await exec<{ id: string }>(
-      `SELECT id FROM pending_edits WHERE status = 'pending' AND project_id IN (SELECT id FROM projects WHERE project_name LIKE '${NAME_PREFIX} %')`,
+    // A small number of project_updates rows so the Update Progress column and
+    // the admin history modal have content on a fresh DB. Attributed to the
+    // STAFF `requester` resolved above.
+    const existingUpdates = await exec<{ project_id: string }>(
+      `SELECT DISTINCT project_id FROM project_updates WHERE project_id IN (SELECT id FROM projects WHERE project_name LIKE '${NAME_PREFIX} %')`,
     );
 
     if (!requester) {
-      console.warn('No active user found to attribute pending edits — skipping them.');
-    } else if (existingPending.length >= PENDING_EDIT_SPECS.length) {
-      console.log('Dummy pending edits already present — skipping.');
+      console.warn('No active user found to attribute project updates — skipping them.');
     } else {
-      for (const spec of PENDING_EDIT_SPECS) {
+      const updatedProjectIds = new Set(existingUpdates.map((r) => r.project_id));
+      let inserted = 0;
+      for (const spec of UPDATE_PROGRESS_SPECS) {
         const projectId = nameToId.get(spec.projectName);
-        if (!projectId) continue;
-        const createdTs = toTimestamp(addDays(today, -randInt(1, 3)));
-        await exec(
-          `INSERT INTO pending_edits (id, project_id, requested_by, edit_type, changes_json, status, reviewed_by, review_note, created_at, reviewed_at)
-           VALUES (?, ?, ?, 'UPDATE', ?, 'pending', NULL, NULL, ?, NULL)`,
-          [uuid(), projectId, requester.id, JSON.stringify(spec.changes), createdTs],
+        if (!projectId || updatedProjectIds.has(projectId)) continue;
+
+        // Read the project's current values for the changed fields so the
+        // history's changes_json carries real old values.
+        const projectRows = await exec<Record<string, unknown>>(
+          `SELECT * FROM projects WHERE id = ?`,
+          [projectId],
         );
+        const project = projectRows[0];
+        if (!project) continue;
+
+        const changes: Record<string, { old: unknown; new: unknown }> = {};
+        for (const [field, value] of Object.entries(spec.changes)) {
+          changes[field] = { old: project[field] ?? null, new: value };
+        }
+
+        const sets = Object.keys(spec.changes).map((k) => `${k} = ?`);
+        const values = Object.values(spec.changes);
+        await exec(
+          `UPDATE projects SET ${sets.join(', ')}, updated_at = current_timestamp WHERE id = ?`,
+          [...values, projectId],
+        );
+        await recordProjectUpdate(exec, {
+          projectId,
+          staffId: requester.id,
+          changes,
+          updateProgress: spec.note,
+        });
+        inserted++;
       }
-      console.log(`Inserted ${PENDING_EDIT_SPECS.length} pending edits.`);
+      console.log(`Inserted ${inserted} project updates.`);
     }
   });
 
-  await exportSnapshots(['projects', 'pending_edits']);
+  await exportSnapshots(['projects', 'project_updates']);
   console.log('Dummy data seed complete.');
 }
 

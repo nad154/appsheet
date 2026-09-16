@@ -62,7 +62,7 @@ test('admin can edit multiple fields in the modal with one PATCH', async ({ page
   await expect(page.getByText('E2E Admin Issue', { exact: true })).toBeVisible();
 });
 
-test('staff editing via the modal is held for approval and does not change the row', async ({ page }) => {
+test('staff edits apply immediately but require an Update Progress note', async ({ page }) => {
   await login(page, 'staff1@example.com', 'staff12345');
 
   const dialog = await openRowModal(page, 'Staff Project A');
@@ -71,14 +71,20 @@ test('staff editing via the modal is held for approval and does not change the r
   // Fixture data has no customer name for Staff Project A → initially empty.
   await expect(customerInput).toHaveValue('');
   await customerInput.fill('E2E Staff Customer');
+
+  // Without Update Progress the save button is disabled.
+  await expect(dialog.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+
+  await dialog.getByLabel('Update progress').fill('E2E modal progress note');
   await dialog.getByRole('button', { name: 'Save changes' }).click();
 
-  await expect(page.getByText('Change submitted for approval.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saved.', { exact: true })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
-  // Until an admin approves, the live row is untouched: the grid refetches and
-  // still shows the old value (an em-dash placeholder for null).
-  await expect(page.getByText('E2E Staff Customer', { exact: true })).toHaveCount(0);
+  // There is no approval step anymore — the change hits the grid immediately
+  // and the Update Progress note is shown next to the row.
+  await expect(page.getByText('E2E Staff Customer', { exact: true })).toBeVisible();
+  await expect(page.getByText('E2E modal progress note', { exact: true })).toBeVisible();
 });
 
 test('staff cannot reassign the Sales owner via the modal', async ({ page }) => {

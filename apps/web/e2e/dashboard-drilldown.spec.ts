@@ -35,8 +35,11 @@ test('admin drills into a pie slice and lands on the highlighted grid row', asyn
 
   // The dashboard may already hold seed/leftover charts, so scope the click to
   // this card's own pie (recharts sectors are <path class="recharts-sector">).
+  // Recharts re-renders/anims sectors on every data refresh, which keeps
+  // detaching the DOM node, so click the named wedge with force to skip the
+  // stability/interception checks and dispatch straight onto the sector.
   const chartCard = card.locator('xpath=ancestor::div[contains(@class, "border-gray-200")]');
-  await chartCard.locator('.recharts-sector').first().click();
+  await chartCard.locator('.recharts-sector[name="on_progress"]').first().click({ force: true });
 
   const panel = page.getByTestId('drill-down-panel');
   await expect(panel).toBeVisible();

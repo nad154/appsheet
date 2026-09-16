@@ -7,7 +7,7 @@ async function login(page, email: string, password: string) {
   await page.getByRole('button', { name: /sign in/i }).click();
 }
 
-test('admin sees all projects with status flags and approvals nav', async ({ page }) => {
+test('admin sees all projects with status flags and role-aware nav', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
 
   await expect(page).toHaveURL(/\/grid/);
@@ -18,8 +18,10 @@ test('admin sees all projects with status flags and approvals nav', async ({ pag
   // Idle status flag is rendered for at least one on_progress project.
   await expect(page.getByText('Idle', { exact: true }).first()).toBeVisible();
 
-  // Role-aware nav: Approvals link visible to SUPER_ADMIN + role badge shown.
-  await expect(page.getByRole('link', { name: 'Approvals' })).toBeVisible();
+  // Role-aware nav: the Approvals link is gone (updates apply immediately);
+  // SUPER_ADMIN keeps Settings + Drive Browser, and the role badge is shown.
+  await expect(page.getByRole('link', { name: 'Approvals' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Drive Browser' })).toBeVisible();
   await expect(page.getByTestId('user-role-badge')).toHaveText('(SUPER_ADMIN)');
 });
 
@@ -64,6 +66,13 @@ test('admin can change the assigned Sales for an existing project inline', async
 
   await expect(page.getByText('Saved.', { exact: true })).toBeVisible();
   await expect(row.getByText('Staff One', { exact: true })).toBeVisible();
+
+  // Reassign it back to the admin so the staff-scoping test below still holds
+  // (STAFF must not see projects owned by the admin).
+  await row.locator('button[title="Edit staff_assigned_id"]').click();
+  await page.getByLabel('Edit staff_assigned_id').selectOption({ label: 'Admin' });
+  await page.getByLabel('Edit staff_assigned_id').press('Enter');
+  await expect(row.getByText('Admin', { exact: true })).toBeVisible();
 });
 
 test('staff sees a read-only Sales cell with no dropdown affordance', async ({ page }) => {

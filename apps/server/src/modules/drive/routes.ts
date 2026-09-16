@@ -77,7 +77,7 @@ driveRouter.post('/:projectId/create-folder', requireRole('SUPER_ADMIN'), async 
 // POST /api/drive/:projectId/upload — upload a document into the project's
 // linked folder and store the reference on the project row. Any authenticated
 // role reaches the handler (router-level requireAuth); the owner/role check
-// below mirrors pendingEditsService.submitUpdate's ownership rule.
+// below mirrors projectsService.assertStaffOwnership's ownership rule.
 driveRouter.post('/:projectId/upload', async (req, res) => {
   try {
     const { projectId } = idParamSchema.parse(req.params);

@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { canManageSettings, canSeeApprovals } from '../lib/rbac';
+import { canManageDriveFolder, canManageSettings } from '../lib/rbac';
 import { NotificationBell } from './NotificationBell';
 import type { Role } from '@tracker/shared';
 
@@ -33,17 +33,12 @@ export function AppLayout() {
             <NavLink to="/dashboard" className={navClass}>
               Dashboard
             </NavLink>
-            {canSeeApprovals(user?.role) && (
-              <NavLink to="/approvals" className={navClass}>
-                Approvals
-              </NavLink>
-            )}
             {canManageSettings(user?.role) && (
               <NavLink to="/settings" className={navClass}>
                 Settings
               </NavLink>
             )}
-            {canSeeApprovals(user?.role) && (
+            {canManageDriveFolder(user?.role) && (
               <NavLink to="/drive-browser" className={navClass}>
                 Drive Browser
               </NavLink>

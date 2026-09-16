@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -7,8 +7,9 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Project } from '@tracker/shared';
 import { ColumnGroupHeader } from './ColumnGroupHeader';
-import { projectColumns, type ColumnMeta } from './columns';
+import { buildProjectColumns, type ColumnMeta } from './columns';
 import { EditProjectModal } from './EditProjectModal';
+import { UpdateHistoryModal } from './UpdateHistoryModal';
 import type { AssignableUser } from '../../hooks/useProjects';
 import type { ToastVariant } from '../Toast';
 
@@ -23,7 +24,6 @@ export type SortDir = 'asc' | 'desc';
 export interface EditResult {
   ok: boolean;
   message?: string;
-  pending?: boolean;
 }
 
 export type ActiveCell = { rowId: string; columnId: string } | null;
@@ -37,7 +37,6 @@ interface ProjectTableProps {
   sortDir?: SortDir;
   isLoading: boolean;
   isError: boolean;
-  pendingProjectIds?: Set<string>;
   users?: AssignableUser[];
   isAdmin?: boolean;
   onPageChange: (page: number) => void;
@@ -207,7 +206,6 @@ export function ProjectTable({
   sortDir = 'asc',
   isLoading,
   isError,
-  pendingProjectIds,
   users,
   isAdmin,
   onPageChange,
@@ -221,15 +219,22 @@ export function ProjectTable({
   const [activeCell, setActiveCell] = useState<ActiveCell>(null);
   const [savingCell, setSavingCell] = useState<string | null>(null);
   const [editModalRow, setEditModalRow] = useState<Project | null>(null);
+  const [historyRow, setHistoryRow] = useState<Project | null>(null);
   const [flashActive, setFlashActive] = useState(false);
+
+  // Column definitions are rebuilt per-role: STAFF never gets any inline
+  // editable cell (row-click opens the modal instead), and SUPER_ADMIN gets the
+  // clickable Update Progress cell wired to the history modal. The Update
+  // Progress column also reads per-page unread state from the row data.
+  const columns = useMemo(
+    () => buildProjectColumns({ isAdmin: !!isAdmin, onOpenHistory: setHistoryRow }),
+    [isAdmin],
+  );
 
   const table = useReactTable({
     data: rows,
-    columns: projectColumns,
+    columns,
     getCoreRowModel: getCoreRowModel(),
-    meta: {
-      pendingProjectIds,
-    } as { pendingProjectIds?: Set<string> },
   });
 
   const modelRows = table.getRowModel().rows;
@@ -328,7 +333,7 @@ export function ProjectTable({
       field === 'current_stage' || field === 'service_or_goods' || field === 'vendor_type' || value === ''
         ? (value === '' ? null : value)
         : (() => {
-            const meta = projectColumns
+            const meta = columns
               .flatMap((g) => ((g as ProjectColumnDef).columns ?? []))
               .find((c) => c.accessorKey === field);
             const mt = (meta?.meta as ColumnMeta | undefined);
@@ -340,7 +345,7 @@ export function ProjectTable({
     setSavingCell(null);
     if (result.ok) {
       setActiveCell(null);
-      onNotice?.(result.pending ? 'Change submitted for approval.' : 'Saved.');
+      onNotice?.('Saved.');
     } else {
       onNotice?.(result.message ?? 'Could not save change.');
       // Keep editor open so the user can correct.
@@ -358,7 +363,11 @@ export function ProjectTable({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-400">Click any editable cell to change a value. STAFF edits are held for approval.</p>
+        <p className="text-xs text-gray-400">
+          {isAdmin
+            ? 'Click any editable cell or the pencil to change a value directly.'
+            : 'Click any row to open the edit form — changes apply immediately.'}
+        </p>
         {isLoading && <p className="text-xs text-gray-400">Refreshing…</p>}
       </div>
       <div
@@ -434,9 +443,10 @@ export function ProjectTable({
                   key={row.id}
                   role="row"
                   data-testid={flashActive && row.original.id === highlightedRowId ? 'highlighted-row' : undefined}
+                  onClick={!isAdmin ? () => setEditModalRow(row.original) : undefined}
                   className={`border-b border-gray-100 hover:bg-gray-50 ${
                     flashActive && row.original.id === highlightedRowId ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
-                  }`}
+                  } ${!isAdmin ? 'cursor-pointer' : ''}`}
                   style={{
                     display: 'grid', 
                     gridTemplateColumns, 
@@ -453,7 +463,7 @@ export function ProjectTable({
                     const field = cell.column.id;
                     const isEditing = !!activeCell && activeCell.rowId === row.id && activeCell.columnId === field;
                     const isSaving = savingCell === `${row.id}_${field}`;
-                    const editable = !!meta?.editable && !(meta?.adminOnly && !isAdmin);
+                    const editable = isAdmin && !!meta?.editable;
 
                     let content: ReactNode;
                     if (isEditing) {
@@ -608,6 +618,8 @@ export function ProjectTable({
           onNotice={onNotice}
         />
       )}
+
+      <UpdateHistoryModal project={historyRow} onClose={() => setHistoryRow(null)} />
     </div>
   );
 }

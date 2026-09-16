@@ -4,7 +4,6 @@ import { AppLayout } from './components/AppLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './app/login/LoginPage';
 import { GridPage } from './app/grid/GridPage';
-import { ApprovalsPage } from './app/approvals/ApprovalsPage';
 import { SettingsPage } from './app/settings/SettingsPage';
 import { DriveBrowserPage } from './app/drive-browser/DriveBrowserPage';
 import { DashboardPage } from './app/dashboard/DashboardPage';
@@ -24,14 +23,6 @@ export default function App() {
           >
 <Route path="/grid" element={<GridPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route
-              path="/approvals"
-              element={
-                <ProtectedRoute roles={['SUPER_ADMIN']}>
-                  <ApprovalsPage />
-                </ProtectedRoute>
-              }
-            />
             <Route
               path="/settings"
               element={

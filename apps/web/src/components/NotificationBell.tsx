@@ -34,11 +34,9 @@ export function NotificationBell() {
   const handleItemClick = (n: { id: string; type: string; project_id: string | null; pending_edit_id: string | null; is_read: boolean }) => {
     setOpen(false);
     if (!n.is_read) markAsRead.mutate(n.id);
-    if (n.type === 'NEW_APPROVAL') {
-      navigate('/approvals');
-    } else {
-      navigate('/grid');
-    }
+    // The legacy NEW_APPROVAL type is no longer produced (STAFF writes apply
+    // immediately); any notification click lands on the grid.
+    navigate('/grid');
   };
 
   return (

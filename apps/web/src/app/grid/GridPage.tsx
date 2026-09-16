@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useProjects, useAssignableUsers, type ProjectQueryParams } from '../../hooks/useProjects';
-import { usePendingEdits, useMyPendingEdits } from '../../hooks/usePendingEdits';
 import { ProjectTable, type SortDir, type EditResult } from '../../components/data-grid/ProjectTable';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
@@ -84,15 +83,6 @@ export function GridPage() {
     setPage(Math.floor(idx / pageSize) + 1);
   }, [highlightedRowId, locator.data, pageSize]);
 
-  const allPending = usePendingEdits('pending');
-  const minePending = useMyPendingEdits();
-  const pendingList = (isAdmin ? allPending.data : minePending.data) ?? [];
-
-  const pendingProjectIds = useMemo(
-    () => new Set(pendingList.filter((e) => e.project_id).map((e) => e.project_id as string)),
-    [pendingList],
-  );
-
   const handleRowUpdate = async (
     row: { id: string },
     changes: Record<string, unknown>,
@@ -100,16 +90,9 @@ export function GridPage() {
     // Nothing changed (modal opened and saved as-is) — no PATCH to send.
     if (Object.keys(changes).length === 0) return { ok: true };
     try {
-      // One PATCH carrying only the changed fields, whether it came from a
-      // single inline cell edit or the full row-edit modal.
-      const res = await apiClient.patch<{ ok?: boolean; submitted?: boolean }>(
-        `/api/projects/${row.id}`,
-        changes,
-      );
-      if (res?.submitted) {
-        await Promise.all([refetchProjects(), allPending.refetch(), minePending.refetch()]);
-        return { ok: true, pending: true };
-      }
+      // One PATCH carrying only the changed fields. STAFF writes apply
+      // immediately (no approval queue anymore).
+      await apiClient.patch<{ ok?: boolean }>(`/api/projects/${row.id}`, changes);
       await refetchProjects();
       return { ok: true };
     } catch (e) {
@@ -150,14 +133,9 @@ export function GridPage() {
         issues: form.issues.trim() || null,
         ...(isAdmin ? { staff_assigned_id: form.staff_assigned_id || null } : {}),
       };
-      const res = await apiClient.post<{ ok?: boolean; submitted?: boolean }>('/api/projects', payload);
-      if (res?.submitted) {
-        showToast('Project submitted — pending approval.', 'success');
-        await Promise.all([minePending.refetch()]);
-      } else {
-        showToast('Project created.', 'success');
-        await refetchProjects();
-      }
+      await apiClient.post<{ ok?: boolean }>('/api/projects', payload);
+      showToast('Project created.', 'success');
+      await refetchProjects();
       setShowAddForm(false);
       setForm(emptyForm);
     } catch (e) {
@@ -176,7 +154,7 @@ export function GridPage() {
           onClick={() => setShowAddForm((v) => !v)}
           className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
         >
-          {isAdmin ? 'Add project' : 'Propose new project'}
+          {isAdmin ? 'Add project' : 'Add project'}
         </button>
       </div>
 
@@ -264,7 +242,7 @@ export function GridPage() {
               disabled={addSaving || !form.project_name.trim()}
               className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {addSaving ? 'Submitting…' : isAdmin ? 'Create' : 'Submit for approval'}
+              {addSaving ? 'Submitting…' : 'Create'}
             </button>
             <button type="button" onClick={() => setShowAddForm(false)} className="rounded border px-3 py-1.5 text-sm text-gray-600">
               Cancel
@@ -282,7 +260,6 @@ export function GridPage() {
         sortDir={sortDir}
         isLoading={isLoading}
         isError={isError}
-        pendingProjectIds={pendingProjectIds}
         users={users}
         isAdmin={isAdmin}
         onPageChange={handlePageChange}

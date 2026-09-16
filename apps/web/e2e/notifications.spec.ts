@@ -7,38 +7,11 @@ async function login(page, email: string, password: string) {
   await page.getByRole('button', { name: /sign in/i }).click();
 }
 
-test('staff edit generates a notification for the admin', async ({ page }) => {
-  // STAFF submits a change on their assigned project.
-  await login(page, 'staff1@example.com', 'staff12345');
-  await expect(page).toHaveURL(/\/grid/);
-
-  const staffRow = page.getByText('Staff Project A', { exact: true });
-  await expect(staffRow).toBeVisible();
-
-  // Edit the PIC cell for Staff Project A (find the row, then an editable PIC cell).
-  // The PIC button lives in the same row as the project name.
-  const row = staffRow.locator('xpath=ancestor::div[@role="row"]');
-  const picButton = row.locator('button[title="Edit pic_id"]');
-  await picButton.click();
-  await page.getByLabel('Edit pic_id').selectOption({ label: 'Admin' });
-  await page.getByLabel('Edit pic_id').press('Enter');
-  await expect(page.getByText('Change submitted for approval.', { exact: true })).toBeVisible();
-
-  // Log out and log in as SUPER_ADMIN.
-  await page.getByRole('button', { name: /log out/i }).click();
-  await expect(page).toHaveURL(/\/login/);
-  await login(page, 'admin@example.com', 'admin12345');
-  await expect(page).toHaveURL(/\/grid/);
-
-  await expect(page.getByTestId('notification-bell')).toBeVisible();
-
-  // The unread badge should show at least 1.
-  await expect(page.getByTestId('notification-badge')).toHaveText('1');
-
-  await page.getByTestId('notification-bell').click();
-  await expect(page.getByTestId('notification-panel')).toBeVisible();
-  await expect(page.getByText('New approval request', { exact: false }).first()).toBeVisible();
-});
+// The approval-driven notification flow was removed: STAFF edits apply
+// immediately (an Update Progress note is mandatory) and surface through the
+// unread indicator + history modal, which update-progress.spec.ts covers.
+// Notifications now only come from the aging digest, so the mark-all-read
+// behavior below is the remaining surface worth guarding.
 
 test('admin can mark all notifications as read to clear the badge', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');

@@ -151,3 +151,166 @@ New spec: `apps/web/e2e/drive-integration.spec.ts`, following the existing login
 - True zero-buffer streaming upload (would require moving off `multer` memory storage).
 - Multi-file / file-list support (explicitly deferred — this is the "temporary single-slot" version).
 - File-type/extension restrictions on upload.
+
+---
+
+## Phase 5: OAuth2 Delegation for Document Upload (Personal Gmail Accounts)
+
+### Why this phase exists
+
+Phases 1–4 assume the existing `google/auth.ts` service-account client (`GOOGLE_APPLICATION_CREDENTIALS`) can also handle file uploads. It can't. Service accounts have **zero Drive storage quota of their own** — folder creation and metadata reads succeed because they cost no storage, but `uploadDocument`'s `drive.files.create({ media: { body } })` call fails with:
+
+```
+GaxiosError: Service Accounts do not have storage quota. Leverage shared drives, or use OAuth delegation instead.
+```
+
+The two standard fixes — domain-wide delegation and Shared Drives — both require a **Google Workspace** account with admin console access. Neither is available on a personal/free Gmail account. The correct substitute for a personal account is **OAuth2 user delegation with a stored refresh token**: the app authenticates as a real Gmail user (you) once, and reuses that authorization indefinitely for all Drive write operations. Uploaded files then count against your own 15GB quota instead of a service account's nonexistent one.
+
+This phase does not change anything from Phases 1–4 except how `getDriveClient()` authenticates. `driveService.ts`'s functions (`uploadDocument`, `linkFolder`, `createAndLinkFolder`, `listChildren`, etc.) are unaffected — they only ever call `getDriveClient()` and don't care how the returned client is authorized.
+
+### Design decisions
+
+- **Service account credentials are retired**, not kept alongside OAuth2. Running two auth mechanisms side-by-side (metadata via service account, uploads via OAuth2) adds complexity for no benefit on a small LAN app — one identity, one code path.
+- **OAuth consent screen stays in "Testing" mode.** For a single-user personal tool this is fine indefinitely; publishing/verification is unnecessary overhead. The trade-off is a refresh token can be invalidated after ~7 days of the app being unused while in Testing mode — acceptable for an actively-used internal tool, called out below as a known limitation.
+- **Desktop app OAuth client type**, not Web application — this avoids standing up a redirect URI/callback server just to run a one-time authorization script.
+- **The refresh token is a secret**, stored in `.env` (git-ignored, same as `JWT_ACCESS_SECRET` etc.), never committed.
+- **All files created/uploaded going forward are owned by the authorizing Gmail account.** This is expected and matches "you are the Drive owner for this internal tool."
+
+### 5.1 Google Cloud Console setup (one-time, manual — see TO DO below)
+- [ ] Create an OAuth 2.0 Client ID of type **Desktop app** in the same GCP project as the existing service account.
+- [ ] On the OAuth consent screen, add your own Gmail address as a **test user**.
+- [ ] Note the generated **Client ID** and **Client Secret**.
+
+### 5.2 One-time authorization script (`apps/server/scripts/authorize-drive.ts`)
+- [ ] Create a standalone script (not part of the Express app, not run on every boot) that:
+  - Builds a `google.auth.OAuth2` client from `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`, using the out-of-band redirect (`urn:ietf:wg:oauth:2.0:oob`) so no local server is needed.
+  - Calls `generateAuthUrl({ access_type: 'offline', scope: ['https://www.googleapis.com/auth/drive'], prompt: 'consent' })` and prints the URL.
+  - Prompts for the authorization code pasted back from the browser, exchanges it via `getToken(code)`, and prints the resulting `refresh_token` to the console for the operator to copy into `.env`.
+  - This script is run manually, once, by a developer — it is never invoked by `server.ts`, `seed.ts`, or any cron job.
+
+  ```typescript
+  // apps/server/scripts/authorize-drive.ts
+  import { google } from 'googleapis';
+  import readline from 'node:readline/promises';
+
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_OAUTH_CLIENT_ID,
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    'urn:ietf:wg:oauth:2.0:oob',
+  );
+
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: ['https://www.googleapis.com/auth/drive'],
+    prompt: 'consent',
+  });
+
+  console.log('Visit this URL, authorize, then paste the code here:\n', authUrl);
+
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const code = await rl.question('Code: ');
+  rl.close();
+
+  const { tokens } = await oauth2Client.getToken(code);
+  console.log('\nSave this to .env as GOOGLE_OAUTH_REFRESH_TOKEN:\n', tokens.refresh_token);
+  ```
+
+### 5.3 Replace the client in `apps/server/src/modules/google/auth.ts`
+- [ ] Remove the `google.auth.GoogleAuth({ keyFile, scopes })` service-account client and `resolveCredentialsPath()`.
+- [ ] Replace `isGoogleConfigured()` to check for the three new env vars instead of a key file path:
+  ```typescript
+  export function isGoogleConfigured(): boolean {
+    return Boolean(
+      process.env.GOOGLE_OAUTH_CLIENT_ID &&
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET &&
+      process.env.GOOGLE_OAUTH_REFRESH_TOKEN,
+    );
+  }
+  ```
+- [ ] Replace `getDriveClient()`:
+  ```typescript
+  function getDriveClient(): drive_v3.Drive {
+    if (driveClient) return driveClient;
+    if (!isGoogleConfigured()) {
+      throw new GoogleError(
+        'Google Drive is not configured: set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REFRESH_TOKEN',
+        503,
+      );
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_OAUTH_CLIENT_ID,
+      process.env.GOOGLE_OAUTH_CLIENT_SECRET,
+    );
+    oauth2Client.setCredentials({ refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN });
+    // googleapis transparently exchanges the refresh token for a short-lived
+    // access token as needed — no manual refresh handling required.
+
+    driveClient = google.drive({ version: 'v3', auth: oauth2Client });
+    return driveClient;
+  }
+  ```
+- [ ] `resolveRootFolderId()` and `GoogleError` are untouched — they only depend on `getDriveClient()`, not on the auth mechanism behind it.
+- [ ] `server.ts`'s boot-time `isGoogleConfigured()` / `resolveRootFolderId()` check in `bootstrap()` needs no changes — same function signatures, same behavior, just backed by OAuth2 now.
+
+### 5.4 Environment variables (`apps/server/.env.example`)
+- [ ] Remove:
+  ```
+  GOOGLE_APPLICATION_CREDENTIALS=./secrets/service-account.json
+  ```
+- [ ] Add:
+  ```
+  # OAuth2 user delegation (personal Gmail — service accounts have no storage
+  # quota of their own, so uploads must run as a real Google account).
+  # See planning_drive.md Phase 5 for the one-time setup steps.
+  GOOGLE_OAUTH_CLIENT_ID=xxxxx.apps.googleusercontent.com
+  GOOGLE_OAUTH_CLIENT_SECRET=xxxxx
+  GOOGLE_OAUTH_REFRESH_TOKEN=xxxxx
+  ```
+- [ ] Confirm `apps/server/.gitignore` already excludes `.env` (it does) — the refresh token must never be committed. `secrets/service-account.json` references can be removed from `.gitignore`/docs once the service account file is no longer used.
+
+### 5.5 Testing
+- [ ] Re-run the existing `drive-integration.spec.ts` upload tests (Phase 4) against the OAuth2-backed client — no test changes should be needed, since the tests only assert on API responses/DB state, not on which auth mechanism produced them.
+- [ ] Manually verify: after running the authorize script and setting the three env vars, `POST /api/drive/:projectId/upload` succeeds end-to-end and the file appears in the linked Drive folder under your Google account.
+
+### Known limitations (accepted for now)
+- **Refresh token can be invalidated** if: the OAuth consent screen stays in Testing mode and the token is unused for 7+ days, the Google account password changes, access is manually revoked, or the per-client 100-refresh-token limit is hit. If uploads start failing with an auth error after a period of disuse, re-run the Phase 5.2 script to get a fresh token.
+- **All uploaded files are owned by one personal Google account**, not a team-neutral identity. Fine for a small internal tool; would need revisiting if the project ever moves to a paid Workspace plan (at which point Phases A/B from the original service-account discussion — domain-wide delegation or Shared Drives — become available again).
+- **Storage usage counts against the personal account's 15GB free quota.** Monitor usage if uploads become frequent or large.
+
+---
+
+## TO DO (manual steps — must be done before Phase 5 code changes will work)
+
+These steps happen outside the codebase, in the Google Cloud Console and a local terminal. Do them in order.
+
+1. [ ] Go to [Google Cloud Console](https://console.cloud.google.com/) → select the **same project** the existing service account belongs to.
+2. [ ] Navigate to **APIs & Services → OAuth consent screen**.
+   - If not already configured: choose **External** user type (this is fine for a single-user personal tool), fill in the required app name/support email fields, and save.
+   - Under **Test users**, add your own Gmail address.
+   - Leave the app in **Testing** status — do not attempt to publish/verify it.
+3. [ ] Navigate to **APIs & Services → Credentials → Create Credentials → OAuth client ID**.
+   - Application type: **Desktop app**.
+   - Give it any name (e.g. "opencode2 Drive Upload").
+   - Save, then copy the generated **Client ID** and **Client Secret** somewhere safe.
+4. [ ] Confirm the **Google Drive API** is enabled for this project (APIs & Services → Library → search "Google Drive API" → Enable, if not already).
+5. [ ] In `apps/server/.env`, add:
+   ```
+   GOOGLE_OAUTH_CLIENT_ID=<paste Client ID>
+   GOOGLE_OAUTH_CLIENT_SECRET=<paste Client Secret>
+   ```
+   (Leave `GOOGLE_OAUTH_REFRESH_TOKEN` blank for now — it's generated in the next step.)
+6. [ ] Have opencode implement Phase 5.2 (`apps/server/scripts/authorize-drive.ts`) and Phase 5.3 (`google/auth.ts` changes) from this plan.
+7. [ ] Run the authorization script from the `apps/server` directory:
+   ```
+   npx tsx scripts/authorize-drive.ts
+   ```
+8. [ ] Open the printed URL in a browser, sign in with **your own Gmail account** (the one added as a test user), and approve the requested Drive scope.
+9. [ ] Copy the authorization code shown by Google back into the terminal prompt.
+10. [ ] Copy the printed `refresh_token` value into `apps/server/.env`:
+    ```
+    GOOGLE_OAUTH_REFRESH_TOKEN=<paste refresh token>
+    ```
+11. [ ] Restart the dev server (`npm run dev:server`) and confirm the boot log shows Google Drive initializing successfully (same `"Google Drive ready (root folder resolved)."` message as before, now backed by OAuth2).
+12. [ ] Manually test a document upload from the grid (or the Playwright spec) end-to-end to confirm the quota error is gone.
+13. [ ] Once confirmed working, delete the old `secrets/service-account.json` file and remove any references to `GOOGLE_APPLICATION_CREDENTIALS` from local `.env` — it's no longer used.

@@ -5,7 +5,7 @@ import { GOODS_OR_SERVICE, PROJECT_STAGES } from '@tracker/shared';
 // EditableCell primitives.
 export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user';
 
-// Human labels for project fields, used by both the approvals diff view and the
+// Human labels for project fields, used by both the update-history view and the
 // row-edit modal, so the two never disagree on how a field is named.
 export const FIELD_LABELS: Record<string, string> = {
   folder_name: 'Folder',

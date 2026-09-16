@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   await runWrite(async (ex) => {
     // Clear test data for deterministic assertions.
     await ex(`DELETE FROM projects`);
-    await ex(`DELETE FROM pending_edits`);
+    await ex(`DELETE FROM project_updates`);
     await ex(`DELETE FROM sessions`);
     await ex(`DELETE FROM users WHERE email = ?`, [STAFF_EMAIL]);
 

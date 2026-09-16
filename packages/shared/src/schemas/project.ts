@@ -52,6 +52,11 @@ export const projectSchema = z.object({
   // never submittable (hence omitted from the create/update schemas below).
   priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
 
+  // Latest STAFF update-progress note + whether SUPER_ADMIN has seen it yet.
+  // Derived from project_updates at query time — never submitted by the client.
+  update_progress: z.string().nullable().optional(),
+  has_unread_update: z.boolean().optional(),
+
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -68,6 +73,8 @@ export const projectCreateSchema = projectSchema.omit({
   staff_assigned_name: true,
   pic_name: true,
   priority: true,
+  update_progress: true,
+  has_unread_update: true,
   uploaded_doc_id: true,
   uploaded_doc_name: true,
 });

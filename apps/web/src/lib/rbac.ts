@@ -6,10 +6,6 @@ export function canManageProjects(role: Role | undefined): boolean {
   return role === 'SUPER_ADMIN';
 }
 
-export function canSeeApprovals(role: Role | undefined): boolean {
-  return role === 'SUPER_ADMIN';
-}
-
 export function canManageSettings(role: Role | undefined): boolean {
   return role === 'SUPER_ADMIN';
 }

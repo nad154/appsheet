@@ -227,6 +227,9 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
   const [draft, setDraft] = useState(() => toDraft(project));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // STAFF must describe what changed before saving — wired into handleSave and
+  // the Save button's disabled state below. SUPER_ADMIN edits never see it.
+  const [updateProgress, setUpdateProgress] = useState('');
 
   const [driveFolderId, setDriveFolderId] = useState<string | null>(project.drive_folder_id ?? null);
   const [linkInput, setLinkInput] = useState('');
@@ -295,12 +298,17 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
       onClose();
       return;
     }
+    if (!isAdmin && !updateProgress.trim()) {
+      setError('Update progress is required before saving.');
+      return;
+    }
+    if (!isAdmin) changes.update_progress = updateProgress.trim();
     setSaving(true);
     setError(null);
     try {
       const res = await onSave(project, changes);
       if (res.ok) {
-        onNotice?.(res.pending ? 'Change submitted for approval.' : 'Saved.', 'success');
+        onNotice?.('Saved.', 'success');
         onClose();
       } else {
         setError(res.message ?? 'Could not save changes.');
@@ -334,6 +342,22 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
           </div>
         </fieldset>
       ))}
+      {!isAdmin && (
+        <fieldset className="mb-5 rounded border border-amber-200 bg-amber-50 p-3">
+          <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+            Update Progress <span className="normal-case font-normal">(required)</span>
+          </legend>
+          <textarea
+            required
+            rows={3}
+            value={updateProgress}
+            onChange={(e) => setUpdateProgress(e.target.value)}
+            placeholder="Describe what you changed and why…"
+            className="w-full rounded border border-amber-300 px-2 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300"
+            aria-label="Update progress"
+          />
+        </fieldset>
+      )}
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <div className="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
         <button type="button" onClick={onClose} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">
@@ -342,7 +366,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving || !draft.project_name?.trim()}
+          disabled={saving || !draft.project_name?.trim() || (!isAdmin && !updateProgress.trim())}
           className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save changes'}

@@ -12,10 +12,10 @@ const parquetPath = (file: string) => path.join(PARQUET_DIR, file).replace(/\\/g
  * users.parquet is exported from v_users_public — a view that EXCLUDES
  * password_hash — never from the raw users table.
  */
-export async function exportSnapshots(tables: Array<'projects' | 'pending_edits' | 'users'>): Promise<void> {
+export async function exportSnapshots(tables: Array<'projects' | 'project_updates' | 'users'>): Promise<void> {
   const copyStatements: Record<string, string> = {
     projects: `COPY projects TO '${parquetPath('projects.parquet')}' (FORMAT PARQUET)`,
-    pending_edits: `COPY pending_edits TO '${parquetPath('pending_edits.parquet')}' (FORMAT PARQUET)`,
+    project_updates: `COPY project_updates TO '${parquetPath('project_updates.parquet')}' (FORMAT PARQUET)`,
     users: `COPY v_users_public TO '${parquetPath('users.parquet')}' (FORMAT PARQUET)`,
   };
 
@@ -28,7 +28,7 @@ export async function exportSnapshots(tables: Array<'projects' | 'pending_edits'
   }
 }
 
-export async function readSnapshot<T extends QueryResult>(file: 'projects.parquet' | 'pending_edits.parquet' | 'users.parquet'): Promise<T[]> {
+export async function readSnapshot<T extends QueryResult>(file: 'projects.parquet' | 'project_updates.parquet' | 'users.parquet'): Promise<T[]> {
   const p = parquetPath(file);
   return runRead<T>(`SELECT * FROM read_parquet('${p}')`);
 }

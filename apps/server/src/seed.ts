@@ -48,7 +48,7 @@ async function main(): Promise<void> {
     }
   });
 
-  await exportSnapshots(['users', 'projects', 'pending_edits']);
+  await exportSnapshots(['users', 'projects']);
   // eslint-disable-next-line no-console
   console.log('Seed complete.');
 }

@@ -58,7 +58,7 @@ export async function createView(user: AuthUser, payload: DashboardViewCreate): 
 export async function deleteView(user: AuthUser, viewId: string): Promise<void> {
   await runWrite(async (ex) => {
     // Ownership check baked into the WHERE clause — a user can only ever
-    // delete their own view, mirroring the pending-edits ownership pattern.
+    // delete their own view.
     await ex(`DELETE FROM dashboard_views WHERE id = ? AND user_id = ?`, [viewId, user.id]);
   });
 }

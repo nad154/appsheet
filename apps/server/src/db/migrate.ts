@@ -59,17 +59,14 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
-CREATE TABLE IF NOT EXISTS pending_edits (
+CREATE TABLE IF NOT EXISTS project_updates (
   id VARCHAR PRIMARY KEY,
-  project_id VARCHAR,                 -- FK dropped
-  requested_by VARCHAR NOT NULL,      -- FK dropped
-  edit_type VARCHAR NOT NULL CHECK (edit_type IN ('CREATE','UPDATE')),
-  changes_json VARCHAR NOT NULL,
-  status VARCHAR NOT NULL CHECK (status IN ('pending','approved','rejected')) DEFAULT 'pending',
-  reviewed_by VARCHAR,                -- FK dropped
-  review_note VARCHAR,
-  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
-  reviewed_at TIMESTAMP
+  project_id VARCHAR NOT NULL,        -- FK dropped, same convention as other tables
+  staff_id VARCHAR NOT NULL,          -- FK dropped
+  changes_json VARCHAR NOT NULL,      -- JSON: { [field]: { old: unknown, new: unknown } }
+  update_progress VARCHAR NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -133,8 +130,21 @@ export async function migrate(): Promise<void> {
   });
 
   await migrateColumns();
+  await dropPendingEdits();
   await seedAgingThresholds();
   await importLegacySnapshots();
+}
+
+/**
+ * One-time migration: the pending_edits approval queue no longer exists.
+ * Safe to run on every startup — a no-op once the table is gone.
+ */
+async function dropPendingEdits(): Promise<void> {
+  if (await tableExists('pending_edits')) {
+    await runWrite(async (exec) => {
+      await exec(`DROP TABLE pending_edits`);
+    });
+  }
 }
 
 async function columnExists(table: string, column: string): Promise<boolean> {
@@ -201,7 +211,7 @@ async function seedAgingThresholds(): Promise<void> {
 async function importLegacySnapshots(): Promise<void> {
   const mapping: Record<string, { table: string; transform?: string }> = {
     'projects.parquet': { table: 'projects' },
-    'pending_edits.parquet': { table: 'pending_edits' },
+    'project_updates.parquet': { table: 'project_updates' },
     // users.parquet is exported from v_users_public which EXCLUDES password_hash.
     // Never import it — users must be created by the seed script with proper hashes.
   };
@@ -222,8 +232,8 @@ async function importLegacySnapshots(): Promise<void> {
 }
 
 export async function tableExists(name: string): Promise<boolean> {
-  const rows = await runRead<{ name: string }>(
-    `SELECT name FROM duckdb_tables() WHERE name = ?`,
+  const rows = await runRead<{ table_name: string }>(
+    `SELECT table_name FROM duckdb_tables() WHERE table_name = ?`,
     [name],
   );
   return rows.length > 0;

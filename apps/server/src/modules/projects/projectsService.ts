@@ -1,8 +1,14 @@
-import { runRead } from '../../db/connection.js';
+import { runRead, runWrite } from '../../db/connection.js';
 import { resolveAgingThresholds } from '../settings/agingThresholdsCache.js';
 import type { AuthUser } from '../../middleware/requireAuth.js';
-import { computeAging, computePriority } from '@tracker/shared';
-import type { Project, ProjectList } from '@tracker/shared';
+import { exportSnapshots } from '../../db/export.js';
+import { uuid } from '../../lib/uuid.js';
+import { createProjectFolder } from '../drive/driveService.js';
+import { isGoogleConfigured } from '../google/auth.js';
+import { recordProjectUpdate } from '../project-updates/projectUpdatesService.js';
+import { getLatestUpdateInfo } from '../project-updates/projectUpdatesService.js';
+import { projectCreateSchema, projectUpdateSchema, computeAging, computePriority } from '@tracker/shared';
+import type { Project, ProjectList, ProjectCreate, ProjectUpdate } from '@tracker/shared';
 
 interface ProjectRow extends Project {
   [key: string]: unknown;
@@ -113,10 +119,11 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   const { whereClause, params } = scopeClause(user);
   const thresholds = await resolveAgingThresholds();
 
-  // Attach the derived Priority to each row (from Aging + the current
-  // thresholds). Priority is never persisted — computed per request so it
-  // always tracks the latest admin-configured aging thresholds.
-  const enrich = (rows: ProjectRow[]) =>
+  // Priority (from Aging + the current thresholds) for in-memory sorting.
+  // Priority is never persisted — computed per request so it always tracks the
+  // latest admin-configured aging thresholds. Update-progress info isn't a
+  // sort criterion, so it's merged in the final enrich() below.
+  const withPriority = (rows: ProjectRow[]) =>
     rows.map((r) => ({
       ...r,
       priority: computePriority(computeAging(r), thresholds),
@@ -133,7 +140,7 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
        ${whereClause}`,
       params,
     );
-    rows = enrich(all)
+    rows = withPriority(all)
       .sort((a, b) => compareDerived(a, b, sortKey, sortDir))
       .slice(offset, offset + pageSize);
   } else {
@@ -152,6 +159,20 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
     );
   }
 
+  // Latest update-progress note + unread flag, queried only for the ids on the
+  // current page (cheap at this app's scale).
+  const updateInfo = await getLatestUpdateInfo(rows.map((r) => r.id));
+  const enrich = (rowList: ProjectRow[]) =>
+    rowList.map((r) => {
+      const info = updateInfo.get(r.id);
+      return {
+        ...r,
+        priority: computePriority(computeAging(r), thresholds),
+        update_progress: info?.update_progress ?? null,
+        has_unread_update: info?.has_unread_update ?? false,
+      };
+    });
+
   const countRows = await runRead<{ total: number }>(
     `SELECT count(*) AS total FROM projects p ${whereClause}`,
     params,
@@ -167,4 +188,178 @@ export async function listAssignableUsers(): Promise<{ id: string; name: string 
   return runRead<{ id: string; name: string }>(
     `SELECT id, name FROM users WHERE is_active = true ORDER BY name ASC`,
   );
+}
+
+export class ProjectWriteError extends Error {
+  constructor(message: string, public statusCode = 400) {
+    super(message);
+    this.name = 'ProjectWriteError';
+  }
+}
+
+/** STAFF may only ever own/target their own projects, and can never reassign Sales. */
+export function assertStaffOwnership(
+  user: AuthUser,
+  existing: { staff_assigned_id?: string | null } | null,
+  payload: { staff_assigned_id?: string | null },
+): void {
+  if (user.role !== 'STAFF') return;
+  if (existing && existing.staff_assigned_id !== user.id) {
+    throw new ProjectWriteError('Cannot edit a project assigned to another staff member', 403);
+  }
+  if (payload.staff_assigned_id && payload.staff_assigned_id !== user.id) {
+    throw new ProjectWriteError('Cannot assign or reassign a project to another staff member', 403);
+  }
+}
+
+async function fetchProject(id: string): Promise<ProjectRow | null> {
+  const rows = await runRead<ProjectRow>(
+    `SELECT p.*, pic_user.name AS pic_name
+     FROM projects p LEFT JOIN users pic_user ON pic_user.id = p.pic_id
+     WHERE p.id = ?`,
+    [id],
+  );
+  return rows[0] ?? null;
+}
+
+const PROJECT_COLUMNS: (keyof ProjectCreate)[] = [
+  'folder_name',
+  'project_name',
+  'staff_assigned_id',
+  'drive_folder_id',
+  'customer_name',
+  'market_segment',
+  'service_or_goods',
+  'date_customer_received_doc1',
+  'date_customer_received_doc2',
+  'doc2_number_id',
+  'customer_price',
+  'customer_start_contract',
+  'customer_end_contract',
+  'vendor_name',
+  'vendor_revenue',
+  'vendor_type',
+  'project_sent_date',
+  'project_finish_date',
+  'vendor_project_id',
+  'negotiation_date',
+  'approval_date',
+  'document_sent_date',
+  'document_id',
+  'vendor_price',
+  'vendor_start_contract',
+  'vendor_end_contract',
+  'current_stage',
+  'pic_id',
+  'issues',
+];
+
+function insertProjectSql(): string {
+  return `INSERT INTO projects (${[...PROJECT_COLUMNS, 'id', 'created_at', 'updated_at'].join(', ')})
+          VALUES (${[...PROJECT_COLUMNS, 'id'].map(() => '?').join(', ')}, current_timestamp, current_timestamp)`;
+}
+
+function buildInsertValues(id: string, payload: ProjectCreate | Record<string, unknown>): unknown[] {
+  const values: unknown[] = [];
+  for (const col of PROJECT_COLUMNS) {
+    values.push((payload as Record<string, unknown>)[col] ?? null);
+  }
+  values.push(id);
+  return values;
+}
+
+/**
+ * Create a project. Runs for both roles — STAFF writes apply immediately, just
+ * like SUPER_ADMIN; there is no approval queue anymore. A STAFF caller can
+ * never assign the project to another staff member (their id is defaulted in).
+ */
+export async function createProject(user: AuthUser, rawPayload: unknown): Promise<{ id: string }> {
+  const payload = projectCreateSchema.parse(rawPayload);
+  assertStaffOwnership(user, null, payload);
+  const stored: ProjectCreate = { ...payload };
+  if (user.role === 'STAFF') {
+    stored.staff_assigned_id = user.id;
+  }
+
+  const id = uuid();
+  await runWrite(async (ex) => {
+    // Create the 1:1 Drive folder (when Drive is configured) before inserting,
+    // so a Drive failure rolls back the whole write — no orphaned project.
+    let driveFolderId: string | null = stored.drive_folder_id ?? null;
+    if (isGoogleConfigured() && !driveFolderId) {
+      driveFolderId = await createProjectFolder(stored.project_name);
+    }
+    const values = buildInsertValues(id, { ...stored, drive_folder_id: driveFolderId });
+    await ex(insertProjectSql(), values);
+  });
+  await exportSnapshots(['projects']);
+  return { id };
+}
+
+/**
+ * Update an existing project. For STAFF this applies immediately AND writes a
+ * project_updates history row (old/new diff + update-progress text) inside the
+ * same runWrite transaction, so the change and its log commit atomically.
+ */
+export async function updateProject(
+  user: AuthUser,
+  projectId: string,
+  rawPayload: unknown,
+  updateProgress?: string,
+): Promise<void> {
+  const payload = projectUpdateSchema.parse(rawPayload);
+  const project = await fetchProject(projectId);
+  if (!project) throw new ProjectWriteError('Project not found', 404);
+
+  assertStaffOwnership(user, project, payload);
+
+  const sets = Object.keys(payload)
+    .filter((k) => payload[k as keyof ProjectUpdate] !== undefined)
+    .map((k) => `${k} = ?`);
+  sets.push('updated_at = current_timestamp');
+
+  if (sets.length === 1) {
+    throw new ProjectWriteError('No changes to apply', 400);
+  }
+
+  const values = Object.entries(payload)
+    .filter(([, v]) => v !== undefined)
+    .map(([, v]) => v);
+
+  const isStaff = user.role === 'STAFF';
+  if (isStaff && !updateProgress) {
+    // The route enforces update_progress via Zod; this is defence-in-depth.
+    throw new ProjectWriteError('Update progress is required', 400);
+  }
+
+  await runWrite(async (ex) => {
+    await ex(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`, [...values, projectId]);
+    if (isStaff) {
+      const changes: Record<string, { old: unknown; new: unknown }> = {};
+      for (const field of Object.keys(payload)) {
+        const value = payload[field as keyof ProjectUpdate];
+        if (value !== undefined) {
+          changes[field] = { old: (project as Record<string, unknown>)[field] ?? null, new: value };
+        }
+      }
+      await recordProjectUpdate(ex, {
+        projectId,
+        staffId: user.id,
+        changes,
+        updateProgress: updateProgress!,
+      });
+    }
+  });
+  await exportSnapshots(['projects']);
+}
+
+/** Delete a project. SUPER_ADMIN only. */
+export async function deleteProject(user: AuthUser, projectId: string): Promise<void> {
+  if (user.role !== 'SUPER_ADMIN') {
+    throw new ProjectWriteError('Only SUPER_ADMIN can delete projects', 403);
+  }
+  await runWrite(async (ex) => {
+    await ex(`DELETE FROM projects WHERE id = ?`, [projectId]);
+  });
+  await exportSnapshots(['projects']);
 }

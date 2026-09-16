@@ -27,6 +27,42 @@ function text(accessorKey: keyof Project, header: string, size = 150, editable =
   };
 }
 
+// Project column. The first sticky cell in the row hosts the unread-update
+// yellow dot (front of the row) — a visual marker only, shown to admins when a
+// STAFF member has recorded a progress note that hasn't been reviewed yet.
+// Keeps meta.editable so inline edit + the row pencil still work, matching the
+// previous text('project_name', ...) column.
+function ProjectNameCell({
+  row,
+  isAdmin,
+}: {
+  row: Project;
+  isAdmin: boolean;
+}) {
+  const name = row.project_name;
+  const unread = !!row.has_unread_update;
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      {isAdmin && unread && (
+        <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-label="Unread update" data-testid="unread-update-dot" />
+      )}
+      <span className="block min-w-0 flex-1 truncate text-sm text-gray-800" title={name}>
+        {name}
+      </span>
+    </span>
+  );
+}
+
+function projectNameColumn(isAdmin: boolean): ColumnDef<Project> {
+  return {
+    accessorKey: 'project_name',
+    header: 'Project',
+    size: 220,
+    meta: { editable: true, editType: 'text' } as ColumnMeta,
+    cell: ({ row }) => <ProjectNameCell row={row.original} isAdmin={isAdmin} />,
+  };
+}
+
 function numberCol(accessorKey: keyof Project, header: string, size = 120): ColumnDef<Project> {
   return {
     accessorKey,
@@ -212,10 +248,10 @@ const priorityColumn: ColumnDef<Project> = {
   },
 };
 
-// Far-right column: latest STAFF update-progress note, with a yellow unread dot
-// when SUPER_ADMIN hasn't opened the history modal yet. Read-only in the grid
-// (no meta.editable) — clickable only by SUPER_ADMIN, who opens the history
-// modal; STAFF just sees the note text.
+// Far-right column: latest STAFF update-progress note. The unread indicator
+// lives at the front of the row, next to the project name (ProjectNameCell
+// below). Read-only in the grid (no meta.editable) — clickable only by
+// SUPER_ADMIN, who opens the history modal; STAFF just sees the note text.
 function UpdateProgressCell({
   row,
   isAdmin,
@@ -226,7 +262,6 @@ function UpdateProgressCell({
   onOpenHistory: (project: Project) => void;
 }) {
   const text = row.update_progress;
-  const unread = !!row.has_unread_update;
   const content = text ? (
     <span className="block truncate text-sm text-gray-800" title={text}>{text}</span>
   ) : (
@@ -245,9 +280,6 @@ function UpdateProgressCell({
       className="flex w-full items-center gap-1.5 text-left hover:underline"
       title="View update history"
     >
-      {unread && (
-        <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-label="Unread update" data-testid="unread-update-dot" />
-      )}
       {content}
     </button>
   );
@@ -276,7 +308,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory }: {
       id: 'project_info',
       header: 'Project Info',
       columns: [
-        text('project_name', 'Project', 220),
+        projectNameColumn(isAdmin),
         // text('folder_name', 'Folder', 160),
         driveLinkColumn,
         salesColumn(),

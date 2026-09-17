@@ -5,9 +5,9 @@ import {
   flexRender,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import type { Project } from '@tracker/shared';
+import type { Project, ProjectVendorLine } from '@tracker/shared';
 import { ColumnGroupHeader } from './ColumnGroupHeader';
-import { buildProjectColumns, type ColumnMeta } from './columns';
+import { buildProjectColumns, type ColumnMeta, type DisplayRow } from './columns';
 import { EditProjectModal } from './EditProjectModal';
 import { UpdateHistoryModal } from './UpdateHistoryModal';
 import type { AssignableUser } from '../../hooks/useProjects';
@@ -31,6 +31,8 @@ export type ActiveCell = { rowId: string; columnId: string } | null;
 interface ProjectTableProps {
   rows: Project[];
   total: number;
+  totalPages: number;
+  totalLines: number;
   page: number;
   pageSize: number;
   sortBy?: string;
@@ -44,7 +46,7 @@ interface ProjectTableProps {
   onSortChange: (sortBy: string | undefined, sortDir: SortDir | undefined) => void;
   onRowUpdate: (row: Project, changes: Record<string, unknown>) => Promise<EditResult>;
   onNotice?: (message: string, variant?: ToastVariant) => void;
-  // Id of a row to scroll to and briefly flash (set when arriving from a
+  // Id of a project to scroll to and briefly flash (set when arriving from a
   // dashboard drill-down click).
   highlightedRowId?: string | null;
   onHighlightDone?: () => void;
@@ -66,6 +68,24 @@ const Z = {
   stickyHeaderCol: 40,
   stickyBodyCol: 10,
 };
+
+// Grid display rows: the first row of a project holds its group-header cells,
+// and every project_vendors line renders as its own continuation row. A project
+// with zero lines renders exactly one blank-vendor row (plan §3.1).
+function flattenRows(rows: Project[]): DisplayRow[] {
+  const out: DisplayRow[] = [];
+  for (const project of rows) {
+    const vendors: ProjectVendorLine[] = project.vendors ?? [];
+    if (vendors.length > 0) {
+      vendors.forEach((vendor, i) => {
+        out.push({ project, vendor, isFirstOfGroup: i === 0, rowKey: `${project.id}:${vendor.id}` });
+      });
+    } else {
+      out.push({ project, vendor: null, isFirstOfGroup: true, rowKey: `${project.id}:none` });
+    }
+  }
+  return out;
+}
 
 function draftValue(row: Project, field: string): string {
   const v = (row as Record<string, unknown>)[field];
@@ -200,6 +220,8 @@ function EditableCell({
 export function ProjectTable({
   rows,
   total,
+  totalPages,
+  totalLines,
   page,
   pageSize,
   sortBy,
@@ -231,8 +253,10 @@ export function ProjectTable({
     [isAdmin],
   );
 
+  const displayRows = useMemo(() => flattenRows(rows), [rows]);
+
   const table = useReactTable({
-    data: rows,
+    data: displayRows,
     columns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -262,9 +286,9 @@ export function ProjectTable({
     overscan: 10,
   });
 
-  // Drill-down arrival: once the highlighted row is present in the loaded page,
-  // scroll it into view and start the flash. Re-runs as the target page's data
-  // arrives; the row handles the rest via flashActive below.
+  // Drill-down arrival: once the highlighted project is present in the loaded
+  // page, scroll its group-header row into view and start the flash. Re-runs as
+  // the target page's data arrives; the row handles the rest via flashActive.
   const scrolledForRef = useRef<string | null>(null);
   useEffect(() => {
     if (!highlightedRowId) {
@@ -272,9 +296,7 @@ export function ProjectTable({
       return;
     }
     if (scrolledForRef.current === highlightedRowId) return;
-    // row.id is the table's positional id (index string) — the project UUID
-    // lives on row.original.id.
-    const idx = modelRows.findIndex((r) => r.original.id === highlightedRowId);
+    const idx = modelRows.findIndex((r) => r.original.isFirstOfGroup && r.original.project.id === highlightedRowId);
     if (idx === -1) return;
     scrolledForRef.current = highlightedRowId;
     setFlashActive(true);
@@ -299,7 +321,6 @@ export function ProjectTable({
     return () => window.clearTimeout(t);
   }, [flashActive, onHighlightDone]);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const tableWidth = table.getTotalSize();
 
   const resetEditing = () => setActiveCell(null);
@@ -326,22 +347,17 @@ export function ProjectTable({
     onPageSizeChange(size);
   };
 
-  const commitCell = async (row: Project, field: string, value: string) => {
-    const cellKey = `${row.id}_${field}`;
+  const commitCell = async (rowId: string, row: DisplayRow, field: string, value: string) => {
+    const project = row.project;
+    const cellKey = `${rowId}_${field}`;
     setSavingCell(cellKey);
-    const converted: unknown =
-      field === 'current_stage' || field === 'service_or_goods' || field === 'vendor_type' || value === ''
-        ? (value === '' ? null : value)
-        : (() => {
-            const meta = columns
-              .flatMap((g) => ((g as ProjectColumnDef).columns ?? []))
-              .find((c) => c.accessorKey === field);
-            const mt = (meta?.meta as ColumnMeta | undefined);
-            if (mt?.editType === 'number' && value !== '') return Number(value);
-            return value;
-          })();
+    const meta = columns
+      .flatMap((g) => ((g as ProjectColumnDef).columns ?? []))
+      .find((c) => c.accessorKey === field);
+    const mt = (meta?.meta as ColumnMeta | undefined);
+    const converted: unknown = value === '' ? null : mt?.editType === 'number' ? Number(value) : value;
 
-    const result = await onRowUpdate(row, { [field]: converted });
+    const result = await onRowUpdate(project, { [field]: converted });
     setSavingCell(null);
     if (result.ok) {
       setActiveCell(null);
@@ -438,14 +454,17 @@ export function ProjectTable({
             )}
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const row = modelRows[virtualRow.index];
+              const { project, isFirstOfGroup } = row.original;
+              const isHighlighted =
+                flashActive && isFirstOfGroup && row.original.project.id === highlightedRowId;
               return (
                 <div
                   key={row.id}
                   role="row"
-                  data-testid={flashActive && row.original.id === highlightedRowId ? 'highlighted-row' : undefined}
-                  onClick={!isAdmin ? () => setEditModalRow(row.original) : undefined}
+                  data-testid={isHighlighted ? 'highlighted-row' : undefined}
+                  onClick={!isAdmin && isFirstOfGroup ? () => setEditModalRow(project) : undefined}
                   className={`border-b border-gray-100 hover:bg-gray-50 ${
-                    flashActive && row.original.id === highlightedRowId ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
+                    isHighlighted ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
                   } ${!isAdmin ? 'cursor-pointer' : ''}`}
                   style={{
                     display: 'grid', 
@@ -463,20 +482,22 @@ export function ProjectTable({
                     const field = cell.column.id;
                     const isEditing = !!activeCell && activeCell.rowId === row.id && activeCell.columnId === field;
                     const isSaving = savingCell === `${row.id}_${field}`;
-                    const editable = isAdmin && !!meta?.editable;
+                    // Project-level cells are editable only on the group-header
+                    // row; vendor-line cells are modal-only (never editable).
+                    const editable = isAdmin && !!meta?.editable && isFirstOfGroup;
 
                     let content: ReactNode;
-                    if (isEditing) {
+                    if (isEditing && isFirstOfGroup) {
                       content = (
                         <div className="flex w-full items-center gap-1">
                           <span className="min-w-0 flex-1">
                             <EditableCell
                               field={field}
-                              initialValue={draftValue(row.original, field)}
+                              initialValue={draftValue(project, field)}
                               editType={meta?.editType}
                               options={meta?.options}
                               users={users}
-                              onCommit={(v) => commitCell(row.original, field, v)}
+                              onCommit={(v) => commitCell(row.id, row.original, field, v)}
                               onCancel={() => setActiveCell(null)}
                             />
                           </span>
@@ -502,7 +523,7 @@ export function ProjectTable({
 
                       // The project-name cell hosts the row-edit affordance: a
                       // pencil revealed on row hover, opening the full-field modal.
-                      if (field === 'project_name') {
+                      if (field === 'project_name' && isFirstOfGroup) {
                         content = (
                           <div className="group relative flex w-full items-center">
                             <span className="min-w-0 flex-1">{rendered}</span>
@@ -510,10 +531,10 @@ export function ProjectTable({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setEditModalRow(row.original);
+                                setEditModalRow(project);
                               }}
                               className="ml-1 hidden shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 group-hover:inline-flex"
-                              aria-label={`Edit ${row.original.project_name}`}
+                              aria-label={`Edit ${project.project_name}`}
                               title="Edit project"
                             >
                               <svg
@@ -542,7 +563,7 @@ export function ProjectTable({
                         key={cell.id}
                         role="cell"
                         className={`px-3 py-2 text-gray-700 ${
-                          isStickyCol && flashActive && row.original.id === highlightedRowId
+                          isStickyCol && isHighlighted
                             ? 'animate-[row-flash-sticky_1.2s_ease-in-out]'
                             : ''
                         }`}
@@ -584,7 +605,9 @@ export function ProjectTable({
               </option>
             ))}
           </select>
-          <span>{total} project(s)</span>
+          <span>
+            {total} project(s) · {totalLines} line(s)
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button

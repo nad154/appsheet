@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { migrate } from './db/migrate.js';
-import { runWrite, conn } from './db/connection.js';
+import { runWrite, closeDb } from './db/connection.js';
 import { uuid } from './lib/uuid.js';
 import { exportSnapshots } from './db/export.js';
 import { recordProjectUpdate } from './modules/project-updates/projectUpdatesService.js';
@@ -102,151 +102,9 @@ function bandForIndex(i: number): Band {
   return 'low';
 }
 
-function buildProject(i: number, today: Date): unknown[] {
-  const band = bandForIndex(i);
-  const isFinish = band !== 'none' && i % 3 === 2;
-  const projectName = `${NAME_PREFIX} ${String(i + 1).padStart(3, '0')}`;
-  const segment = SEGMENTS[i % SEGMENTS.length];
-  const vendor = VENDORS[i % VENDORS.length];
-
-  const agingTarget =
-    band === 'none'
-      ? 0
-      : band === 'high'
-        ? randInt(31, 60)
-        : band === 'medium'
-          ? randInt(16, DEFAULT_AGING_MEDIUM_MAX_DAYS)
-          : randInt(1, DEFAULT_AGING_LOW_MAX_DAYS);
-
-  // Aging end: for finished rows the approval date caps aging; for everything
-  // else aging runs to today.
-  const approvalDate = isFinish ? addDays(today, -randInt(1, 12)) : null;
-  const agingEnd = approvalDate ?? today;
-  const sentDate = band === 'none' ? null : backdateSentDate(agingTarget, agingEnd);
-
-  const finishDate = isFinish
-    ? addDays(approvalDate!, randInt(2, Math.min(10, calendarDaysBetween(approvalDate!, today))))
-    : null;
-  const negoDate =
-    sentDate && (isFinish || rng() < 0.7)
-      ? addDays(sentDate, randInt(1, Math.max(2, calendarDaysBetween(sentDate, isFinish ? approvalDate! : today))))
-      : null;
-  const documentSentDate =
-    isFinish && finishDate
-      ? addDays(approvalDate!, randInt(0, calendarDaysBetween(approvalDate!, finishDate)))
-      : sentDate && rng() < 0.4
-        ? addDays(sentDate, randInt(3, Math.max(3, calendarDaysBetween(sentDate, today) - 2)))
-        : null;
-
-  const doc1Date = sentDate ? addDays(sentDate, -randInt(0, 14)) : addDays(today, -randInt(20, 90));
-  const doc2Date = addDays(doc1Date, randInt(0, 7));
-  const customerStart = addDays(doc2Date, randInt(0, 10));
-  const endInDays = randInt(180, 730);
-  const customerEnd = addDays(customerStart, endInDays);
-  const vendorStart = addDays(customerStart, randInt(0, 10));
-  const vendorEnd = addDays(customerStart, randInt(endInDays, endInDays + 30));
-
-  const deadlineSoon = band !== 'none' && !isFinish && i % 13 === 6;
-  const custEnd = deadlineSoon ? addDays(today, randInt(1, 6)) : customerEnd;
-  const vendEnd = deadlineSoon ? addDays(today, randInt(1, 6)) : vendorEnd;
-
-  const customerPrice = roundToMillion(randInt(75, 2000) * 1_000_000);
-  const vendorRevenue = roundToMillion(randInt(60, 1900) * 1_000_000);
-  const vendorPrice = roundToMillion(randInt(50, 1800) * 1_000_000);
-
-  const issues = rng() < 0.25 ? ISSUES_POOL[i % ISSUES_POOL.length] : null;
-  const created = addDays(today, -randInt(0, 60));
-  const createdTs = toTimestamp(created);
-  const updated = addDays(today, -randInt(0, 20));
-  const updatedTs = toTimestamp(updated);
-
-  const pad4 = (n: number) => String(n).padStart(4, '0');
-  const pad6 = (n: number) => String(n).padStart(6, '0');
-
-  return [
-    uuid(), // id
-    null, // folder_name (blank)
-    projectName, // project_name
-    null, // staff_assigned_id (Sales blank)
-    null, // drive_folder_id (blank)
-    CUSTOMER_NAME, // customer_name
-    segment, // market_segment
-    'service', // service_or_goods
-    toIso(doc1Date), // date_customer_received_doc1
-    toIso(doc2Date), // date_customer_received_doc2
-    `PO/ELE/2026/${pad4(i + 1000)}`, // doc2_number_id
-    customerPrice, // customer_price
-    toIso(customerStart), // customer_start_contract
-    toIso(custEnd), // customer_end_contract
-    vendor, // vendor_name
-    vendorRevenue, // vendor_revenue (Nilai RAB)
-    'service', // vendor_type
-    sentDate ? toIso(sentDate) : null, // project_sent_date
-    finishDate ? toIso(finishDate) : null, // project_finish_date
-    `FPT/2026/${pad6(i + 100)}`, // vendor_project_id
-    negoDate ? toIso(negoDate) : null, // negotiation_date
-    approvalDate ? toIso(approvalDate) : null, // approval_date
-    documentSentDate ? toIso(documentSentDate) : null, // document_sent_date
-    `PO/2026/${pad6(i + 500)}`, // document_id
-    vendorPrice, // vendor_price
-    toIso(vendorStart), // vendor_start_contract
-    toIso(vendEnd), // vendor_end_contract
-    isFinish ? 'finish' : 'on_progress', // current_stage
-    null, // pic_id (blank)
-    issues, // issues
-    createdTs, // created_at
-    updatedTs, // updated_at
-  ];
-}
-
-const PROJECT_COLUMNS = [
-  'id',
-  'folder_name',
-  'project_name',
-  'staff_assigned_id',
-  'drive_folder_id',
-  'customer_name',
-  'market_segment',
-  'service_or_goods',
-  'date_customer_received_doc1',
-  'date_customer_received_doc2',
-  'doc2_number_id',
-  'customer_price',
-  'customer_start_contract',
-  'customer_end_contract',
-  'vendor_name',
-  'vendor_revenue',
-  'vendor_type',
-  'project_sent_date',
-  'project_finish_date',
-  'vendor_project_id',
-  'negotiation_date',
-  'approval_date',
-  'document_sent_date',
-  'document_id',
-  'vendor_price',
-  'vendor_start_contract',
-  'vendor_end_contract',
-  'current_stage',
-  'pic_id',
-  'issues',
-  'created_at',
-  'updated_at',
-];
-
-const PROJECT_COLUMN_SQL = PROJECT_COLUMNS.join(', ');
-const PROJECT_PLACEHOLDERS = PROJECT_COLUMNS.map(() => '?').join(', ');
-
-interface UpdateProgressSpec {
-  projectName: string;
-  changes: Record<string, unknown>;
-  note: string;
-}
-
-const UPDATE_PROGRESS_SPECS: UpdateProgressSpec[] = [
-  { projectName: `${NAME_PREFIX} 004`, changes: { customer_price: 875_000_000 }, note: 'Customer confirmed new PO amount over the phone.' },
-  { projectName: `${NAME_PREFIX} 010`, changes: { issues: 'Vendor requested revised pricing; awaiting internal approval.' }, note: 'Flagging vendor pricing issue for visibility.' },
-];
+// Maps vendor name → { id, name } lookup so each dummy project references a
+// vendors row instead of a free-text vendor_name.
+interface VendorLookup { id: string; name: string; }
 
 async function main(): Promise<void> {
   await migrate();
@@ -264,19 +122,162 @@ async function main(): Promise<void> {
     if (nameToId.size >= DUMMY_COUNT) {
       console.log(`Found ${nameToId.size} '${NAME_PREFIX}' rows — skipping project insert.`);
     } else {
-      const insertSql = `INSERT INTO projects (${PROJECT_COLUMN_SQL}) VALUES (${PROJECT_PLACEHOLDERS})`;
+      // ── Customers ─────────────────────────────────────────────────────
+      let customerId: string;
+      const existingCust = await exec<{ id: string }>(
+        `SELECT id FROM customers WHERE name = ?`, [CUSTOMER_NAME],
+      );
+      if (existingCust.length > 0) {
+        customerId = existingCust[0].id;
+      } else {
+        customerId = uuid();
+        await exec(`INSERT INTO customers (id, name, created_at) VALUES (?, ?, current_timestamp)`,
+          [customerId, CUSTOMER_NAME]);
+      }
+
+      // ── Vendors ───────────────────────────────────────────────────────
+      const vendorLookup = new Map<string, VendorLookup>();
+      for (const vName of VENDORS) {
+        const existingV = await exec<{ id: string }>(
+          `SELECT id FROM vendors WHERE name = ?`, [vName],
+        );
+        if (existingV.length > 0) {
+          vendorLookup.set(vName, { id: existingV[0].id, name: vName });
+        } else {
+          const id = uuid();
+          await exec(`INSERT INTO vendors (id, name, created_at) VALUES (?, ?, current_timestamp)`,
+            [id, vName]);
+          vendorLookup.set(vName, { id, name: vName });
+        }
+      }
+
+      // ── Projects ──────────────────────────────────────────────────────
+      const PROJECT_COLS = [
+        'id', 'folder_name', 'project_name', 'staff_assigned_id', 'drive_folder_id',
+        'customer_id', 'market_segment', 'service_or_goods',
+        'date_customer_received_doc1', 'date_customer_received_doc2', 'doc2_number_id',
+        'customer_price', 'customer_start_contract', 'customer_end_contract',
+        'current_stage', 'pic_id', 'issues', 'created_at', 'updated_at',
+      ];
+      const insertSql = `INSERT INTO projects (${PROJECT_COLS.join(', ')}) VALUES (${PROJECT_COLS.map(() => '?').join(', ')})`;
       let inserted = 0;
+
       for (let i = 0; i < DUMMY_COUNT; i++) {
         const projectName = `${NAME_PREFIX} ${String(i + 1).padStart(3, '0')}`;
         if (nameToId.has(projectName)) continue;
-        const row = buildProject(i, today);
-        await exec(insertSql, row);
-        nameToId.set(projectName, String(row[0]));
+
+        const band = bandForIndex(i);
+        const isFinish = band !== 'none' && i % 3 === 2;
+        const segment = SEGMENTS[i % SEGMENTS.length];
+        const vendorName = VENDORS[i % VENDORS.length];
+
+        const agingTarget =
+          band === 'none'
+            ? 0
+            : band === 'high'
+              ? randInt(31, 60)
+              : band === 'medium'
+                ? randInt(16, DEFAULT_AGING_MEDIUM_MAX_DAYS)
+                : randInt(1, DEFAULT_AGING_LOW_MAX_DAYS);
+
+        const approvalDate = isFinish ? addDays(today, -randInt(1, 12)) : null;
+        const agingEnd = approvalDate ?? today;
+        const sentDate = band === 'none' ? null : backdateSentDate(agingTarget, agingEnd);
+
+        const finishDate = isFinish
+          ? addDays(approvalDate!, randInt(2, Math.min(10, calendarDaysBetween(approvalDate!, today))))
+          : null;
+        const negoDate =
+          sentDate && (isFinish || rng() < 0.7)
+            ? addDays(sentDate, randInt(1, Math.max(2, calendarDaysBetween(sentDate, isFinish ? approvalDate! : today))))
+            : null;
+        const documentSentDate =
+          isFinish && finishDate
+            ? addDays(approvalDate!, randInt(0, calendarDaysBetween(approvalDate!, finishDate)))
+            : sentDate && rng() < 0.4
+              ? addDays(sentDate, randInt(3, Math.max(3, calendarDaysBetween(sentDate, today) - 2)))
+              : null;
+
+        const doc1Date = sentDate ? addDays(sentDate, -randInt(0, 14)) : addDays(today, -randInt(20, 90));
+        const doc2Date = addDays(doc1Date, randInt(0, 7));
+        const customerStart = addDays(doc2Date, randInt(0, 10));
+        const endInDays = randInt(180, 730);
+        const customerEnd = addDays(customerStart, endInDays);
+        const vendorStart = addDays(customerStart, randInt(0, 10));
+        const vendorEnd = addDays(customerStart, randInt(endInDays, endInDays + 30));
+
+        const deadlineSoon = band !== 'none' && !isFinish && i % 13 === 6;
+        const custEnd = deadlineSoon ? addDays(today, randInt(1, 6)) : customerEnd;
+        const vendEnd = deadlineSoon ? addDays(today, randInt(1, 6)) : vendorEnd;
+
+        const customerPrice = roundToMillion(randInt(75, 2000) * 1_000_000);
+        const vendorRevenue = roundToMillion(randInt(60, 1900) * 1_000_000);
+        const vendorPrice = roundToMillion(randInt(50, 1800) * 1_000_000);
+
+        const issues = rng() < 0.25 ? ISSUES_POOL[i % ISSUES_POOL.length] : null;
+        const created = addDays(today, -randInt(0, 60));
+        const updated = addDays(today, -randInt(0, 20));
+
+        const pad4 = (n: number) => String(n).padStart(4, '0');
+
+        const projectId = uuid();
+        const vendor = vendorLookup.get(vendorName)!;
+
+        await exec(insertSql, [
+          projectId,
+          null,                                 // folder_name
+          projectName,
+          null,                                 // staff_assigned_id
+          null,                                 // drive_folder_id
+          customerId,
+          segment,
+          'service',                            // service_or_goods
+          toIso(doc1Date),                      // date_customer_received_doc1
+          toIso(doc2Date),                      // date_customer_received_doc2
+          `PO/ELE/2026/${pad4(i + 1000)}`,     // doc2_number_id
+          customerPrice,
+          toIso(customerStart),                 // customer_start_contract
+          toIso(custEnd),                       // customer_end_contract
+          isFinish ? 'finish' : 'on_progress',  // current_stage
+          null,                                 // pic_id
+          issues,
+          toTimestamp(created),                  // created_at
+          toTimestamp(updated),                  // updated_at
+        ]);
+
+        // ── Vendor line (project_vendors) ─────────────────────────────
+        await exec(
+          `INSERT INTO project_vendors (
+            id, project_id, vendor_id, vendor_type, vendor_revenue,
+            project_sent_date, project_finish_date, vendor_project_id,
+            negotiation_date, approval_date, document_sent_date, document_id,
+            vendor_price, vendor_start_contract, vendor_end_contract,
+            sort_order, created_at, updated_at
+          ) VALUES (?, ?, ?, 'service', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+          [
+            uuid(), projectId, vendor.id, vendorRevenue,
+            sentDate ? toIso(sentDate) : null,                 // project_sent_date
+            finishDate ? toIso(finishDate) : null,              // project_finish_date
+            `FPT/2026/${String(i + 100).padStart(6, '0')}`,   // vendor_project_id
+            negoDate ? toIso(negoDate) : null,                  // negotiation_date
+            approvalDate ? toIso(approvalDate) : null,          // approval_date
+            documentSentDate ? toIso(documentSentDate) : null,  // document_sent_date
+            `PO/2026/${String(i + 500).padStart(6, '0')}`,     // document_id
+            vendorPrice,
+            toIso(vendorStart),                                 // vendor_start_contract
+            toIso(vendEnd),                                     // vendor_end_contract
+            toTimestamp(created),
+            toTimestamp(updated),
+          ],
+        );
+
+        nameToId.set(projectName, projectId);
         inserted++;
       }
-      console.log(`Inserted ${inserted} missing dummy projects.`);
+      console.log(`Inserted ${inserted} dummy projects with vendor lines.`);
     }
 
+    // ── Project updates (history notes) ────────────────────────────────
     const users = await exec<{ id: string; email: string; role: string; is_active: boolean }>(
       `SELECT id, email, role, is_active FROM users`,
     );
@@ -285,9 +286,6 @@ async function main(): Promise<void> {
       users.find((u) => u.role === 'STAFF' && u.is_active) ??
       users.find((u) => u.is_active);
 
-    // A small number of project_updates rows so the Update Progress column and
-    // the admin history modal have content on a fresh DB. Attributed to the
-    // STAFF `requester` resolved above.
     const existingUpdates = await exec<{ project_id: string }>(
       `SELECT DISTINCT project_id FROM project_updates WHERE project_id IN (SELECT id FROM projects WHERE project_name LIKE '${NAME_PREFIX} %')`,
     );
@@ -297,43 +295,33 @@ async function main(): Promise<void> {
     } else {
       const updatedProjectIds = new Set(existingUpdates.map((r) => r.project_id));
       let inserted = 0;
-      for (const spec of UPDATE_PROGRESS_SPECS) {
-        const projectId = nameToId.get(spec.projectName);
+      const SPECS = [
+        { name: `${NAME_PREFIX} 004`, field: 'customer_price', val: 875_000_000, note: 'Customer confirmed new PO amount over the phone.' },
+        { name: `${NAME_PREFIX} 010`, field: 'issues', val: 'Vendor requested revised pricing; awaiting internal approval.', note: 'Flagging vendor pricing issue for visibility.' },
+      ];
+      for (const spec of SPECS) {
+        const projectId = nameToId.get(spec.name);
         if (!projectId || updatedProjectIds.has(projectId)) continue;
 
-        // Read the project's current values for the changed fields so the
-        // history's changes_json carries real old values.
-        const projectRows = await exec<Record<string, unknown>>(
-          `SELECT * FROM projects WHERE id = ?`,
-          [projectId],
-        );
-        const project = projectRows[0];
+        const projRows = await exec<Record<string, unknown>>(`SELECT * FROM projects WHERE id = ?`, [projectId]);
+        const project = projRows[0];
         if (!project) continue;
 
-        const changes: Record<string, { old: unknown; new: unknown }> = {};
-        for (const [field, value] of Object.entries(spec.changes)) {
-          changes[field] = { old: project[field] ?? null, new: value };
-        }
-
-        const sets = Object.keys(spec.changes).map((k) => `${k} = ?`);
-        const values = Object.values(spec.changes);
+        const changes: Record<string, { old: unknown; new: unknown }> = {
+          [spec.field]: { old: project[spec.field] ?? null, new: spec.val },
+        };
         await exec(
-          `UPDATE projects SET ${sets.join(', ')}, updated_at = current_timestamp WHERE id = ?`,
-          [...values, projectId],
+          `UPDATE projects SET ${spec.field} = ?, updated_at = current_timestamp WHERE id = ?`,
+          [spec.val, projectId],
         );
-        await recordProjectUpdate(exec, {
-          projectId,
-          staffId: requester.id,
-          changes,
-          updateProgress: spec.note,
-        });
+        await recordProjectUpdate(exec, { projectId, staffId: requester.id, changes, updateProgress: spec.note });
         inserted++;
       }
       console.log(`Inserted ${inserted} project updates.`);
     }
   });
 
-  await exportSnapshots(['projects', 'project_updates']);
+  await exportSnapshots(['projects', 'project_updates', 'customers', 'vendors', 'project_vendors']);
   console.log('Dummy data seed complete.');
 }
 
@@ -342,6 +330,6 @@ main()
     console.error('Dummy seed failed:', err);
     process.exitCode = 1;
   })
-  .finally(() => {
-    conn.close();
+  .finally(async () => {
+    await closeDb();
   });

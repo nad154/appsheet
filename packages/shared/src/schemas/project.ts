@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { GOODS_OR_SERVICE, PROJECT_STAGES } from '../roles.js';
+import { projectVendorSchema } from './projectVendor.js';
 
 // A full project row. Most fields are nullable (a project may be partly
 // populated). Field names mirror the `projects` table columns in migrate.ts
@@ -12,7 +13,9 @@ export const projectSchema = z.object({
   staff_assigned_id: z.string().uuid().nullable().optional(),
   drive_folder_id: z.string().nullable().optional(),
 
-  // Customer section
+  // Customer section. customer_id is the FK (1:1 per project); customer_name is
+  // joined in from customers at query time and is read-only.
+  customer_id: z.string().uuid().nullable().optional(),
   customer_name: z.string().nullable().optional(),
   market_segment: z.string().nullable().optional(),
   service_or_goods: z.enum(GOODS_OR_SERVICE).nullable().optional(),
@@ -22,21 +25,6 @@ export const projectSchema = z.object({
   customer_price: z.number().int().nullable().optional(),
   customer_start_contract: z.string().nullable().optional(),
   customer_end_contract: z.string().nullable().optional(),
-
-  // Vendor section
-  vendor_name: z.string().nullable().optional(),
-  vendor_revenue: z.number().int().nullable().optional(),
-  vendor_type: z.enum(GOODS_OR_SERVICE).nullable().optional(),
-  project_sent_date: z.string().nullable().optional(),
-  project_finish_date: z.string().nullable().optional(),
-  vendor_project_id: z.string().nullable().optional(),
-  negotiation_date: z.string().nullable().optional(),
-  approval_date: z.string().nullable().optional(),
-  document_sent_date: z.string().nullable().optional(),
-  document_id: z.string().nullable().optional(),
-  vendor_price: z.number().int().nullable().optional(),
-  vendor_start_contract: z.string().nullable().optional(),
-  vendor_end_contract: z.string().nullable().optional(),
   current_stage: z.enum(PROJECT_STAGES).default('on_progress'),
 
   // PIC / Issues
@@ -46,7 +34,15 @@ export const projectSchema = z.object({
 
   // Derived by the server from Aging + current thresholds — never stored and
   // never submittable (hence omitted from the create/update schemas below).
+  // NOTE: with multi-vendor projects, priority is computed per vendor line and
+  // lives on vendors[].priority. This project-level key is retained for type
+  // compatibility but the server no longer populates it.
   priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
+
+  // Embedded vendor lines (planning_customers_vendors §3.2). The frontend
+  // builds its display rows from this array. Never submitted via the projects
+  // PATCH — vendor-line changes go through /api/projects/:id/vendors/*.
+  vendors: z.array(projectVendorSchema).optional(),
 
   // Latest STAFF update-progress note + whether SUPER_ADMIN has seen it yet.
   // Derived from project_updates at query time — never submitted by the client.
@@ -60,8 +56,9 @@ export const projectSchema = z.object({
 export type Project = z.infer<typeof projectSchema>;
 
 // Fields a caller may submit when creating or editing a project. Id and
-// timestamps are managed by the server. priority is deliberately excluded —
-// it is always derived server-side from aging thresholds.
+// timestamps are managed by the server. priority, customer_name (joined) and
+// the embedded vendors array are deliberately excluded — priority is always
+// derived server-side, and vendor lines are managed via dedicated endpoints.
 export const projectCreateSchema = projectSchema.omit({
   id: true,
   created_at: true,
@@ -71,6 +68,8 @@ export const projectCreateSchema = projectSchema.omit({
   priority: true,
   update_progress: true,
   has_unread_update: true,
+  customer_name: true,
+  vendors: true,
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();
@@ -82,6 +81,8 @@ export type ProjectUpdate = z.infer<typeof projectUpdateSchema>;
 export const projectListSchema = z.object({
   rows: z.array(projectSchema),
   total: z.number().int(),
+  total_pages: z.number().int(),
+  total_lines: z.number().int(),
   page: z.number().int(),
   page_size: z.number().int(),
 });

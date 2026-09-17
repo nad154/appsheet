@@ -1,14 +1,14 @@
 import { flexRender } from '@tanstack/react-table';
 import type { Header } from '@tanstack/react-table';
 import type { CSSProperties } from 'react';
-import type { Project } from '@tracker/shared';
+import type { DisplayRow } from './columns';
 
 // The leftmost column group ("Project Info") is sticky so it stays visible
 // while the Customer/Vendor sections scroll horizontally.
 export const STICKY_GROUP_ID = 'project_info';
 
 interface ColumnGroupHeaderProps {
-  header: Header<Project, unknown>;
+  header: Header<DisplayRow, unknown>;
 }
 
 // Section header tints, keyed by the column-group ids defined in columns.tsx:

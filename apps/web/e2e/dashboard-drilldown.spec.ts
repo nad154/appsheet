@@ -45,9 +45,10 @@ test('admin drills into a pie slice and lands on the highlighted grid row', asyn
   await expect(panel).toBeVisible();
   await expect(panel.getByText(/^Projects — /)).toBeVisible();
 
-  // Pick the first project in the panel and jump to it in the grid.
+  // Pick the first project in the panel and jump to it in the grid. Vendor-based
+  // drill-downs append a dim vendor label as a second span — read just the name.
   const projectButton = panel.locator('ul button').first();
-  const projectName = (await projectButton.textContent())?.trim() ?? '';
+  const projectName = (await projectButton.locator('span').first().textContent())?.trim() ?? '';
   expect(projectName.length).toBeGreaterThan(0);
 
   await projectButton.click();

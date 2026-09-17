@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: 'apps/web/e2e',
   timeout: 60000,
   retries: 0,
+  workers: 1,
   reporter: [['list']],
   use: {
     baseURL: 'http://localhost:5173',
@@ -11,7 +12,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'npm run start -w @tracker/server',
+      command: 'node apps/server/scripts/start-safe.js',
       url: 'http://localhost:3000/api/health',
       reuseExistingServer: false,
       timeout: 30000,

@@ -44,7 +44,18 @@ export type ChartData = z.infer<typeof chartDataSchema>;
 
 // Response shape for GET /api/dashboard/drill-down — the RBAC-scoped projects
 // that fall under one chart slice/segment.
+// vendor_name is populated only for vendor-based columns (vendor_type /
+// priority) where the panel lists one entry per matching vendor LINE — a
+// project can then appear more than once, each time next to the vendor that
+// put it in that bucket. All other columns keep one entry per project with
+// vendor_name null (planning_customers_vendors §3.3).
 export const drillDownSchema = z.object({
-  projects: z.array(z.object({ id: z.string().uuid(), project_name: z.string() })),
+  projects: z.array(
+    z.object({
+      id: z.string().uuid(),
+      project_name: z.string(),
+      vendor_name: z.string().nullable().optional(),
+    }),
+  ),
 });
 export type DrillDownResult = z.infer<typeof drillDownSchema>;

@@ -24,6 +24,16 @@ async function openRowModal(page, projectName: string) {
   return dialog;
 }
 
+// The customer field is a searchable combobox now: type a unique name and pick
+// the "Add new" fallback, which creates the customer row and selects it.
+async function selectCustomer(dialog, name: string) {
+  const combobox = dialog.getByLabel('Customer', { exact: true });
+  await combobox.fill(name);
+  const addRow = dialog.getByRole('button', { name: `Add "${name}"` });
+  await expect(addRow).toBeVisible({ timeout: 5000 });
+  await addRow.click();
+}
+
 test('hovering a project name reveals the edit button', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
 
@@ -42,15 +52,14 @@ test('admin can edit multiple fields in the modal with one PATCH', async ({ page
 
   const dialog = await openRowModal(page, 'Admin Project A');
 
-  // The modal is pre-filled with the full row, grouped into sections.
-  await expect(dialog.getByText('Project info', { exact: true })).toBeVisible();
-  await expect(dialog.getByText('Customer', { exact: true })).toBeVisible();
-  await expect(dialog.getByText('Vendor', { exact: true })).toBeVisible();
+  // The modal is pre-filled with the full row, grouped into sections. Vendor
+  // fields moved onto per-project vendor lines ("Vendor lines" section).
+  await expect(dialog.getByRole('group', { name: 'Project info' })).toBeVisible();
+  await expect(dialog.getByRole('group', { name: 'Customer' })).toBeVisible();
+  await expect(dialog.getByRole('group', { name: 'Vendor lines' })).toBeVisible();
 
-  const customerInput = dialog.getByLabel('Customer name');
-  const issuesInput = dialog.getByLabel('Issues');
-  await customerInput.fill('E2E Admin Customer');
-  await issuesInput.fill('E2E Admin Issue');
+  await selectCustomer(dialog, 'E2E Admin Customer');
+  await dialog.getByLabel('Issues').fill('E2E Admin Issue');
 
   await dialog.getByRole('button', { name: 'Save changes' }).click();
 
@@ -66,11 +75,7 @@ test('staff edits apply immediately but require an Update Progress note', async 
   await login(page, 'staff1@example.com', 'staff12345');
 
   const dialog = await openRowModal(page, 'Staff Project A');
-  const customerInput = dialog.getByLabel('Customer name');
-
-  // Fixture data has no customer name for Staff Project A → initially empty.
-  await expect(customerInput).toHaveValue('');
-  await customerInput.fill('E2E Staff Customer');
+  await selectCustomer(dialog, 'E2E Staff Customer');
 
   // Without Update Progress the save button is disabled.
   await expect(dialog.getByRole('button', { name: 'Save changes' })).toBeDisabled();

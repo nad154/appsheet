@@ -3,6 +3,7 @@ import { exportSnapshots } from './export.js';
 import { DEFAULT_AGING_LOW_MAX_DAYS, DEFAULT_AGING_MEDIUM_MAX_DAYS } from '@tracker/shared';
 import fs from 'node:fs';
 import path from 'node:path';
+import { uuid } from '../lib/uuid.js';
 
 // Schema DDL. All ids are app-generated UUID strings (DuckDB has no native
 // uuid() default), provided explicitly on insert. No DEFAULT uuid() here.
@@ -24,13 +25,29 @@ CREATE TABLE IF NOT EXISTS market_segments (
   sort_order INTEGER DEFAULT 0
 );
 
+-- Customer lookup table. Referenced by id from projects.customer_id.
+-- Real DELETE is allowed — orphans resolve to NULL via LEFT JOIN (plan §3.4).
+CREATE TABLE IF NOT EXISTS customers (
+  id VARCHAR PRIMARY KEY,
+  name VARCHAR NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+-- Vendor lookup table. Referenced by id from project_vendors.vendor_id.
+-- Real DELETE is allowed — same orphan convention as customers.
+CREATE TABLE IF NOT EXISTS vendors (
+  id VARCHAR PRIMARY KEY,
+  name VARCHAR NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
 CREATE TABLE IF NOT EXISTS projects (
   id VARCHAR PRIMARY KEY,
   folder_name VARCHAR,
   project_name VARCHAR NOT NULL,
   staff_assigned_id VARCHAR,          -- FK dropped: DuckDB can't UPDATE FK-target tables
   drive_folder_id VARCHAR,
-  customer_name VARCHAR,
+  customer_id VARCHAR,                -- references customers.id (no FK constraint — DuckDB UPDATE limitation)
   market_segment VARCHAR,
   service_or_goods VARCHAR CHECK (service_or_goods IN ('service','goods')),
   date_customer_received_doc1 DATE,
@@ -39,9 +56,21 @@ CREATE TABLE IF NOT EXISTS projects (
   customer_price INTEGER,
   customer_start_contract DATE,
   customer_end_contract DATE,
-  vendor_name VARCHAR,
-  vendor_revenue INTEGER,
+  current_stage VARCHAR CHECK (current_stage IN ('on_progress','finish')) DEFAULT 'on_progress',
+  pic_id VARCHAR,
+  issues VARCHAR,
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
+-- One row per vendor line on a project. All "Vendor Section" fields moved here
+-- from projects during the one-time migration (plan §4).
+CREATE TABLE IF NOT EXISTS project_vendors (
+  id VARCHAR PRIMARY KEY,
+  project_id VARCHAR NOT NULL,
+  vendor_id VARCHAR NOT NULL,
   vendor_type VARCHAR CHECK (vendor_type IN ('service','goods')),
+  vendor_revenue INTEGER,
   project_sent_date DATE,
   project_finish_date DATE,
   vendor_project_id VARCHAR,
@@ -52,9 +81,7 @@ CREATE TABLE IF NOT EXISTS projects (
   vendor_price INTEGER,
   vendor_start_contract DATE,
   vendor_end_contract DATE,
-  current_stage VARCHAR CHECK (current_stage IN ('on_progress','finish')) DEFAULT 'on_progress',
-  pic_id VARCHAR,
-  issues VARCHAR,
+  sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
   updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
@@ -111,11 +138,6 @@ CREATE TABLE IF NOT EXISTS aging_thresholds (
 
 CREATE OR REPLACE VIEW v_users_public AS
   SELECT id, name, email, role, is_active, created_at FROM users;
-;
-
--- users.parquet must never include password_hash; export from this view.
-CREATE OR REPLACE VIEW v_users_public AS
-  SELECT id, name, email, role, is_active, created_at FROM users;
 `;
 
 /**
@@ -134,6 +156,7 @@ export async function migrate(): Promise<void> {
   await seedAgingThresholds();
   await importLegacySnapshots();
   await dropUploadedDocColumns();
+  await migrateCustomersAndVendors();
 }
 
 /**
@@ -181,6 +204,10 @@ async function dropUploadedDocColumns(): Promise<void> {
 
 async function migrateColumns(): Promise<void> {
   const additions: Array<{ table: string; column: string; type: string }> = [
+    // customer_id links to the customers lookup table. Added additively here so
+    // a pre-existing projects table (where CREATE TABLE IF NOT EXISTS is a
+    // no-op) gets the column before migrateCustomersAndVendors fills it.
+    { table: 'projects', column: 'customer_id', type: 'VARCHAR' },
     { table: 'projects', column: 'pic_id', type: 'VARCHAR' },
     { table: 'projects', column: 'issues', type: 'VARCHAR' },
     { table: 'projects', column: 'uploaded_doc_id', type: 'VARCHAR' },
@@ -253,6 +280,113 @@ async function importLegacySnapshots(): Promise<void> {
       await exec(`INSERT INTO ${table} SELECT * FROM read_parquet('${filePath.replace(/\\/g, '/')}')`);
     });
   }
+}
+
+/**
+ * One-time migration: extract customers and vendors from free-text fields on
+ * projects into their own lookup tables, and move the vendor section fields
+ * into project_vendors (planning_customers_vendors §4).
+ *
+ * Guarded the same way migrateColumns guards its PIC rename: check whether
+ * projects.customer_name still exists. If so, run the migration and drop the
+ * old columns; if not, this is a no-op. Data is moved idempotently — re-
+ * running won't duplicate rows or lose data.
+ */
+async function migrateCustomersAndVendors(): Promise<void> {
+  const hasCustomerName = await columnExists('projects', 'customer_name');
+  if (!hasCustomerName) return; // already migrated
+
+  console.log('Migrating customers and vendors from free-text to lookup tables…');
+
+  // Customer name → id map (dedupe by name)
+  const customerNameToId = new Map<string, string>();
+  // Vendor name → id map (dedupe by name)
+  const vendorNameToId = new Map<string, string>();
+
+  await runWrite(async (exec) => {
+    // 1. Collect distinct non-null customer names
+    const custRows = await exec<{ customer_name: string }>(
+      `SELECT DISTINCT customer_name FROM projects WHERE customer_name IS NOT NULL AND customer_name != ''`,
+    );
+    for (const row of custRows) {
+      const id = uuid();
+      customerNameToId.set(row.customer_name, id);
+      await exec(
+        `INSERT INTO customers (id, name, created_at) VALUES (?, ?, current_timestamp)`,
+        [id, row.customer_name],
+      );
+    }
+
+    // 2. Collect distinct non-null vendor names
+    const vendRows = await exec<{ vendor_name: string }>(
+      `SELECT DISTINCT vendor_name FROM projects WHERE vendor_name IS NOT NULL AND vendor_name != ''`,
+    );
+    for (const row of vendRows) {
+      const id = uuid();
+      vendorNameToId.set(row.vendor_name, id);
+      await exec(
+        `INSERT INTO vendors (id, name, created_at) VALUES (?, ?, current_timestamp)`,
+        [id, row.vendor_name],
+      );
+    }
+
+    // 3. For each project row: set customer_id, insert a project_vendors row
+    //    if vendor_name was non-null, then drop the old columns.
+    const projectRows = await exec<{ id: string; customer_name: string | null; vendor_name: string | null }>(
+      `SELECT id, customer_name, vendor_name FROM projects`,
+    );
+
+    for (const p of projectRows) {
+      const sets: string[] = [];
+      const values: unknown[] = [];
+
+      // Set customer_id from map (skip null/empty)
+      if (p.customer_name && customerNameToId.has(p.customer_name)) {
+        sets.push('customer_id = ?');
+        values.push(customerNameToId.get(p.customer_name));
+      }
+
+      if (sets.length > 0) {
+        values.push(p.id);
+        await exec(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`, values);
+      }
+
+      // Insert a project_vendors row if there was a vendor name
+      if (p.vendor_name && vendorNameToId.has(p.vendor_name)) {
+        await exec(
+          `INSERT INTO project_vendors (
+            id, project_id, vendor_id, vendor_type, vendor_revenue,
+            project_sent_date, project_finish_date, vendor_project_id,
+            negotiation_date, approval_date, document_sent_date, document_id,
+            vendor_price, vendor_start_contract, vendor_end_contract,
+            sort_order, created_at, updated_at
+          ) SELECT ?, p.id, ?, p.vendor_type, p.vendor_revenue,
+                   p.project_sent_date, p.project_finish_date, p.vendor_project_id,
+                   p.negotiation_date, p.approval_date, p.document_sent_date, p.document_id,
+                   p.vendor_price, p.vendor_start_contract, p.vendor_end_contract,
+                   0, p.created_at, p.updated_at
+            FROM projects p WHERE p.id = ?`,
+          [uuid(), vendorNameToId.get(p.vendor_name), p.id],
+        );
+      }
+    }
+
+    // 4. Drop the migrated columns from projects
+    const colsToDrop = [
+      'customer_name', 'vendor_name', 'vendor_revenue', 'vendor_type',
+      'project_sent_date', 'project_finish_date', 'vendor_project_id',
+      'negotiation_date', 'approval_date', 'document_sent_date', 'document_id',
+      'vendor_price', 'vendor_start_contract', 'vendor_end_contract',
+    ];
+    for (const col of colsToDrop) {
+      if (await columnExists('projects', col)) {
+        await exec(`ALTER TABLE projects DROP COLUMN ${col}`);
+      }
+    }
+  });
+
+  await exportSnapshots(['projects', 'customers', 'vendors', 'project_vendors']);
+  console.log('Customer/vendor migration complete.');
 }
 
 export async function tableExists(name: string): Promise<boolean> {

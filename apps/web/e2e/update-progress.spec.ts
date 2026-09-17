@@ -28,11 +28,21 @@ async function openRowModal(page, projectName: string) {
   return dialog;
 }
 
+// The customer field is a searchable combobox now: type a unique name and pick
+// the "Add new" fallback, which creates the customer row and selects it.
+async function selectCustomer(dialog, name: string) {
+  const combobox = dialog.getByLabel('Customer', { exact: true });
+  await combobox.fill(name);
+  const addRow = dialog.getByRole('button', { name: `Add "${name}"` });
+  await expect(addRow).toBeVisible({ timeout: 5000 });
+  await addRow.click();
+}
+
 test('staff save is blocked while Update Progress is empty', async ({ page }) => {
   await login(page, 'staff1@example.com', 'staff12345');
 
   const dialog = await openRowModal(page, 'Staff Project A');
-  await dialog.getByLabel('Customer name').fill('E2E Progress Blocked');
+  await selectCustomer(dialog, 'E2E Progress Blocked');
 
   const save = dialog.getByRole('button', { name: 'Save changes' });
   await expect(save).toBeDisabled();
@@ -50,7 +60,7 @@ test('staff edit with an Update Progress note applies immediately', async ({ pag
   await login(page, 'staff1@example.com', 'staff12345');
 
   const dialog = await openRowModal(page, 'Staff Project A');
-  await dialog.getByLabel('Customer name').fill('E2E Live Update');
+  await selectCustomer(dialog, 'E2E Live Update');
   await dialog.getByLabel('Update progress').fill('Changed the customer name after a vendor call.');
   await dialog.getByRole('button', { name: 'Save changes' }).click();
 
@@ -79,11 +89,13 @@ test('admin sees the unread dot and can review the update history', async ({ pag
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText('Staff Project A — Update History')).toBeVisible();
 
-  // The entry shows who changed what (old → new) and the mandatory note.
+  // The entry shows who changed what (old → new) and the mandatory note. The
+  // customer change records the new customer_id (diff semantics), not the name.
   await expect(dialog.getByText('Staff One', { exact: true }).first()).toBeVisible();
-  await expect(dialog.getByText('Customer name', { exact: true }).first()).toBeVisible();
-  // New value cell renders as "→ <value>"; old value is the em-dash placeholder.
-  await expect(dialog.getByText('→ E2E Live Update', { exact: true }).first()).toBeVisible();
+  await expect(dialog.getByText('Customer', { exact: true }).first()).toBeVisible();
+  // New value cell renders as "→ <new customer id>"; old value is the previous
+  // customer's id (line-through).
+  await expect(dialog.getByText(/→ [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/).first()).toBeVisible();
   // The note div's text merges with the next card's header in the accessibility
   // tree, so match on a substring rather than exact text.
   await expect(dialog.getByText(/Changed the customer name after a vendor call\./)).toBeVisible();

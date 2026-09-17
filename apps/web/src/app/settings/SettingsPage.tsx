@@ -9,6 +9,18 @@ import {
   useAgingThresholds,
   useUpdateAgingThresholds,
 } from '../../hooks/useSettings';
+import {
+  useCustomers,
+  useCreateCustomer,
+  useRenameCustomer,
+  useDeleteCustomer,
+} from '../../hooks/useCustomers';
+import {
+  useVendors,
+  useCreateVendor,
+  useRenameVendor,
+  useDeleteVendor,
+} from '../../hooks/useVendors';
 import { useAuth } from '../../hooks/useAuth';
 import type { PublicUser, Role } from '@tracker/shared';
 import { ROLES } from '@tracker/shared';
@@ -29,6 +41,8 @@ export function SettingsPage() {
       <h1 className="text-lg font-semibold">Settings</h1>
 
       <UsersPanel me={me} />
+      <CustomersPanel />
+      <VendorsPanel />
       <MarketSegmentsPanel />
       <AgingThresholdsPanel />
     </div>
@@ -212,6 +226,212 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
         {addNotice && <span className="text-xs text-red-600">{addNotice}</span>}
       </form>
     </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Customers / Vendors                                                         */
+/* -------------------------------------------------------------------------- */
+
+// Shared admin panel for the customers/vendors lookup tables (plan §3.4).
+// POST is open to any role — that happens in the grid comboboxes — while the
+// rename/delete here are SUPER_ADMIN-only, enforced server-side. Deleting
+// returns usageCount so the UI can report how many projects/vendor lines still
+// reference the removed row (they render as "(deleted …)" orphan labels).
+interface EntityMutation {
+  isPending: boolean;
+  // The tanstack mutations carry specific payload types (create {name}, rename
+  // {id,name}, delete id) — `any` keeps the shared panel simple and typechecks
+  // the individual calls at their call sites with react-query anyway.
+  mutateAsync: (input: any) => Promise<unknown>;
+}
+
+function EntityAdminPanel({
+  title,
+  usageNoun,
+  list,
+  create,
+  rename,
+  del,
+}: {
+  title: string;
+  usageNoun: string;
+  list: { data?: { id: string; name: string }[]; isLoading: boolean; isError: boolean; error?: Error | null };
+  create: EntityMutation;
+  rename: EntityMutation;
+  del: EntityMutation;
+}) {
+  const [addName, setAddName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNotice(null);
+    try {
+      await create.mutateAsync({ name: addName.trim() });
+      setAddName('');
+    } catch (err) {
+      setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Could not add.' });
+    }
+  };
+
+  const startRename = (id: string, name: string) => {
+    setEditingId(id);
+    setEditingName(name);
+  };
+
+  const commitRename = async (id: string) => {
+    setNotice(null);
+    try {
+      await rename.mutateAsync({ id, name: editingName.trim() });
+      setEditingId(null);
+    } catch (err) {
+      setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Could not rename.' });
+    }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Delete "${name}"? Existing references will show as "(deleted)".`)) return;
+    setNotice(null);
+    try {
+      const res = (await del.mutateAsync(id)) as { usageCount?: number };
+      const usage = res?.usageCount ?? 0;
+      setNotice({
+        kind: 'info',
+        text:
+          usage > 0
+            ? `Deleted — still referenced by ${usage} ${usageNoun}.`
+            : 'Deleted — nothing was referencing it.',
+      });
+    } catch (err) {
+      setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Could not delete.' });
+    }
+  };
+
+  return (
+    <section className="rounded border border-gray-200 p-4">
+      <h2 className="mb-3 text-sm font-semibold">{title}</h2>
+
+      {list.isLoading && <p className="text-xs text-gray-500">Loading…</p>}
+      {list.isError && (
+        <p className="text-xs text-red-600">
+          {list.error instanceof Error ? list.error.message : 'Failed to load.'}
+        </p>
+      )}
+
+      {list.data && list.data.length > 0 && (
+        <table className="mb-4 w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <th className="pb-1 pr-3">Name</th>
+              <th className="pb-1">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.data.map((row) => (
+              <tr key={row.id} className="border-b border-gray-100 align-middle">
+                <td className="py-1.5 pr-3">
+                  {editingId === row.id ? (
+                    <input
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void commitRename(row.id);
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      className="w-64 rounded border border-gray-300 px-2 py-1 text-sm"
+                      aria-label={`Rename ${row.name}`}
+                    />
+                  ) : (
+                    row.name
+                  )}
+                </td>
+                <td className="py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    {editingId === row.id ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void commitRename(row.id)}
+                          disabled={rename.isPending}
+                          className={btnPrimary}
+                        >
+                          Save
+                        </button>
+                        <button type="button" onClick={() => setEditingId(null)} className={btnGhost}>
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startRename(row.id, row.name)}
+                        disabled={del.isPending}
+                        className={btnGhost}
+                      >
+                        Rename
+                      </button>
+                    )}
+                    <button type="button" onClick={() => void handleDelete(row.id, row.name)} disabled={del.isPending} className={btnDanger}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h3 className="mb-2 text-xs font-semibold text-gray-500">Add {title.toLowerCase().replace(/s$/, '')}</h3>
+      <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[11px] text-gray-500">Name</span>
+          <input
+            type="text"
+            required
+            value={addName}
+            onChange={(e) => setAddName(e.target.value)}
+            className={inputCls}
+            placeholder="Name"
+          />
+        </label>
+        <button type="submit" disabled={create.isPending} className={btnPrimary}>
+          {create.isPending ? 'Adding…' : 'Add'}
+        </button>
+      </form>
+      {notice && <p className={`mt-2 text-xs ${notice.kind === 'error' ? 'text-red-600' : 'text-green-700'}`}>{notice.text}</p>}
+    </section>
+  );
+}
+
+function CustomersPanel() {
+  const list = useCustomers();
+  return (
+    <EntityAdminPanel
+      title="Customers"
+      usageNoun="project(s)"
+      list={list}
+      create={useCreateCustomer()}
+      rename={useRenameCustomer()}
+      del={useDeleteCustomer()}
+    />
+  );
+}
+
+function VendorsPanel() {
+  const list = useVendors();
+  return (
+    <EntityAdminPanel
+      title="Vendors"
+      usageNoun="vendor line(s)"
+      list={list}
+      create={useCreateVendor()}
+      rename={useRenameVendor()}
+      del={useDeleteVendor()}
+    />
   );
 }
 

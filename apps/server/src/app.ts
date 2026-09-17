@@ -7,6 +7,9 @@ import { settingsRouter } from './modules/settings/routes.js';
 import { driveRouter } from './modules/drive/routes.js';
 import { notificationsRouter } from './modules/notifications/routes.js';
 import { dashboardRouter } from './modules/dashboard/routes.js';
+import { customersRouter } from './modules/customers/routes.js';
+import { vendorsRouter } from './modules/vendors/routes.js';
+import { projectVendorsRouter } from './modules/project-vendors/routes.js';
 
 export function createApp() {
   const app = express();
@@ -20,6 +23,9 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/projects', projectsRouter);
   app.use('/api/projects', projectUpdatesRouter);
+  app.use('/api/projects', projectVendorsRouter);
+  app.use('/api/customers', customersRouter);
+  app.use('/api/vendors', vendorsRouter);
   app.use('/api/settings', settingsRouter);
   app.use('/api/drive', driveRouter);
   app.use('/api/notifications', notificationsRouter);

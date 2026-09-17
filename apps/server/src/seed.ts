@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import argon2 from 'argon2';
 import { migrate } from './db/migrate.js';
-import { runWrite, runRead, conn } from './db/connection.js';
+import { runWrite, runRead, closeDb } from './db/connection.js';
 import { uuid } from './lib/uuid.js';
 import { exportSnapshots } from './db/export.js';
 
@@ -59,6 +59,6 @@ main()
     console.error('Seed failed:', err);
     process.exitCode = 1;
   })
-  .finally(() => {
-    conn.close();
+  .finally(async () => {
+    await closeDb();
   });

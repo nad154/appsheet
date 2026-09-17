@@ -3,15 +3,18 @@ import { GOODS_OR_SERVICE, PROJECT_STAGES } from '@tracker/shared';
 // Widget kind per editable project field. Shared by the row-edit modal (which
 // renders every field of a row) and mirrored by ProjectTable.tsx's inline
 // EditableCell primitives.
-export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user';
+export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user' | 'entity';
 
 // Human labels for project fields, used by both the update-history view and the
 // row-edit modal, so the two never disagree on how a field is named.
+// Vendor-line fields are retained because the vendor-lines editor (modal, add
+// form) labels them the same way.
 export const FIELD_LABELS: Record<string, string> = {
   folder_name: 'Folder',
   project_name: 'Project name',
   staff_assigned_id: 'Assigned staff',
   drive_folder_id: 'Drive folder',
+  customer_id: 'Customer',
   customer_name: 'Customer name',
   market_segment: 'Market segment',
   service_or_goods: 'Service / goods',
@@ -48,6 +51,8 @@ export const SECTION_OF: Record<string, string> = {
   drive_folder_id: 'Project info',
   current_stage: 'Project info',
   pic_id: 'Project info',
+  issues: 'Project info',
+  customer_id: 'Customer',
   customer_name: 'Customer',
   market_segment: 'Customer',
   service_or_goods: 'Customer',
@@ -57,36 +62,27 @@ export const SECTION_OF: Record<string, string> = {
   customer_price: 'Customer',
   customer_start_contract: 'Customer',
   customer_end_contract: 'Customer',
-  vendor_name: 'Vendor',
-  vendor_revenue: 'Vendor',
-  vendor_type: 'Vendor',
-  project_sent_date: 'Vendor',
-  project_finish_date: 'Vendor',
-  vendor_project_id: 'Vendor',
-  negotiation_date: 'Vendor',
-  approval_date: 'Vendor',
-  document_sent_date: 'Vendor',
-  document_id: 'Vendor',
-  vendor_price: 'Vendor',
-  vendor_start_contract: 'Vendor',
-  vendor_end_contract: 'Vendor',
-  issues: 'Vendor',
 };
 
-export const SECTION_ORDER = ['Project info', 'Customer', 'Vendor'];
+export const SECTION_ORDER = ['Project info', 'Customer', 'Vendor lines'];
 
 // Fields that hold a numeric value in the DB/API. The modal keeps drafts as
 // strings and converts these back to numbers (or null) on save.
-export const NUMBER_FIELDS = new Set(['customer_price', 'vendor_revenue', 'vendor_price']);
+export const NUMBER_FIELDS = new Set(['customer_price']);
+
+// Numeric fields on a vendor line (project_vendors), for the vendor-lines editor.
+export const VENDOR_NUMBER_FIELDS = new Set(['vendor_revenue', 'vendor_price']);
 
 // Widget kind for every editable field — the modal builds its inputs from this.
+// Project-level only: vendor-section fields live on vendor lines now (plan §2),
+// and customer_name is joined in (read-only) — customer_id is the editable key.
 export const FIELD_TYPES: Record<string, EditType> = {
   folder_name: 'text',
   project_name: 'text',
   staff_assigned_id: 'user',
   current_stage: 'select',
   pic_id: 'user',
-  customer_name: 'text',
+  customer_id: 'entity',
   market_segment: 'text',
   service_or_goods: 'select',
   date_customer_received_doc1: 'date',
@@ -95,19 +91,6 @@ export const FIELD_TYPES: Record<string, EditType> = {
   customer_price: 'number',
   customer_start_contract: 'date',
   customer_end_contract: 'date',
-  vendor_name: 'text',
-  vendor_revenue: 'number',
-  vendor_type: 'select',
-  project_sent_date: 'date',
-  project_finish_date: 'date',
-  vendor_project_id: 'text',
-  negotiation_date: 'date',
-  approval_date: 'date',
-  document_sent_date: 'date',
-  document_id: 'text',
-  vendor_price: 'number',
-  vendor_start_contract: 'date',
-  vendor_end_contract: 'date',
   issues: 'textarea',
 };
 
@@ -116,5 +99,4 @@ export const FIELD_TYPES: Record<string, EditType> = {
 export const FIELD_SELECT_OPTIONS: Record<string, readonly string[]> = {
   current_stage: PROJECT_STAGES,
   service_or_goods: GOODS_OR_SERVICE,
-  vendor_type: GOODS_OR_SERVICE,
 };

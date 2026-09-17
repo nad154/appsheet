@@ -25,15 +25,20 @@ function isIdle(project: Project, now: number): boolean {
   return now - updated >= IDLE_MS;
 }
 
-/** Deadline approaching when a customer/vendor end-contract is within 7 days. */
+/** Deadline approaching when the customer end-contract, or ANY vendor line's
+ * end-contract, is within 7 days. Vendor contracts moved onto per-project
+ * vendor lines (planning_customers_vendors), so this scans project.vendors. */
 function isDeadlineApproaching(project: Project, now: number): boolean {
   const windowEnd = now + DEADLINE_WARNING_DAYS * 24 * 60 * 60 * 1000;
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
   const todayMs = startOfToday.getTime();
 
-  for (const value of [project.customer_end_contract, project.vendor_end_contract]) {
-    const t = parseDate(value as string | null | undefined);
+  const endContracts: (string | null | undefined)[] = [project.customer_end_contract];
+  for (const line of project.vendors ?? []) endContracts.push(line.vendor_end_contract);
+
+  for (const value of endContracts) {
+    const t = parseDate(value);
     if (t !== null && t >= todayMs && t <= windowEnd) {
       return true;
     }

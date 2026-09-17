@@ -49,9 +49,16 @@ export function DrillDownPanel({
                 <button
                   type="button"
                   onClick={() => onSelect(p.id)}
-                  className="w-full rounded px-2 py-1 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                  className="flex w-full items-center justify-between gap-3 rounded px-2 py-1 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
                 >
-                  {p.project_name}
+                  <span className="truncate">{p.project_name}</span>
+                  {/* vendor-based drill-downs (vendor_type / priority) list one
+                      entry per vendor line — show which vendor the line belongs to */}
+                  {p.vendor_name && (
+                    <span className="shrink-0 truncate text-xs font-normal text-gray-400" title={p.vendor_name}>
+                      {p.vendor_name}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}

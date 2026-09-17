@@ -7,4 +7,8 @@ export * from './schemas/marketSegment.js';
 export * from './schemas/drive.js';
 export * from './schemas/agingThresholds.js';
 export * from './schemas/dashboardView.js';
+export * from './schemas/customer.js';
+export * from './schemas/vendor.js';
+export * from './schemas/projectVendor.js';
 export * from './lib/aging.js';
+export * from './lib/packing.js';

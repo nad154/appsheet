@@ -55,6 +55,8 @@ export interface ProjectListQuery {
   page_size?: number;
   sort_by?: string;
   sort_dir?: 'asc' | 'desc';
+  /** Restrict results to projects created in the given calendar year. */
+  year?: number;
 }
 
 /**
@@ -65,6 +67,23 @@ export interface ProjectListQuery {
 export function scopeClause(user: AuthUser): { whereClause: string; params: unknown[] } {
   if (user.role === 'STAFF') return { whereClause: 'WHERE p.staff_assigned_id = ?', params: [user.id] };
   return { whereClause: '', params: [] };
+}
+
+/**
+ * Distinct creation years within the caller's RBAC scope, newest first. Powers
+ * the grid's dynamic year-filter dropdown so STAFF only sees years they have
+ * projects in.
+ */
+export async function listProjectYears(user: AuthUser): Promise<number[]> {
+  const { whereClause, params } = scopeClause(user);
+  const rows = await runRead<{ year: number }>(
+    `SELECT DISTINCT CAST(strftime(p.created_at, '%Y') AS INTEGER) AS year
+     FROM projects p
+     ${whereClause}
+     ORDER BY year DESC`,
+    params,
+  );
+  return rows.map((r) => Number(r.year));
 }
 
 /**
@@ -85,8 +104,19 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
     ? (query.sort_dir === 'asc' ? 'ASC' : 'DESC')
     : (query.sort_by ? 'DESC' : 'ASC');
 
-  const { whereClause, params } = scopeClause(user);
+  let { whereClause, params } = scopeClause(user);
   const thresholds = await resolveAgingThresholds();
+
+  // Composite year filter: created_at is a TIMESTAMP, so match the [year-01-01,
+  // year+1-01-01) half-open range rather than strftime (avoids casting each row
+  // and composes cleanly with the RBAC scope clause).
+  if (query.year) {
+    const yearClause = whereClause ? `${whereClause} AND ` : 'WHERE ';
+    const start = `${query.year}-01-01`;
+    const end = `${query.year + 1}-01-01`;
+    params.push(start, end);
+    whereClause = `${yearClause}p.created_at >= ? AND p.created_at < ?`;
+  }
 
   // Step 1 — one lightweight query for the WHOLE scoped set: id + vendor-line
   // count + the sort key. The scoped set is ≤500 projects at this app's scale,
@@ -344,6 +374,10 @@ export async function updateProject(
   if (!project) throw new ProjectWriteError('Project not found', 404);
 
   assertStaffOwnership(user, project, payload);
+
+  if (payload.created_at !== undefined && user.role !== 'SUPER_ADMIN') {
+    throw new ProjectWriteError('Only SUPER_ADMIN can change created_at', 403);
+  }
 
   const sets = Object.keys(payload)
     .filter((k) => payload[k as keyof ProjectUpdate] !== undefined)

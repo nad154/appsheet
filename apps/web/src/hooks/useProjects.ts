@@ -7,6 +7,8 @@ export interface ProjectQueryParams {
   page_size?: number;
   sort_by?: string;
   sort_dir?: 'asc' | 'desc';
+  /** Restrict to projects created in the given calendar year (undefined = all). */
+  year?: number;
   // When false the query stays disabled (e.g. the grid's one-off locator query
   // that runs only while a drill-down highlight is pending). Not part of the
   // query key, so toggling it never invalidates the cached data.
@@ -14,10 +16,10 @@ export interface ProjectQueryParams {
 }
 
 export function useProjects(params: ProjectQueryParams = {}) {
-  const { page = 1, page_size = 50, sort_by, sort_dir, enabled = true } = params;
+  const { page = 1, page_size = 50, sort_by, sort_dir, year, enabled = true } = params;
 
   const query = useQuery({
-    queryKey: ['projects', { page, page_size, sort_by, sort_dir }],
+    queryKey: ['projects', { page, page_size, sort_by, sort_dir, year }],
     enabled,
     queryFn: async () => {
       const qs = new URLSearchParams();
@@ -25,6 +27,7 @@ export function useProjects(params: ProjectQueryParams = {}) {
       qs.set('page_size', String(page_size));
       if (sort_by) qs.set('sort_by', sort_by);
       if (sort_dir) qs.set('sort_dir', sort_dir);
+      if (year) qs.set('year', String(year));
       return apiClient.get<ProjectList>(`/api/projects?${qs.toString()}`);
     },
   });
@@ -46,6 +49,22 @@ export function useAssignableUsers() {
   const query = useQuery({
     queryKey: ['projects', 'assignable-users'],
     queryFn: () => apiClient.get<AssignableUser[]>('/api/projects/users'),
+    staleTime: 60_000,
+  });
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+// Distinct creation years for the grid's year filter (undefined until loaded).
+export function useProjectYears() {
+  const query = useQuery({
+    queryKey: ['projects', 'years'],
+    queryFn: () => apiClient.get<number[]>('/api/projects/years'),
     staleTime: 60_000,
   });
   return {

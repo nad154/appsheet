@@ -72,7 +72,10 @@ export const projectCreateSchema = projectSchema.omit({
   vendors: true,
 });
 
-export const projectUpdateSchema = projectCreateSchema.partial();
+export const projectUpdateSchema = projectCreateSchema.partial().extend({
+  /** SUPER_ADMIN may set a custom creation date; server enforces role. */
+  created_at: z.string().optional(),
+});
 
 export type ProjectCreate = z.infer<typeof projectCreateSchema>;
 export type ProjectUpdate = z.infer<typeof projectUpdateSchema>;

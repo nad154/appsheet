@@ -451,14 +451,15 @@ export function buildProjectColumns({ isAdmin, onOpenHistory }: {
         salesColumn(),
         picColumn(),
         selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
-        {
-          id: 'status_flag',
-          header: 'Status',
-          size: 110,
-          enableSorting: false,
-          cell: ({ row }) =>
-            row.original.isFirstOfGroup ? <StatusFlagCell project={row.original.project} /> : <span className="text-gray-300">—</span>,
-        },
+        // selectDate('created_at', 'Created', 150),
+        // {
+        //   id: 'status_flag',
+        //   header: 'Status',
+        //   size: 110,
+        //   enableSorting: false,
+        //   cell: ({ row }) =>
+        //     row.original.isFirstOfGroup ? <StatusFlagCell project={row.original.project} /> : <span className="text-gray-300">—</span>,
+        // },
         textareaCol('issues', 'Issues', 200),
       ],
     },

@@ -5,6 +5,7 @@ import { requireAuth } from '../../middleware/requireAuth.js';
 import {
   listProjects,
   listAssignableUsers,
+  listProjectYears,
   createProject,
   updateProject,
   deleteProject,
@@ -18,6 +19,7 @@ const listQuerySchema = z.object({
   page_size: z.coerce.number().int().min(1).max(500).optional(),
   sort_by: z.string().optional(),
   sort_dir: z.enum(['asc', 'desc']).optional(),
+  year: z.coerce.number().int().min(2000).max(2100).optional(),
 });
 
 const idParamSchema = z.object({ id: z.string().uuid() });
@@ -38,10 +40,21 @@ projectsRouter.get('/', async (req, res) => {
     page_size: parsed.data.page_size,
     sort_by: parsed.data.sort_by,
     sort_dir: parsed.data.sort_dir,
+    year: parsed.data.year,
   };
 
   const result = await listProjects(req.user!, query);
   res.json(result);
+});
+
+// GET /api/projects/years — distinct creation years within the caller's scope,
+// newest first, for the grid's dynamic year-filter dropdown.
+projectsRouter.get('/years', async (req, res) => {
+  try {
+    res.json(await listProjectYears(req.user!));
+  } catch (err) {
+    handleError(err, res);
+  }
 });
 
 // GET /api/projects/users — active users eligible for PIC assignment.

@@ -116,11 +116,16 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- Per-user dashboard views. Operational/config data — NEVER exported to parquet.
+-- metric_key / stage_filter / year_filter defaults keep existing rows
+-- (created before this migration) displaying as plain "all"/count charts.
 CREATE TABLE IF NOT EXISTS dashboard_views (
   id VARCHAR PRIMARY KEY,
   user_id VARCHAR NOT NULL,           -- FK dropped, DuckDB UPDATE limitation
   chart_type VARCHAR NOT NULL CHECK (chart_type IN ('pie','bar')),
   column_key VARCHAR NOT NULL,
+  metric_key VARCHAR NOT NULL DEFAULT 'count',
+  stage_filter VARCHAR NOT NULL DEFAULT 'all',
+  year_filter INTEGER,                -- NULL = all creation years
   label VARCHAR NOT NULL,
   sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
@@ -152,6 +157,7 @@ export async function migrate(): Promise<void> {
   });
 
   await migrateColumns();
+  await migrateDashboardViewColumns();
   await dropPendingEdits();
   await seedAgingThresholds();
   await importLegacySnapshots();
@@ -238,6 +244,31 @@ async function migrateColumns(): Promise<void> {
 
   if (altered) {
     await exportSnapshots(['projects']);
+  }
+}
+
+/**
+ * Additive migration for dashboard_views: bar-chart metric, stage filter and
+ * year filter. dashboard_views is operational/config data that is NEVER
+ * exported to parquet, so no exportSnapshots call here. Safe on every startup.
+ *
+ * NOTE: DuckDB can't express `ADD COLUMN … NOT NULL DEFAULT …` (it parses the
+ * constraint but won't apply additive columns with constraints), so the new
+ * columns are plain VARCHAR/INTEGER. The service normalises NULL → default
+ * ('count' / 'all' / null) at read time, so legacy rows behave identically.
+ */
+async function migrateDashboardViewColumns(): Promise<void> {
+  const additions: Array<{ column: string; type: string }> = [
+    { column: 'metric_key', type: 'VARCHAR' },
+    { column: 'stage_filter', type: 'VARCHAR' },
+    { column: 'year_filter', type: 'INTEGER' },
+  ];
+  for (const { column, type } of additions) {
+    if (!(await columnExists('dashboard_views', column))) {
+      await runWrite(async (exec) => {
+        await exec(`ALTER TABLE dashboard_views ADD COLUMN ${column} ${type}`);
+      });
+    }
   }
 }
 

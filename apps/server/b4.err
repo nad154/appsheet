@@ -1,0 +1,7 @@
+Failed to start server: Error: Failed to open DuckDB database at C:\user\storage file\opencode2\apps\server\data\app.duckdb: INTERNAL Error: Failure while replaying WAL file "C:\user\storage file\opencode2\apps\server\data\app.duckdb.wal": Calling DatabaseManager::GetDefaultDatabase with no default database set
+This error signals an assertion failure within DuckDB. This usually occurs due to unexpected conditions or errors in the program's logic.
+For more information, see https://duckdb.org/docs/stable/dev/internal_errors
+
+Stack Trace:
+. DuckDB only allows one process to hold a read/write connection to a given file at a time — this almost always means another process ("npm run dev:server", "npm run start", "npm run seed", a Playwright webServer, or a DB browser) already has it open. Stop that process and try again.
+    at Database.<anonymous> (file:///C:/user/storage%20file/opencode2/apps/server/dist/db/connection.js:18:20)

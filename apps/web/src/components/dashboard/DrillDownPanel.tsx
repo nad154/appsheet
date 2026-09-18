@@ -1,5 +1,5 @@
 import { useDrillDown } from '../../hooks/useDashboard';
-import type { DashboardColumn } from '@tracker/shared';
+import type { DashboardColumn, DashboardStageFilter } from '@tracker/shared';
 
 // Inline panel under a chart listing the projects behind one slice/segment.
 // Capped at 50 rows — at this app's scale the full list is likely small, but
@@ -9,15 +9,19 @@ const MAX_VISIBLE = 50;
 export function DrillDownPanel({
   columnKey,
   value,
+  stage,
+  year,
   onSelect,
   onClose,
 }: {
   columnKey: DashboardColumn;
   value: string;
+  stage: DashboardStageFilter;
+  year: number | null;
   onSelect: (projectId: string) => void;
   onClose: () => void;
 }) {
-  const { data, isLoading, isError } = useDrillDown(columnKey, value);
+  const { data, isLoading, isError } = useDrillDown(columnKey, value, { stage, year });
   const projects = data?.projects ?? [];
   const visible = projects.slice(0, MAX_VISIBLE);
 

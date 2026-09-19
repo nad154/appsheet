@@ -21,6 +21,9 @@ export type DisplayRow = {
   vendor: ProjectVendorLine | null;
   isFirstOfGroup: boolean;
   rowKey: string;
+  // Page-relative project ordinal for the number column — counts projects (not
+  // vendor lines), so every line of a multi-vendor project shares one number.
+  index: number;
 };
 
 // Project-level value, blanked out on continuation rows. The muted "—" styling
@@ -47,6 +50,7 @@ function text(
     size,
     meta: editable ? ({ editable: true, editType: 'text' } as ColumnMeta) : undefined,
     cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey);
       if (v === null || v === undefined || v === '') return <span className="text-gray-300">—</span>;
       return <span className="block truncate text-sm text-gray-800" title={String(v)}>{String(v)}</span>;
@@ -86,9 +90,23 @@ function projectNameColumn(isAdmin: boolean): ColumnDef<DisplayRow> {
     header: 'Project',
     size: 220,
     meta: { editable: true, editType: 'text' } as ColumnMeta,
-    cell: ({ row }) => (row.original.isFirstOfGroup ? <ProjectNameCell row={row.original} isAdmin={isAdmin} /> : <span className="text-gray-300">—</span>),
+    cell: ({ row }) => (row.original.isFirstOfGroup ? <ProjectNameCell row={row.original} isAdmin={isAdmin} /> : null),
   };
 }
+
+// Page-relative project ordinal (a display-only row counter, not a stored
+// field). Renders once per project on its group-header row; continuation vendor
+// rows are blank. Not sortable and never editable.
+const projectNumberColumn: ColumnDef<DisplayRow> = {
+  id: 'number',
+  header: '#',
+  size: 48,
+  enableSorting: false,
+  cell: ({ row }) => {
+    if (!row.original.isFirstOfGroup) return null;
+    return <span className="block text-sm text-gray-500">{row.original.index}</span>;
+  },
+};
 
 function numberCol(accessorKey: keyof Project, header: string, size = 120): ColumnDef<DisplayRow> {
   return {
@@ -97,6 +115,7 @@ function numberCol(accessorKey: keyof Project, header: string, size = 120): Colu
     size,
     meta: { editable: true, editType: 'number' } as ColumnMeta,
     cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey);
       if (v === null || v === undefined || v === '') return <span className="text-gray-300">Rp —</span>;
       return <span className="block truncate text-sm text-gray-800">Rp {Number(v).toLocaleString('en-US')}</span>;
@@ -116,6 +135,7 @@ function selectCol(
     size,
     meta: { editable: true, editType: 'select', options } as ColumnMeta,
     cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey) as string | null | undefined;
       if (!v) return <span className="text-gray-300">—</span>;
       return <span className="block truncate text-sm text-gray-800">{v}</span>;
@@ -130,6 +150,7 @@ function selectDate(accessorKey: keyof Project, header: string, size = 170): Col
     size,
     meta: { editable: true, editType: 'date' } as ColumnMeta,
     cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey) as string | null | undefined;
       if (!v) return <span className="text-gray-300">—</span>;
       const d = new Date(v);
@@ -150,7 +171,7 @@ function customerColumn(size = 160): ColumnDef<DisplayRow> {
     header: 'Customer',
     size,
     cell: ({ row }) => {
-      if (!row.original.isFirstOfGroup) return <span className="text-gray-300">—</span>;
+      if (!row.original.isFirstOfGroup) return null;
       const { customer_id, customer_name } = row.original.project;
       if (!customer_name) {
         if (customer_id) {
@@ -175,6 +196,7 @@ function picColumn(size = 140): ColumnDef<DisplayRow> {
     size,
     meta: { editable: true, editType: 'user' } as ColumnMeta,
     cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
       const name = projectCell(row.original, 'pic_name') as string | null | undefined;
       if (!name) return <span className="text-gray-300">—</span>;
       return <span className="block truncate text-sm text-gray-800">{name}</span>;
@@ -192,6 +214,7 @@ function salesColumn(size = 140): ColumnDef<DisplayRow> {
     size,
     meta: { editable: true, editType: 'user', adminOnly: true } as ColumnMeta,
     cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
       const name = projectCell(row.original, 'staff_assigned_name') as string | null | undefined;
       if (!name) return <span className="text-gray-300">—</span>;
       return <span className="block truncate text-sm text-gray-800">{name}</span>;
@@ -204,7 +227,7 @@ const driveLinkColumn: ColumnDef<DisplayRow> = {
   header: 'Folder',
   size: 100,
   cell: ({ row }) => {
-    if (!row.original.isFirstOfGroup) return <span className="text-gray-300">—</span>;
+    if (!row.original.isFirstOfGroup) return null;
     const id = row.original.project.drive_folder_id;
     const name = row.original.project.folder_name;
 
@@ -412,7 +435,7 @@ function updateProgressColumn(
     header: 'Update Progress',
     size: 220,
     cell: ({ row }) => {
-      if (!row.original.isFirstOfGroup) return <span className="text-gray-300">—</span>;
+      if (!row.original.isFirstOfGroup) return null;
       return <UpdateProgressCell row={row.original} isAdmin={isAdmin} onOpenHistory={onOpenHistory} />;
     },
   };
@@ -478,7 +501,7 @@ function issuesColumn(
     header: 'Issues',
     size: 220,
     cell: ({ row }) => {
-      if (!row.original.isFirstOfGroup) return <span className="text-gray-300">—</span>;
+      if (!row.original.isFirstOfGroup) return null;
       return <IssuesCell row={row.original} isAdmin={isAdmin} onOpenIssues={onOpenIssues} />;
     },
   };
@@ -494,6 +517,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues }: {
       id: 'project_info',
       header: 'Project Info',
       columns: [
+        projectNumberColumn,
         projectNameColumn(isAdmin),
         driveLinkColumn,
         salesColumn(),

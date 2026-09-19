@@ -75,14 +75,18 @@ const Z = {
 // with zero lines renders exactly one blank-vendor row (plan §3.1).
 function flattenRows(rows: Project[]): DisplayRow[] {
   const out: DisplayRow[] = [];
+  // Page-relative project ordinal for the number column: every vendor line of a
+  // project shares its project's number, and the counter resets each page.
+  let projectIndex = 0;
   for (const project of rows) {
+    projectIndex += 1;
     const vendors: ProjectVendorLine[] = project.vendors ?? [];
     if (vendors.length > 0) {
       vendors.forEach((vendor, i) => {
-        out.push({ project, vendor, isFirstOfGroup: i === 0, rowKey: `${project.id}:${vendor.id}` });
+        out.push({ project, vendor, isFirstOfGroup: i === 0, rowKey: `${project.id}:${vendor.id}`, index: projectIndex });
       });
     } else {
-      out.push({ project, vendor: null, isFirstOfGroup: true, rowKey: `${project.id}:none` });
+      out.push({ project, vendor: null, isFirstOfGroup: true, rowKey: `${project.id}:none`, index: projectIndex });
     }
   }
   return out;
@@ -383,7 +387,7 @@ export function ProjectTable({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-1 flex-col gap-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400">
           {isAdmin
@@ -394,7 +398,7 @@ export function ProjectTable({
       </div>
       <div
         ref={parentRef}
-        className="relative h-[65vh] overflow-auto rounded-md border border-gray-200"
+        className="relative min-h-0 flex-1 overflow-auto rounded-md border border-gray-200"
         role="table"
         aria-label="Projects grid"
       >
@@ -461,6 +465,7 @@ export function ProjectTable({
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const row = modelRows[virtualRow.index];
               const { project, isFirstOfGroup } = row.original;
+              const isContinuation = !isFirstOfGroup;
               const isHighlighted =
                 flashActive && isFirstOfGroup && row.original.project.id === highlightedRowId;
               return (
@@ -469,7 +474,7 @@ export function ProjectTable({
                   role="row"
                   data-testid={isHighlighted ? 'highlighted-row' : undefined}
                   onClick={!isAdmin && isFirstOfGroup ? () => setEditModalRow(project) : undefined}
-                  className={`border-b border-gray-100 hover:bg-gray-50 ${
+                  className={`border-b border-gray-100 ${isContinuation ? 'bg-gray-50' : ''} hover:bg-gray-50 ${
                     isHighlighted ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
                   } ${!isAdmin ? 'cursor-pointer' : ''}`}
                   style={{
@@ -580,7 +585,7 @@ export function ProjectTable({
                           position: isStickyCol ? 'sticky' : undefined,
                           left: isStickyCol ? stickyLeft : undefined,
                           zIndex: isStickyCol ? Z.stickyBodyCol : undefined,
-                          background: isStickyCol ? '#fff' : undefined,
+                          background: isStickyCol ? (isContinuation ? '#f9fafb' : '#fff') : undefined,
                           boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.06)' : undefined,
                           cursor: editable ? 'text' : undefined,
                         }}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project, ProjectVendorLine } from '@tracker/shared';
 import { computeAging, computePriority } from '@tracker/shared';
 import type { AssignableUser } from '../../hooks/useProjects';
@@ -623,7 +624,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
     </div>
   );
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
@@ -650,7 +651,8 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
         </div>
         {renderBody()}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

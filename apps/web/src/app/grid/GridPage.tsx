@@ -206,7 +206,7 @@ export function GridPage() {
     'mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300';
 
   return (
-    <div>
+    <div className="flex flex-1 flex-col">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-lg font-semibold">Project Grid</h1>

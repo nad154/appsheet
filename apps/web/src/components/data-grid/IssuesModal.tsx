@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Project, ProjectIssueEntry } from '@tracker/shared';
 import type { AssignableUser } from '../../hooks/useProjects';
 import { useProjectIssues, useAddIssue } from '../../hooks/useProjectIssues';
@@ -77,7 +78,7 @@ export function IssuesModal({
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} role="presentation">
       <div
         className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white shadow-xl"
@@ -154,6 +155,7 @@ export function IssuesModal({
           {data?.entries.map((entry) => <IssueCard key={entry.id} entry={entry} />)}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useProjectUpdateHistory } from '../../hooks/useProjectUpdates';
 import { FIELD_LABELS } from '../../lib/projectFields';
 import type { Project, ProjectUpdateEntry } from '@tracker/shared';
@@ -48,7 +49,7 @@ export function UpdateHistoryModal({ project, onClose }: { project: Project | nu
   const { data, isLoading, isError } = useProjectUpdateHistory(project?.id ?? null);
   if (!project) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} role="presentation">
       <div
         className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white shadow-xl"
@@ -70,6 +71,7 @@ export function UpdateHistoryModal({ project, onClose }: { project: Project | nu
           {data?.entries.map((entry) => <HistoryEntryCard key={entry.id} entry={entry} />)}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -23,7 +23,7 @@ export function AppLayout() {
   const isDev = import.meta.env.DEV;
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <header className="border-b bg-white">
         <div className="flex items-center justify-between px-4 py-2">
           <nav className="flex items-center gap-1">
@@ -72,7 +72,7 @@ export function AppLayout() {
         </div>
       </header>
 
-      <main className="px-4 py-4">
+      <main className="flex flex-1 flex-col px-4 py-4">
         <Outlet />
       </main>
     </div>

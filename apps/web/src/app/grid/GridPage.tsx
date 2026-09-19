@@ -265,7 +265,7 @@ export function GridPage() {
               <input value={form.market_segment} onChange={(e) => setField('market_segment', e.target.value)} className={inputCls} />
             </label>
             <label className="flex flex-col text-xs text-gray-600">
-              Customer price
+              Nilai PO/PKS Customer
               <input type="number" value={form.customer_price} onChange={(e) => setField('customer_price', e.target.value)} className={inputCls} />
             </label>
             <label className="flex flex-col text-xs text-gray-600">

@@ -61,17 +61,17 @@ export interface VendorLineDraft {
 
 export const VENDOR_LINE_FIELDS: { key: keyof VendorLineDraft; label: string; type: 'date' | 'number' | 'text' | 'select'; options?: readonly string[] }[] = [
   { key: 'vendor_type', label: 'Vendor type', type: 'select', options: FIELD_SELECT_OPTIONS.vendor_type },
-  { key: 'vendor_revenue', label: 'Vendor revenue', type: 'number' },
-  { key: 'project_sent_date', label: 'Project sent date', type: 'date' },
-  { key: 'project_finish_date', label: 'Project finish date', type: 'date' },
-  { key: 'vendor_project_id', label: 'Vendor project ID', type: 'text' },
-  { key: 'negotiation_date', label: 'Negotiation date', type: 'date' },
-  { key: 'approval_date', label: 'Approval date', type: 'date' },
-  { key: 'document_sent_date', label: 'Document sent date', type: 'date' },
-  { key: 'document_id', label: 'Document ID', type: 'text' },
-  { key: 'vendor_price', label: 'Vendor price', type: 'number' },
-  { key: 'vendor_start_contract', label: 'Vendor contract start', type: 'date' },
-  { key: 'vendor_end_contract', label: 'Vendor contract end', type: 'date' },
+  { key: 'vendor_revenue', label: FIELD_LABELS.vendor_revenue, type: 'number' },
+  { key: 'project_sent_date', label: FIELD_LABELS.project_sent_date, type: 'date' },
+  { key: 'project_finish_date', label: FIELD_LABELS.project_finish_date, type: 'date' },
+  { key: 'vendor_project_id', label: FIELD_LABELS.vendor_project_id, type: 'text' },
+  { key: 'negotiation_date', label: FIELD_LABELS.negotiation_date, type: 'date' },
+  { key: 'approval_date', label: FIELD_LABELS.approval_date, type: 'date' },
+  { key: 'document_sent_date', label: FIELD_LABELS.document_sent_date, type: 'date' },
+  { key: 'document_id', label: FIELD_LABELS.document_id, type: 'text' },
+  { key: 'vendor_price', label: FIELD_LABELS.vendor_price, type: 'number' },
+  { key: 'vendor_start_contract', label: FIELD_LABELS.vendor_start_contract, type: 'date' },
+  { key: 'vendor_end_contract', label: FIELD_LABELS.vendor_end_contract, type: 'date' },
 ];
 
 const DELEGATED_VENDOR_FIELDS: (keyof VendorLineDraft)[] = VENDOR_LINE_FIELDS.map((f) => f.key);

@@ -43,11 +43,13 @@ function text(
   header: string,
   size = 150,
   editable = true,
+  sortable = true,
 ): ColumnDef<DisplayRow> {
   return {
     accessorKey: accessorKey as string,
     header,
     size,
+    enableSorting: sortable,
     meta: editable ? ({ editable: true, editType: 'text' } as ColumnMeta) : undefined,
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
@@ -89,6 +91,7 @@ function projectNameColumn(isAdmin: boolean): ColumnDef<DisplayRow> {
     accessorKey: 'project_name',
     header: 'Project',
     size: 220,
+    enableSorting: false,
     meta: { editable: true, editType: 'text' } as ColumnMeta,
     cell: ({ row }) => (row.original.isFirstOfGroup ? <ProjectNameCell row={row.original} isAdmin={isAdmin} /> : null),
   };
@@ -128,11 +131,13 @@ function selectCol(
   header: string,
   size: number,
   options: readonly string[],
+  sortable = true,
 ): ColumnDef<DisplayRow> {
   return {
     accessorKey: accessorKey as string,
     header,
     size,
+    enableSorting: sortable,
     meta: { editable: true, editType: 'select', options } as ColumnMeta,
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
@@ -226,6 +231,7 @@ const driveLinkColumn: ColumnDef<DisplayRow> = {
   accessorKey: 'drive_folder_id',
   header: 'Folder',
   size: 100,
+  enableSorting: false,
   cell: ({ row }) => {
     if (!row.original.isFirstOfGroup) return null;
     const id = row.original.project.drive_folder_id;
@@ -434,6 +440,7 @@ function updateProgressColumn(
     accessorKey: 'update_progress',
     header: 'Update Progress',
     size: 220,
+    enableSorting: false,
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       return <UpdateProgressCell row={row.original} isAdmin={isAdmin} onOpenHistory={onOpenHistory} />;
@@ -500,6 +507,7 @@ function issuesColumn(
     accessorKey: 'issues',
     header: 'Issues',
     size: 220,
+    enableSorting: false,
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       return <IssuesCell row={row.original} isAdmin={isAdmin} onOpenIssues={onOpenIssues} />;
@@ -522,7 +530,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues }: {
         driveLinkColumn,
         salesColumn(),
         picColumn(),
-        selectCol('current_stage', 'Stage', 120, PROJECT_STAGES),
+        selectCol('current_stage', 'Stage', 120, PROJECT_STAGES, false),
         // selectDate('created_at', 'Created', 150),
         // {
         //   id: 'status_flag',
@@ -540,12 +548,12 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues }: {
       header: 'Customer Section',
       columns: [
         customerColumn(),
-        text('market_segment', 'Market Segment', 140),
-        selectCol('service_or_goods', 'Service/Goods', 120, GOODS_OR_SERVICE),
+        text('market_segment', 'Market Segment', 140, true, false),
+        selectCol('service_or_goods', 'Service/Goods', 120, GOODS_OR_SERVICE, false),
         selectDate('date_customer_received_doc1', 'Tanggal Terima SP Customer', 170),
         selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 170),
-        text('doc2_number_id', 'No PO/PKS Customer', 170),
-        numberCol('customer_price', 'Amount PO/PKS Customer', 110),
+        text('doc2_number_id', 'No PO/PKS Customer', 170, true, false),
+        numberCol('customer_price', 'Nilai PO/PKS Customer', 110),
         selectDate('customer_start_contract', 'Start Contract - Cust', 170),
         selectDate('customer_end_contract', 'End Contract - Cust', 170),
       ],
@@ -559,16 +567,16 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues }: {
         vendorTextCol('Vendor', 160),
         vendorNumberCol('Nilai RAB', 120),
         vendorSelectCol('vendor_type', 'Type Vendor Service/Goods', 120),
-        vendorDateCol('project_sent_date', 'Tgl Kirim FPT', 170),
+        vendorDateCol('project_sent_date', 'Tanggal Kirim FPT', 170),
         vendorDateCol('project_finish_date', 'Tgl Finish FPT', 170),
         vendorTextInputCol('vendor_project_id', 'No FPT', 170),
         vendorDateCol('negotiation_date', 'Tanggal Nego Vendor', 170),
         vendorDateCol('approval_date', 'Tanggal Terima SP Vendor', 170),
         vendorDateCol('document_sent_date', 'Tanggal kirim PO/PKS vendor', 170),
-        vendorTextInputCol('document_id', 'No PO/PKS', 170),
-        vendorNumberCol('Nilai PO/PKS', 120),
-        vendorDateCol('vendor_start_contract', 'Start Contract2', 170),
-        vendorDateCol('vendor_end_contract', 'End Contract2', 170),
+        vendorTextInputCol('document_id', 'No PO/PKS Vendor', 170),
+        vendorNumberCol('Nilai PO/PKS Vendor', 120),
+        vendorDateCol('vendor_start_contract', 'Start Contract - Vendor', 170),
+        vendorDateCol('vendor_end_contract', 'End Contract2 - Vendor', 170),
         agingColumn,
         priorityColumn,
       ],

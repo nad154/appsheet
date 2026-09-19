@@ -3,9 +3,9 @@ import { VENDOR_BASED_COLUMNS } from '@tracker/shared';
 
 export const METRIC_LABELS: Record<DashboardMetric, string> = {
   count: 'Count',
-  customer_price: 'Sum customer price',
-  vendor_price: 'Sum vendor price',
-  vendor_revenue: 'Sum vendor revenue',
+  customer_price: 'Total Nilai PO/PKS Customer',
+  vendor_price: 'Total Nilai PO/PKS Vendor',
+  vendor_revenue: 'Total Nilai RAB',
   avg_aging: 'Average aging (days)',
 };
 

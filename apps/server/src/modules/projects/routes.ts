@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import {
   listProjects,
+  getProject,
   listAssignableUsers,
   listProjectYears,
   createProject,
@@ -61,6 +62,16 @@ projectsRouter.get('/years', async (req, res) => {
 projectsRouter.get('/users', async (_req, res) => {
   try {
     res.json(await listAssignableUsers());
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// GET /api/projects/:id — one full row (vendors + derived meta), RBAC-scoped.
+projectsRouter.get('/:id', async (req, res) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    res.json(await getProject(req.user!, id));
   } catch (err) {
     handleError(err, res);
   }

@@ -26,7 +26,6 @@ const emptyForm = {
   current_stage: 'on_progress',
   staff_assigned_id: '',
   pic_id: '',
-  issues: '',
 };
 
 export function GridPage() {
@@ -186,7 +185,6 @@ export function GridPage() {
         service_or_goods: (form.service_or_goods || null) as 'service' | 'goods' | null,
         current_stage: form.current_stage as 'on_progress' | 'finish',
         pic_id: form.pic_id || null,
-        issues: form.issues.trim() || null,
         ...(isAdmin ? { staff_assigned_id: form.staff_assigned_id || null } : {}),
         vendors,
       };
@@ -308,10 +306,6 @@ export function GridPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="flex flex-col text-xs text-gray-600 md:col-span-2">
-              Issues
-              <textarea value={form.issues} onChange={(e) => setField('issues', e.target.value)} rows={2} className={inputCls} />
             </label>
           </div>
 

@@ -10,6 +10,7 @@ import { ColumnGroupHeader } from './ColumnGroupHeader';
 import { buildProjectColumns, type ColumnMeta, type DisplayRow } from './columns';
 import { EditProjectModal } from './EditProjectModal';
 import { UpdateHistoryModal } from './UpdateHistoryModal';
+import { IssuesModal } from './IssuesModal';
 import type { AssignableUser } from '../../hooks/useProjects';
 import type { ToastVariant } from '../Toast';
 
@@ -242,14 +243,19 @@ export function ProjectTable({
   const [savingCell, setSavingCell] = useState<string | null>(null);
   const [editModalRow, setEditModalRow] = useState<Project | null>(null);
   const [historyRow, setHistoryRow] = useState<Project | null>(null);
+  const [issuesRow, setIssuesRow] = useState<Project | null>(null);
   const [flashActive, setFlashActive] = useState(false);
 
   // Column definitions are rebuilt per-role: STAFF never gets any inline
   // editable cell (row-click opens the modal instead), and SUPER_ADMIN gets the
-  // clickable Update Progress cell wired to the history modal. The Update
-  // Progress column also reads per-page unread state from the row data.
+  // clickable Update Progress and Issues cells wired to their modals.
   const columns = useMemo(
-    () => buildProjectColumns({ isAdmin: !!isAdmin, onOpenHistory: setHistoryRow }),
+    () =>
+      buildProjectColumns({
+        isAdmin: !!isAdmin,
+        onOpenHistory: setHistoryRow,
+        onOpenIssues: setIssuesRow,
+      }),
     [isAdmin],
   );
 
@@ -643,6 +649,7 @@ export function ProjectTable({
       )}
 
       <UpdateHistoryModal project={historyRow} onClose={() => setHistoryRow(null)} />
+      <IssuesModal project={issuesRow} users={users ?? []} onClose={() => setIssuesRow(null)} />
     </div>
   );
 }

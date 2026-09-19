@@ -35,8 +35,9 @@ interface EditProjectModalProps {
 
 // Every editable PROJECT-LEVEL field, in FIELD_TYPES order. Vendor-section
 // fields are NOT here anymore — they live on project_vendors and are edited in
-// the Vendor lines section below.
-const EDITABLE_FIELDS = Object.keys(FIELD_TYPES).filter((k) => k !== 'customer_id');
+// the Vendor lines section below. issues is excluded: it's SUPER_ADMIN-only,
+// logged only through the Issues modal's add endpoint.
+const EDITABLE_FIELDS = Object.keys(FIELD_TYPES).filter((k) => k !== 'customer_id' && k !== 'issues');
 
 export interface VendorLineDraft {
   key: string;

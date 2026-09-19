@@ -3,6 +3,7 @@ export * from './roles.js';
 export * from './schemas/user.js';
 export * from './schemas/project.js';
 export * from './schemas/projectUpdate.js';
+export * from './schemas/projectIssue.js';
 export * from './schemas/marketSegment.js';
 export * from './schemas/drive.js';
 export * from './schemas/agingThresholds.js';

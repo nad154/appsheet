@@ -3,6 +3,7 @@ import cors from 'cors';
 import { authRouter } from './modules/auth/routes.js';
 import { projectsRouter } from './modules/projects/routes.js';
 import { projectUpdatesRouter } from './modules/project-updates/routes.js';
+import { issuesRouter } from './modules/issues/routes.js';
 import { settingsRouter } from './modules/settings/routes.js';
 import { driveRouter } from './modules/drive/routes.js';
 import { notificationsRouter } from './modules/notifications/routes.js';
@@ -23,6 +24,7 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/projects', projectsRouter);
   app.use('/api/projects', projectUpdatesRouter);
+  app.use('/api/projects', issuesRouter);
   app.use('/api/projects', projectVendorsRouter);
   app.use('/api/customers', customersRouter);
   app.use('/api/vendors', vendorsRouter);

@@ -7,6 +7,7 @@ const parquetPath = (file: string) => path.join(PARQUET_DIR, file).replace(/\\/g
 type ExportableTable =
   | 'projects'
   | 'project_updates'
+  | 'project_issues'
   | 'users'
   | 'customers'
   | 'vendors'
@@ -24,6 +25,7 @@ export async function exportSnapshots(tables: ExportableTable[]): Promise<void> 
   const copyStatements: Record<ExportableTable, string> = {
     projects: `COPY projects TO '${parquetPath('projects.parquet')}' (FORMAT PARQUET)`,
     project_updates: `COPY project_updates TO '${parquetPath('project_updates.parquet')}' (FORMAT PARQUET)`,
+    project_issues: `COPY project_issues TO '${parquetPath('project_issues.parquet')}' (FORMAT PARQUET)`,
     users: `COPY v_users_public TO '${parquetPath('users.parquet')}' (FORMAT PARQUET)`,
     customers: `COPY customers TO '${parquetPath('customers.parquet')}' (FORMAT PARQUET)`,
     vendors: `COPY vendors TO '${parquetPath('vendors.parquet')}' (FORMAT PARQUET)`,
@@ -40,7 +42,7 @@ export async function exportSnapshots(tables: ExportableTable[]): Promise<void> 
 }
 
 export async function readSnapshot<T extends QueryResult>(
-  file: 'projects.parquet' | 'project_updates.parquet' | 'users.parquet' | 'customers.parquet' | 'vendors.parquet' | 'project_vendors.parquet',
+  file: 'projects.parquet' | 'project_updates.parquet' | 'project_issues.parquet' | 'users.parquet' | 'customers.parquet' | 'vendors.parquet' | 'project_vendors.parquet',
 ): Promise<T[]> {
   const p = parquetPath(file);
   return runRead<T>(`SELECT * FROM read_parquet('${p}')`);

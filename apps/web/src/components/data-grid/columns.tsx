@@ -1,7 +1,6 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Project, ProjectVendorLine } from '@tracker/shared';
 import { GOODS_OR_SERVICE, PROJECT_STAGES, computeAging } from '@tracker/shared';
-import { StatusFlagCell } from './StatusFlagCell';
 
 export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user';
 
@@ -160,24 +159,6 @@ function customerColumn(size = 160): ColumnDef<DisplayRow> {
         return <span className="text-gray-300">—</span>;
       }
       return <span className="block truncate text-sm text-gray-800" title={customer_name}>{customer_name}</span>;
-    },
-  };
-}
-
-function textareaCol(accessorKey: keyof Project, header: string, size = 200): ColumnDef<DisplayRow> {
-  return {
-    accessorKey: accessorKey as string,
-    header,
-    size,
-    meta: { editable: true, editType: 'textarea' } as ColumnMeta,
-    cell: ({ row }) => {
-      const v = projectCell(row.original, accessorKey) as string | null | undefined;
-      if (!v) return <span className="text-gray-300">—</span>;
-      return (
-        <span className="block truncate text-sm text-gray-800" title={v}>
-          {v}
-        </span>
-      );
     },
   };
 }
@@ -437,9 +418,76 @@ function updateProgressColumn(
   };
 }
 
-export function buildProjectColumns({ isAdmin, onOpenHistory }: {
+function formatIssueDate(v: string): string {
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// Issues column: the latest issue's text (denormalized projects.issues) plus
+// its date and assignee (derived from project_issues). Read-only in the grid —
+// clickable only by SUPER_ADMIN, who opens the issues modal (add + history);
+// STAFF just sees the latest issue.
+function IssuesCell({
+  row,
+  isAdmin,
+  onOpenIssues,
+}: {
+  row: DisplayRow;
+  isAdmin: boolean;
+  onOpenIssues: (project: Project) => void;
+}) {
+  const text = row.project.issues;
+  const issueDate = row.project.latest_issue_date;
+  const assignee = row.project.latest_issue_assignee;
+
+  const content = text ? (
+    <span className="flex min-w-0 flex-col leading-snug">
+      <span className="block truncate text-sm text-gray-800" title={text}>{text}</span>
+      <span className="block truncate text-[11px] text-gray-400">
+        {issueDate ? formatIssueDate(issueDate) : '—'}
+        {assignee ? ` · ${assignee}` : ''}
+      </span>
+    </span>
+  ) : (
+    <span className="text-gray-300">—</span>
+  );
+
+  if (!isAdmin) return content;
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenIssues(row.project);
+      }}
+      className="flex w-full items-center gap-1.5 text-left hover:underline"
+      title="View issues"
+    >
+      {content}
+    </button>
+  );
+}
+
+function issuesColumn(
+  onOpenIssues: (project: Project) => void,
+  isAdmin: boolean,
+): ColumnDef<DisplayRow> {
+  return {
+    accessorKey: 'issues',
+    header: 'Issues',
+    size: 220,
+    cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return <span className="text-gray-300">—</span>;
+      return <IssuesCell row={row.original} isAdmin={isAdmin} onOpenIssues={onOpenIssues} />;
+    },
+  };
+}
+
+export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues }: {
   isAdmin: boolean;
   onOpenHistory: (project: Project) => void;
+  onOpenIssues: (project: Project) => void;
 }): ColumnDef<DisplayRow>[] {
   return [
     {
@@ -460,7 +508,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory }: {
         //   cell: ({ row }) =>
         //     row.original.isFirstOfGroup ? <StatusFlagCell project={row.original.project} /> : <span className="text-gray-300">—</span>,
         // },
-        textareaCol('issues', 'Issues', 200),
+        issuesColumn(onOpenIssues, isAdmin),
       ],
     },
     {

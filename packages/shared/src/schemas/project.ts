@@ -49,6 +49,12 @@ export const projectSchema = z.object({
   update_progress: z.string().nullable().optional(),
   has_unread_update: z.boolean().optional(),
 
+  // Latest logged issue's date + assignee, derived from project_issues at
+  // query time — never submitted by the client. The latest issue TEXT lives on
+  // projects.issues itself (denormalized, kept in sync by the add-issue write).
+  latest_issue_date: z.string().nullable().optional(),
+  latest_issue_assignee: z.string().nullable().optional(),
+
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -68,8 +74,13 @@ export const projectCreateSchema = projectSchema.omit({
   priority: true,
   update_progress: true,
   has_unread_update: true,
+  latest_issue_date: true,
+  latest_issue_assignee: true,
   customer_name: true,
   vendors: true,
+  // issues is SUPER_ADMIN-only and only ever written through the add-issue
+  // endpoint (POST /api/projects/:id/issues) — never submittable via create/update.
+  issues: true,
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial().extend({

@@ -96,6 +96,20 @@ CREATE TABLE IF NOT EXISTS project_updates (
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
+-- Logged issues, one row per issue. projects.issues keeps the latest issue
+-- text denormalized (single writer — the add-issue endpoint — so it never
+-- drifts). created_by is the SUPER_ADMIN who logged it; NULL only for legacy
+-- backfilled rows. assignee_id is the STAFF the issue is attached to.
+CREATE TABLE IF NOT EXISTS project_issues (
+  id VARCHAR PRIMARY KEY,
+  project_id VARCHAR NOT NULL,        -- FK dropped, same convention as other tables
+  issue_text VARCHAR NOT NULL,
+  issue_date DATE NOT NULL,
+  assignee_id VARCHAR,                -- FK dropped
+  created_by VARCHAR,                 -- FK dropped
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id VARCHAR PRIMARY KEY,
   user_id VARCHAR NOT NULL,           -- FK dropped
@@ -163,6 +177,7 @@ export async function migrate(): Promise<void> {
   await importLegacySnapshots();
   await dropUploadedDocColumns();
   await migrateCustomersAndVendors();
+  await migrateProjectIssues();
 }
 
 /**
@@ -294,6 +309,7 @@ async function importLegacySnapshots(): Promise<void> {
   const mapping: Record<string, { table: string; transform?: string }> = {
     'projects.parquet': { table: 'projects' },
     'project_updates.parquet': { table: 'project_updates' },
+    'project_issues.parquet': { table: 'project_issues' },
     // users.parquet is exported from v_users_public which EXCLUDES password_hash.
     // Never import it — users must be created by the seed script with proper hashes.
   };
@@ -418,6 +434,41 @@ async function migrateCustomersAndVendors(): Promise<void> {
 
   await exportSnapshots(['projects', 'customers', 'vendors', 'project_vendors']);
   console.log('Customer/vendor migration complete.');
+}
+
+/**
+ * One-time backfill: seed project_issues from the legacy projects.issues
+ * column so pre-feature issue text is preserved in history. Runs AFTER
+ * importLegacySnapshots (so a legacy projects.parquet is loaded first) and
+ * after migrateCustomersAndVendors. Idempotent — a project only gets a row
+ * when it has a non-empty issues value AND no project_issues row yet. The
+ * projects.issues column stays as the always-synced "latest issue text",
+ * written by the issues module.
+ */
+async function migrateProjectIssues(): Promise<void> {
+  // DuckDB's driver returns TIMESTAMP columns as Date objects (or ISO strings)
+  // depending on the row path — normalize defensively before slicing the date.
+  const toDateIso = (v: unknown): string =>
+    v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10);
+
+  const legacy = await runRead<{ id: string; issues: string | null; created_at: unknown }>(
+    `SELECT id, issues, created_at FROM projects
+     WHERE issues IS NOT NULL AND issues != ''
+       AND id NOT IN (SELECT DISTINCT project_id FROM project_issues)`,
+  );
+  if (legacy.length === 0) return;
+
+  await runWrite(async (exec) => {
+    for (const row of legacy) {
+      await exec(
+        `INSERT INTO project_issues (id, project_id, issue_text, issue_date, assignee_id, created_by, created_at)
+         VALUES (?, ?, ?, ?, NULL, NULL, current_timestamp)`,
+        // The issue date is the DATE column — pass the YYYY-MM-DD slice of created_at.
+        [uuid(), row.id, row.issues, toDateIso(row.created_at)],
+      );
+    }
+  });
+  await exportSnapshots(['project_issues']);
 }
 
 export async function tableExists(name: string): Promise<boolean> {

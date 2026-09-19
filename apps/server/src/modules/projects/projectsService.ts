@@ -6,6 +6,7 @@ import { uuid } from '../../lib/uuid.js';
 import { createProjectFolder } from '../drive/driveService.js';
 import { isGoogleConfigured } from '../google/auth.js';
 import { recordProjectUpdate, getLatestUpdateInfo } from '../project-updates/projectUpdatesService.js';
+import { getLatestIssueMeta } from '../issues/issuesService.js';
 import {
   projectCreateSchema,
   projectUpdateSchema,
@@ -189,21 +190,27 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
 
   // Latest update-progress note + unread flag for the ids on this page.
   const updateInfo = await getLatestUpdateInfo(orderedRows.map((r) => r.id));
+  // Latest logged issue's date + assignee for the ids on this page (the issue
+  // TEXT itself is the denormalized projects.issues column).
+  const issueMeta = await getLatestIssueMeta(orderedRows.map((r) => r.id));
   const rows: Project[] = orderedRows.map((r) => ({
     ...r,
     vendors: vendorsByProject.get(r.id) ?? [],
     update_progress: updateInfo.get(r.id)?.update_progress ?? null,
     has_unread_update: updateInfo.get(r.id)?.has_unread_update ?? false,
+    latest_issue_date: issueMeta.get(r.id)?.issue_date ?? null,
+    latest_issue_assignee: issueMeta.get(r.id)?.assignee_name ?? null,
   }));
 
   return { rows, total, total_pages, total_lines, page, page_size: pageSize };
 }
 
 // Active users that may be assigned as a project's PIC. The settings users
-// endpoints are SUPER_ADMIN-only; the grid needs this for both roles.
-export async function listAssignableUsers(): Promise<{ id: string; name: string }[]> {
-  return runRead<{ id: string; name: string }>(
-    `SELECT id, name FROM users WHERE is_active = true ORDER BY name ASC`,
+// endpoints are SUPER_ADMIN-only; the grid needs this for both roles. role is
+// included so the frontend can offer a STAFF-only list (e.g. issue assignees).
+export async function listAssignableUsers(): Promise<{ id: string; name: string; role: string }[]> {
+  return runRead<{ id: string; name: string; role: string }>(
+    `SELECT id, name, role FROM users WHERE is_active = true ORDER BY name ASC`,
   );
 }
 
@@ -212,6 +219,53 @@ export class ProjectWriteError extends Error {
     super(message);
     this.name = 'ProjectWriteError';
   }
+}
+
+/**
+ * Single project — same shape as one listProjects row (vendors, latest
+ * update-progress + issue meta attached). RBAC-scoped: STAFF may only fetch
+ * projects assigned to them.
+ */
+export async function getProject(user: AuthUser, projectId: string): Promise<Project> {
+  const rows = await runRead<ProjectRow>(
+    `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name, c.name AS customer_name
+     FROM projects p
+     LEFT JOIN users u ON u.id = p.staff_assigned_id
+     LEFT JOIN users pic_user ON pic_user.id = p.pic_id
+     LEFT JOIN customers c ON c.id = p.customer_id
+     WHERE p.id = ?`,
+    [projectId],
+  );
+  const row = rows[0];
+  if (!row) throw new ProjectWriteError('Project not found', 404);
+  if (user.role === 'STAFF' && row.staff_assigned_id !== user.id) {
+    throw new ProjectWriteError('Cannot view a project assigned to another staff member', 403);
+  }
+
+  const vendorRows = await runRead<ProjectVendorLine>(
+    `SELECT pv.*, v.name AS vendor_name
+     FROM project_vendors pv
+     LEFT JOIN vendors v ON v.id = pv.vendor_id
+     WHERE pv.project_id = ?
+     ORDER BY pv.sort_order ASC, pv.created_at ASC, pv.id ASC`,
+    [projectId],
+  );
+  const thresholds = await resolveAgingThresholds();
+  const vendors = vendorRows.map((line) => ({
+    ...line,
+    priority: computePriority(computeAging(line), thresholds),
+  }));
+
+  const updateInfo = await getLatestUpdateInfo([projectId]);
+  const issueMeta = await getLatestIssueMeta([projectId]);
+  return {
+    ...row,
+    vendors,
+    update_progress: updateInfo.get(projectId)?.update_progress ?? null,
+    has_unread_update: updateInfo.get(projectId)?.has_unread_update ?? false,
+    latest_issue_date: issueMeta.get(projectId)?.issue_date ?? null,
+    latest_issue_assignee: issueMeta.get(projectId)?.assignee_name ?? null,
+  };
 }
 
 /** STAFF may only ever own/target their own projects, and can never reassign Sales. */
@@ -259,7 +313,6 @@ const PROJECT_COLUMNS: (keyof ProjectCreate)[] = [
   'customer_end_contract',
   'current_stage',
   'pic_id',
-  'issues',
 ];
 
 function insertProjectSql(): string {
@@ -419,14 +472,16 @@ export async function updateProject(
   await exportSnapshots(['projects']);
 }
 
-/** Delete a project. SUPER_ADMIN only. Its vendor lines go with it. */
+/** Delete a project. SUPER_ADMIN only. Its vendor lines, updates and issues go with it. */
 export async function deleteProject(user: AuthUser, projectId: string): Promise<void> {
   if (user.role !== 'SUPER_ADMIN') {
     throw new ProjectWriteError('Only SUPER_ADMIN can delete projects', 403);
   }
   await runWrite(async (ex) => {
     await ex(`DELETE FROM project_vendors WHERE project_id = ?`, [projectId]);
+    await ex(`DELETE FROM project_updates WHERE project_id = ?`, [projectId]);
+    await ex(`DELETE FROM project_issues WHERE project_id = ?`, [projectId]);
     await ex(`DELETE FROM projects WHERE id = ?`, [projectId]);
   });
-  await exportSnapshots(['projects', 'project_vendors']);
+  await exportSnapshots(['projects', 'project_vendors', 'project_updates', 'project_issues']);
 }

@@ -59,7 +59,11 @@ test('admin can edit multiple fields in the modal with one PATCH', async ({ page
   await expect(dialog.getByRole('group', { name: 'Vendor lines' })).toBeVisible();
 
   await selectCustomer(dialog, 'E2E Admin Customer');
-  await dialog.getByLabel('Issues').fill('E2E Admin Issue');
+  await dialog.getByLabel('Market segment').fill('E2E Admin Segment');
+
+  // Issues is no longer editable here — it's logged exclusively through the
+  // SUPER_ADMIN-only Issues modal (add endpoint), never through create/update.
+  await expect(dialog.getByLabel('Issues')).toHaveCount(0);
 
   await dialog.getByRole('button', { name: 'Save changes' }).click();
 
@@ -68,7 +72,7 @@ test('admin can edit multiple fields in the modal with one PATCH', async ({ page
 
   // Grid reflects the new values after the PATCH + refetch.
   await expect(page.getByText('E2E Admin Customer', { exact: true })).toBeVisible();
-  await expect(page.getByText('E2E Admin Issue', { exact: true })).toBeVisible();
+  await expect(page.getByText('E2E Admin Segment', { exact: true })).toBeVisible();
 });
 
 test('staff edits apply immediately but require an Update Progress note', async ({ page }) => {

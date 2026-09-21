@@ -11,6 +11,7 @@ import { buildProjectColumns, type ColumnMeta, type DisplayRow } from './columns
 import { EditProjectModal } from './EditProjectModal';
 import { UpdateHistoryModal } from './UpdateHistoryModal';
 import { IssuesModal } from './IssuesModal';
+import { StageConfirmModal } from './StageConfirmModal';
 import type { AssignableUser } from '../../hooks/useProjects';
 import type { ToastVariant } from '../Toast';
 
@@ -248,6 +249,7 @@ export function ProjectTable({
   const [editModalRow, setEditModalRow] = useState<Project | null>(null);
   const [historyRow, setHistoryRow] = useState<Project | null>(null);
   const [issuesRow, setIssuesRow] = useState<Project | null>(null);
+  const [stageConfirmRow, setStageConfirmRow] = useState<Project | null>(null);
   const [flashActive, setFlashActive] = useState(false);
 
   // Column definitions are rebuilt per-role: STAFF never gets any inline
@@ -259,6 +261,7 @@ export function ProjectTable({
         isAdmin: !!isAdmin,
         onOpenHistory: setHistoryRow,
         onOpenIssues: setIssuesRow,
+        onRequestFinish: setStageConfirmRow,
       }),
     [isAdmin],
   );
@@ -375,6 +378,16 @@ export function ProjectTable({
     } else {
       onNotice?.(result.message ?? 'Could not save change.');
       // Keep editor open so the user can correct.
+    }
+  };
+
+  const commitStageFinish = async (project: Project) => {
+    const result = await onRowUpdate(project, { current_stage: 'finish' });
+    setStageConfirmRow(null);
+    if (result.ok) {
+      onNotice?.('Stage set to Finish.', 'success');
+    } else {
+      onNotice?.(result.message ?? 'Could not set the stage to Finish.');
     }
   };
 
@@ -655,6 +668,13 @@ export function ProjectTable({
 
       <UpdateHistoryModal project={historyRow} onClose={() => setHistoryRow(null)} />
       <IssuesModal project={issuesRow} users={users ?? []} onClose={() => setIssuesRow(null)} />
+      {stageConfirmRow && (
+        <StageConfirmModal
+          projectName={stageConfirmRow.project_name}
+          onConfirm={() => commitStageFinish(stageConfirmRow)}
+          onCancel={() => setStageConfirmRow(null)}
+        />
+      )}
     </div>
   );
 }

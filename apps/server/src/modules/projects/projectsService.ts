@@ -381,6 +381,9 @@ export async function createProject(user: AuthUser, rawPayload: unknown): Promis
   const stored: ProjectCreate = { ...payload };
   if (user.role === 'STAFF') {
     stored.staff_assigned_id = user.id;
+    // Only SUPER_ADMIN may set the stage — STAFF-created projects always start
+    // on_progress (a project can never be reopened once finished).
+    stored.current_stage = 'on_progress';
   }
 
   const embeddedVendors =
@@ -430,6 +433,16 @@ export async function updateProject(
 
   if (payload.created_at !== undefined && user.role !== 'SUPER_ADMIN') {
     throw new ProjectWriteError('Only SUPER_ADMIN can change created_at', 403);
+  }
+
+  // Stage is SUPER_ADMIN-only (defence-in-depth — the shared update schema
+  // accepts it for both roles), and once a project is finished it can never be
+  // set back to on_progress.
+  if (payload.current_stage !== undefined && user.role !== 'SUPER_ADMIN') {
+    throw new ProjectWriteError('Only SUPER_ADMIN can change the stage', 403);
+  }
+  if (payload.current_stage === 'on_progress' && project.current_stage === 'finish') {
+    throw new ProjectWriteError('A finished project cannot be reopened', 400);
   }
 
   const sets = Object.keys(payload)

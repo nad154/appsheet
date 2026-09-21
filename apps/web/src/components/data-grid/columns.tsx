@@ -1,6 +1,6 @@
 import type { ColumnDef } from '@tanstack/react-table';
-import type { Project, ProjectVendorLine } from '@tracker/shared';
-import { GOODS_OR_SERVICE, PROJECT_STAGES, computeAging } from '@tracker/shared';
+import type { Project, ProjectStage, ProjectVendorLine } from '@tracker/shared';
+import { GOODS_OR_SERVICE, computeAging } from '@tracker/shared';
 
 export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user';
 
@@ -376,6 +376,54 @@ const PRIORITY_LABEL: Record<'low' | 'medium' | 'high', string> = {
   high: 'High',
 };
 
+export const STAGE_LABEL: Record<ProjectStage, string> = {
+  on_progress: 'On Progress',
+  finish: 'Finish',
+};
+export const STAGE_STYLES: Record<ProjectStage, string> = {
+  on_progress: 'bg-blue-100 text-blue-800 border-blue-300',
+  finish: 'bg-green-100 text-green-800 border-green-300',
+};
+
+// Stage badge, styled like the priority badge. Display always shows one of the
+// two stages (never "—"; legacy/blank rows fall back to on_progress). Only
+// SUPER_ADMIN can modify the stage: on an on_progress project the badge is
+// clickable (opens the finish-confirm modal); a finished project is locked and
+// can never be reopened.
+function stageColumn(onRequestFinish: (project: Project) => void, isAdmin: boolean): ColumnDef<DisplayRow> {
+  return {
+    accessorKey: 'current_stage',
+    header: 'Stage',
+    size: 120,
+    enableSorting: false,
+    meta: { editable: false, editType: 'select', options: ['on_progress', 'finish'] as const } as ColumnMeta,
+    cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
+      const stage: ProjectStage = row.original.project.current_stage ?? 'on_progress';
+      const badge = (
+        <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${STAGE_STYLES[stage]}`}>
+          {STAGE_LABEL[stage]}
+        </span>
+      );
+      if (!isAdmin || stage === 'finish') return badge;
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestFinish(row.original.project);
+          }}
+          className="rounded px-0 text-left hover:outline hover:outline-1 hover:outline-blue-300"
+          title="Mark project as Finish"
+          aria-label={`Mark ${row.original.project.project_name} as Finish`}
+        >
+          {badge}
+        </button>
+      );
+    },
+  };
+}
+
 // Per-vendor-line, derived server-side from Aging + current thresholds.
 // Read-only and not sortable — like all vendor fields.
 const priorityColumn: ColumnDef<DisplayRow> = {
@@ -515,10 +563,11 @@ function issuesColumn(
   };
 }
 
-export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues }: {
+export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRequestFinish }: {
   isAdmin: boolean;
   onOpenHistory: (project: Project) => void;
   onOpenIssues: (project: Project) => void;
+  onRequestFinish: (project: Project) => void;
 }): ColumnDef<DisplayRow>[] {
   return [
     {
@@ -526,11 +575,11 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues }: {
       header: 'Project Info',
       columns: [
         projectNumberColumn,
-        projectNameColumn(isAdmin),
         driveLinkColumn,
+        projectNameColumn(isAdmin),
         salesColumn(),
         picColumn(),
-        selectCol('current_stage', 'Stage', 120, PROJECT_STAGES, false),
+        stageColumn(onRequestFinish, isAdmin),
         // selectDate('created_at', 'Created', 150),
         // {
         //   id: 'status_flag',

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { Project, ProjectVendorLine } from '@tracker/shared';
+import type { Project, ProjectStage, ProjectVendorLine } from '@tracker/shared';
 import { computeAging, computePriority } from '@tracker/shared';
 import type { AssignableUser } from '../../hooks/useProjects';
 import { useLinkFolder, useCreateFolder } from '../../hooks/useDriveActions';
@@ -22,6 +22,8 @@ import {
   SECTION_ORDER,
   VENDOR_NUMBER_FIELDS,
 } from '../../lib/projectFields';
+import { STAGE_LABEL, STAGE_STYLES } from './columns';
+import { StageConfirmModal } from './StageConfirmModal';
 import type { EditResult } from './ProjectTable';
 import type { ToastVariant } from '../Toast';
 
@@ -146,6 +148,58 @@ function normalize(key: string, value: string): unknown {
 export function normalizeVendorField(key: keyof VendorLineDraft, value: string): unknown {
   if (VENDOR_NUMBER_FIELDS.has(key)) return value === '' ? null : Number(value);
   return value === '' ? null : value;
+}
+
+// Stage control (SUPER_ADMIN only). A finished project renders a read-only
+// green badge — it can never be reopened. Otherwise a labeled select; picking
+// "Finish" first opens the confirm modal, and only flips the draft (to
+// "finish") once the user confirms.
+function StageFieldInput({
+  value,
+  projectStage,
+  onSelectFinish,
+  onChange,
+}: {
+  value: string;
+  projectStage: ProjectStage;
+  onSelectFinish: () => void;
+  onChange: (value: string) => void;
+}) {
+  const label = <span className="text-xs text-gray-600">{FIELD_LABELS.current_stage}</span>;
+  const cls =
+    'mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300';
+
+  if (projectStage === 'finish') {
+    return (
+      <label className="flex flex-col">
+        {label}
+        <span
+          className={`mt-1 inline-block w-fit rounded-full border px-2 py-0.5 text-xs font-medium ${STAGE_STYLES.finish}`}
+        >
+          {STAGE_LABEL.finish}
+        </span>
+      </label>
+    );
+  }
+
+  return (
+    <label className="flex flex-col">
+      {label}
+      <select
+        value={value}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (next === 'finish') onSelectFinish();
+          else onChange(next);
+        }}
+        className={cls}
+        aria-label="Stage"
+      >
+        <option value="on_progress">{STAGE_LABEL.on_progress}</option>
+        <option value="finish">{STAGE_LABEL.finish}</option>
+      </select>
+    </label>
+  );
 }
 
 function FieldInput({
@@ -319,6 +373,9 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
   const [customerId, setCustomerId] = useState(project.customer_id ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // SUPER_ADMIN selecting "Finish" on an on_progress project must first confirm
+  // in a blocking modal — the draft only flips to finish on OK.
+  const [stageFinishConfirm, setStageFinishConfirm] = useState(false);
   // STAFF must describe what changed before saving — wired into handleSave and
   // the Save button's disabled state below. SUPER_ADMIN edits never see it.
   const [updateProgress, setUpdateProgress] = useState('');
@@ -403,9 +460,20 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
   const sections = SECTION_ORDER.filter((s) => s !== 'Vendor lines').map((section) => ({
     section,
     fields: EDITABLE_FIELDS.filter(
-      (key) => (SECTION_OF[key] ?? 'Other') === section && (key !== 'staff_assigned_id' || isAdmin),
+      (key) =>
+        (SECTION_OF[key] ?? 'Other') === section &&
+        (key !== 'staff_assigned_id' || isAdmin) &&
+        // Stage is SUPER_ADMIN-only — STAFF never sees a way to change it.
+        (key !== 'current_stage' || isAdmin),
     ),
   })).filter((s) => s.fields.length > 0);
+
+  const handleSelectStageFinish = () => setStageFinishConfirm(true);
+
+  const handleConfirmStageFinish = () => {
+    setField('current_stage', 'finish');
+    setStageFinishConfirm(false);
+  };
 
   const customerLabel = (): string | null => {
     if (customerId !== project.customer_id) return null; // changed in this modal
@@ -450,6 +518,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
     const changes: Record<string, unknown> = {};
     for (const key of EDITABLE_FIELDS) {
       if (key === 'staff_assigned_id' && !isAdmin) continue;
+      if (key === 'current_stage' && !isAdmin) continue;
       const current = normalize(key, draft[key] ?? '');
       const original = (project as unknown as Record<string, unknown>)[key] ?? null;
       if (current !== original) changes[key] = current;
@@ -552,9 +621,19 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
                 />
               </label>
             )}
-            {fields.map((key) => (
-              <FieldInput key={key} field={key} value={draft[key] ?? ''} users={users} onChange={setField} />
-            ))}
+            {fields.map((key) =>
+              key === 'current_stage' ? (
+                <StageFieldInput
+                  key={key}
+                  value={draft[key] ?? ''}
+                  projectStage={project.current_stage ?? 'on_progress'}
+                  onSelectFinish={handleSelectStageFinish}
+                  onChange={(value) => setField(key, value)}
+                />
+              ) : (
+                <FieldInput key={key} field={key} value={draft[key] ?? ''} users={users} onChange={setField} />
+              ),
+            )}
           </div>
         </fieldset>
       ))}
@@ -651,6 +730,13 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
         </div>
         {renderBody()}
       </div>
+      {stageFinishConfirm && (
+        <StageConfirmModal
+          projectName={project.project_name}
+          onConfirm={handleConfirmStageFinish}
+          onCancel={() => setStageFinishConfirm(false)}
+        />
+      )}
     </div>,
     document.body,
   );

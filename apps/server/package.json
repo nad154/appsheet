@@ -11,6 +11,7 @@
     "start:safe": "node scripts/start-safe.js",
     "seed": "tsx src/seed.ts",
     "seed:dummy": "tsx src/seed-dummy.ts",
+    "seed:dummy20": "tsx src/seed-dummy20.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

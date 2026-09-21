@@ -13,6 +13,8 @@ import {
   type VendorLineDraft,
 } from '../../components/data-grid/EditProjectModal';
 import { EntityCombobox, type EntityOption } from '../../components/EntityCombobox';
+import { StageConfirmModal } from '../../components/data-grid/StageConfirmModal';
+import { STAGE_LABEL } from '../../components/data-grid/columns';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/Toast';
@@ -43,6 +45,7 @@ export function GridPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
+  const [stageFinishConfirm, setStageFinishConfirm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [customerId, setCustomerId] = useState('');
   const [vendorDrafts, setVendorDrafts] = useState<VendorLineDraft[]>([]);
@@ -132,6 +135,11 @@ export function GridPage() {
   };
 
   const setField = (key: keyof typeof emptyForm, value: string) => setForm((f) => ({ ...f, [key]: value }));
+
+  const handleConfirmStageFinish = () => {
+    setForm((f) => ({ ...f, current_stage: 'finish' }));
+    setStageFinishConfirm(false);
+  };
 
   const loadCustomers = async (q: string): Promise<EntityOption[]> =>
     apiClient.get<EntityOption[]>(`/api/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`);
@@ -276,13 +284,23 @@ export function GridPage() {
                 <option value="goods">goods</option>
               </select>
             </label>
-            <label className="flex flex-col text-xs text-gray-600">
-              Stage
-              <select value={form.current_stage} onChange={(e) => setField('current_stage', e.target.value)} className={inputCls}>
-                <option value="on_progress">on_progress</option>
-                <option value="finish">finish</option>
-              </select>
-            </label>
+            {isAdmin && (
+              <label className="flex flex-col text-xs text-gray-600">
+                Stage
+                <select
+                  value={form.current_stage}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    if (next === 'finish') setStageFinishConfirm(true);
+                    else setField('current_stage', next);
+                  }}
+                  className={inputCls}
+                >
+                  <option value="on_progress">{STAGE_LABEL.on_progress}</option>
+                  <option value="finish">{STAGE_LABEL.finish}</option>
+                </select>
+              </label>
+            )}
             {isAdmin && (
               <label className="flex flex-col text-xs text-gray-600">
                 Sales
@@ -379,6 +397,14 @@ export function GridPage() {
         highlightedRowId={highlightedRowId}
         onHighlightDone={() => setHighlightedRowId(null)}
       />
+
+      {stageFinishConfirm && (
+        <StageConfirmModal
+          projectName={form.project_name.trim() || 'this project'}
+          onConfirm={handleConfirmStageFinish}
+          onCancel={() => setStageFinishConfirm(false)}
+        />
+      )}
     </div>
   );
 }

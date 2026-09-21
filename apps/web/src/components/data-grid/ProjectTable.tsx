@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -12,6 +12,7 @@ import { EditProjectModal } from './EditProjectModal';
 import { UpdateHistoryModal } from './UpdateHistoryModal';
 import { IssuesModal } from './IssuesModal';
 import { StageConfirmModal } from './StageConfirmModal';
+import { LinkDriveModal } from './LinkDriveModal';
 import type { AssignableUser } from '../../hooks/useProjects';
 import type { ToastVariant } from '../Toast';
 
@@ -250,6 +251,7 @@ export function ProjectTable({
   const [historyRow, setHistoryRow] = useState<Project | null>(null);
   const [issuesRow, setIssuesRow] = useState<Project | null>(null);
   const [stageConfirmRow, setStageConfirmRow] = useState<Project | null>(null);
+  const [linkDriveRow, setLinkDriveRow] = useState<Project | null>(null);
   const [flashActive, setFlashActive] = useState(false);
 
   // Column definitions are rebuilt per-role: STAFF never gets any inline
@@ -262,6 +264,7 @@ export function ProjectTable({
         onOpenHistory: setHistoryRow,
         onOpenIssues: setIssuesRow,
         onRequestFinish: setStageConfirmRow,
+        onLinkDrive: setLinkDriveRow,
       }),
     [isAdmin],
   );
@@ -477,8 +480,11 @@ export function ProjectTable({
             )}
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const row = modelRows[virtualRow.index];
-              const { project, isFirstOfGroup } = row.original;
-              const isContinuation = !isFirstOfGroup;
+              const { project, isFirstOfGroup, index } = row.original;
+              // Alternate the row tint per project: the page-relative project
+              // ordinal is shared by every vendor line, so a multi-vendor
+              // project colors as one stripe (even ordinals gray, odd white).
+              const isStripeGray = index % 2 === 0;
               const isHighlighted =
                 flashActive && isFirstOfGroup && row.original.project.id === highlightedRowId;
               return (
@@ -487,7 +493,7 @@ export function ProjectTable({
                   role="row"
                   data-testid={isHighlighted ? 'highlighted-row' : undefined}
                   onClick={!isAdmin && isFirstOfGroup ? () => setEditModalRow(project) : undefined}
-                  className={`border-b border-gray-100 ${isContinuation ? 'bg-gray-50' : ''} hover:bg-gray-50 ${
+                  className={`border-b border-gray-100 ${isStripeGray ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-100'}  ${
                     isHighlighted ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
                   } ${!isAdmin ? 'cursor-pointer' : ''}`}
                   style={{
@@ -495,8 +501,11 @@ export function ProjectTable({
                     gridTemplateColumns, 
                     position: 'absolute', 
                     transform: `translateY(${virtualRow.start}px)`, 
-                    width: tableWidth
-                  }}
+                    width: tableWidth,
+                    // Stripe color inherited by the sticky cells and used as
+                    // the end color of the row-flash drill-down animation.
+                    ['--stripe-bg']: isStripeGray ? '#f3f4f6' : '#fff',
+                  } as CSSProperties}
                 >
                   {row.getVisibleCells().map((cell) => {
                     const isStickyCol = cell.column.parent?.id === STICKY_GROUP_ID;
@@ -598,7 +607,7 @@ export function ProjectTable({
                           position: isStickyCol ? 'sticky' : undefined,
                           left: isStickyCol ? stickyLeft : undefined,
                           zIndex: isStickyCol ? Z.stickyBodyCol : undefined,
-                          background: isStickyCol ? (isContinuation ? '#f9fafb' : '#fff') : undefined,
+                          background: isStickyCol ? 'var(--stripe-bg)' : undefined,
                           boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.06)' : undefined,
                           cursor: editable ? 'text' : undefined,
                         }}
@@ -614,7 +623,7 @@ export function ProjectTable({
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-gray-600">
+      <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-gray-200 bg-white py-2 text-sm text-gray-600">
         <div className="flex items-center gap-2">
           <span>Rows per page</span>
           <select
@@ -668,6 +677,13 @@ export function ProjectTable({
 
       <UpdateHistoryModal project={historyRow} onClose={() => setHistoryRow(null)} />
       <IssuesModal project={issuesRow} users={users ?? []} onClose={() => setIssuesRow(null)} />
+      {linkDriveRow && (
+        <LinkDriveModal
+          project={linkDriveRow}
+          onClose={() => setLinkDriveRow(null)}
+          onNotice={onNotice}
+        />
+      )}
       {stageConfirmRow && (
         <StageConfirmModal
           projectName={stageConfirmRow.project_name}

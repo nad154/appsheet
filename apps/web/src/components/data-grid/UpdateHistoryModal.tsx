@@ -59,7 +59,10 @@ export function UpdateHistoryModal({ project, onClose }: { project: Project | nu
         aria-label={`Update history — ${project.project_name}`}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-          <h2 className="text-base font-semibold text-gray-800">{project.project_name} — Update History</h2>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Update history</p>
+            <h2 className="text-base font-semibold text-gray-800">{project.project_name}</h2>
+          </div>
           <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label="Close">✕</button>
         </div>
         <div className="space-y-3 px-5 py-4">

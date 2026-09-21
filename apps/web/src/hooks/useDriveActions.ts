@@ -8,9 +8,10 @@ import { apiClient } from '../lib/api-client';
 export function useLinkFolder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { projectId: string; folderInput: string }) =>
+    mutationFn: (input: { projectId: string; folderInput: string; folderName?: string }) =>
       apiClient.post<{ ok: boolean }>(`/api/drive/${input.projectId}/link`, {
         folderInput: input.folderInput,
+        ...(input.folderName ? { folderName: input.folderName } : {}),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] });

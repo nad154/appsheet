@@ -44,7 +44,7 @@ driveRouter.post('/:projectId/link', requireRole('SUPER_ADMIN'), async (req, res
   try {
     const { projectId } = idParamSchema.parse(req.params);
     const payload = linkDriveFolderSchema.parse(req.body);
-    await linkFolder(projectId, payload.folderInput);
+    await linkFolder(projectId, payload.folderInput, payload.folderName);
     res.json({ ok: true });
   } catch (err) {
     handleError(err, res);

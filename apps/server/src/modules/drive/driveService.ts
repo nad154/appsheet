@@ -121,19 +121,29 @@ export async function verifyFolderExists(folderId: string): Promise<{ id: string
   }
 }
 
-/** Link an existing Drive folder to a project, overwriting drive_folder_id. */
-export async function linkFolder(projectId: string, folderInput: string): Promise<void> {
+/**
+ * Link an existing Drive folder to a project, overwriting drive_folder_id. An
+ * optional folderName is recorded as the project's display folder_name so the
+ * grid's Folder column shows the name immediately.
+ */
+export async function linkFolder(projectId: string, folderInput: string, folderName?: string): Promise<void> {
   const folderId = extractFolderId(folderInput);
   await verifyFolderExists(folderId);
   await runWrite(async (ex) => {
-    await ex(`UPDATE projects SET drive_folder_id = ? WHERE id = ?`, [folderId, projectId]);
+    if (folderName) {
+      await ex(`UPDATE projects SET drive_folder_id = ?, folder_name = ? WHERE id = ?`, [folderId, folderName, projectId]);
+    } else {
+      await ex(`UPDATE projects SET drive_folder_id = ? WHERE id = ?`, [folderId, projectId]);
+    }
   });
   await exportSnapshots(['projects']);
 }
 
 /**
  * Create a new Drive subfolder (defaulting to the project's project_name) and
- * link it to the project. Returns the new folder's Drive id.
+ * link it to the project. Returns the new folder's Drive id. A provided
+ * folderName doubles as the Drive folder name and the project's display
+ * folder_name.
  */
 export async function createAndLinkFolder(projectId: string, folderName?: string): Promise<string> {
   const rows = await runRead<{ project_name: string }>(
@@ -143,7 +153,11 @@ export async function createAndLinkFolder(projectId: string, folderName?: string
   const name = folderName ?? rows[0]?.project_name ?? 'Untitled project';
   const folderId = await createProjectFolder(name);
   await runWrite(async (ex) => {
-    await ex(`UPDATE projects SET drive_folder_id = ? WHERE id = ?`, [folderId, projectId]);
+    if (folderName) {
+      await ex(`UPDATE projects SET drive_folder_id = ?, folder_name = ? WHERE id = ?`, [folderId, folderName, projectId]);
+    } else {
+      await ex(`UPDATE projects SET drive_folder_id = ? WHERE id = ?`, [folderId, projectId]);
+    }
   });
   await exportSnapshots(['projects']);
   return folderId;

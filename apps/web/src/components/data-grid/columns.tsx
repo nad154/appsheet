@@ -1,6 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Project, ProjectStage, ProjectVendorLine } from '@tracker/shared';
 import { GOODS_OR_SERVICE, computeAging } from '@tracker/shared';
+import { formatGridDate, formatGridNumber } from '../../lib/format';
 
 export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user';
 
@@ -121,7 +122,7 @@ function numberCol(accessorKey: keyof Project, header: string, size = 120): Colu
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey);
       if (v === null || v === undefined || v === '') return <span className="text-gray-300">Rp —</span>;
-      return <span className="block truncate text-sm text-gray-800">Rp {Number(v).toLocaleString('en-US')}</span>;
+      return <span className="block truncate text-sm text-gray-800">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
   };
 }
@@ -157,9 +158,8 @@ function selectDate(accessorKey: keyof Project, header: string, size = 170): Col
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey) as string | null | undefined;
-      if (!v) return <span className="text-gray-300">—</span>;
-      const d = new Date(v);
-      const display = Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      const display = formatGridDate(v);
+      if (!display) return <span className="text-gray-300">—</span>;
       return <span className="block truncate text-sm text-gray-800" title={display}>{display}</span>;
     },
   };
@@ -227,45 +227,65 @@ function salesColumn(size = 140): ColumnDef<DisplayRow> {
   };
 }
 
-const driveLinkColumn: ColumnDef<DisplayRow> = {
-  accessorKey: 'drive_folder_id',
-  header: 'Folder',
-  size: 100,
-  enableSorting: false,
-  cell: ({ row }) => {
-    if (!row.original.isFirstOfGroup) return null;
-    const id = row.original.project.drive_folder_id;
-    const name = row.original.project.folder_name;
+// Folder column: shows the linked folder as a Drive deep link, a plain name
+// when only folder_name is set, or "—" when unlinked. For SUPER_ADMIN an
+// unlinked project's cell is clickable — it opens the quick LinkDriveModal so a
+// folder can be linked/created without opening the full edit modal.
+function driveLinkColumn(
+  isAdmin: boolean,
+  onLinkDrive: (project: Project) => void,
+): ColumnDef<DisplayRow> {
+  return {
+    accessorKey: 'drive_folder_id',
+    header: 'Folder',
+    size: 100,
+    enableSorting: false,
+    cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
+      const project = row.original.project;
+      const id = project.drive_folder_id;
+      const name = project.folder_name;
 
-    if (!name && !id) return <span className="text-gray-300">—</span>;
-    if (!id) return <p className="text-sm underline">{name}</p>;
-    if (!name)
-      return (
-        <a
-          href={`https://drive.google.com/drive/folders/${id}`}
-          target="_blank"
-          rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-sm text-blue-600 underline"
-          aria-label="Open Drive folder"
-        >
-          Folder
-        </a>
+      if (id) {
+        return (
+          <a
+            href={`https://drive.google.com/drive/folders/${id}`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-sm text-blue-600 underline"
+            aria-label="Open Drive folder"
+          >
+            {name || 'Folder'}
+          </a>
+        );
+      }
+
+      const empty = !name ? (
+        <span className="text-gray-300">—</span>
+      ) : (
+        <span className="block truncate text-sm underline">{name}</span>
       );
-    return (
-      <a
-        href={`https://drive.google.com/drive/folders/${id}`}
-        target="_blank"
-        rel="noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="text-sm text-blue-600 underline"
-        aria-label="Open Drive folder"
-      >
-        {name}
-      </a>
-    );
-  },
-};
+
+      if (!isAdmin) return empty;
+
+      return (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onLinkDrive(project);
+          }}
+          className="flex w-full items-center gap-1.5 rounded text-left hover:outline hover:outline-1 hover:outline-blue-300"
+          title="Link a Google Drive folder"
+          aria-label={`Link Drive folder for ${project.project_name}`}
+        >
+          {empty}
+        </button>
+      );
+    },
+  };
+}
 
 // Per-vendor-line derived cells. Not sortable and not inline-editable — vendor
 // fields are modal-only (user decision for planning_customers_vendors Phase 5).
@@ -299,7 +319,7 @@ function vendorNumberCol(header: string, size = 120): ColumnDef<DisplayRow> {
     cell: ({ row }) => {
       const v = vendorCell(row.original, 'vendor_price');
       if (v === null || v === undefined || v === '') return <span className="text-gray-300">Rp —</span>;
-      return <span className="block truncate text-sm text-gray-800">Rp {Number(v).toLocaleString('en-US')}</span>;
+      return <span className="block truncate text-sm text-gray-800">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
   };
 }
@@ -330,9 +350,8 @@ function vendorDateCol(key: keyof ProjectVendorLine, header: string, size = 170)
     enableSorting: false,
     cell: ({ row }) => {
       const v = vendorCell(row.original, key) as string | null | undefined;
-      if (!v) return <span className="text-gray-300">—</span>;
-      const d = new Date(v);
-      const display = Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      const display = formatGridDate(v);
+      if (!display) return <span className="text-gray-300">—</span>;
       return <span className="block truncate text-sm text-gray-800" title={display}>{display}</span>;
     },
   };
@@ -497,8 +516,7 @@ function updateProgressColumn(
 }
 
 function formatIssueDate(v: string): string {
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? v : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatGridDate(v, 'short');
 }
 
 // Issues column: the latest issue's text (denormalized projects.issues) plus
@@ -563,11 +581,12 @@ function issuesColumn(
   };
 }
 
-export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRequestFinish }: {
+export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRequestFinish, onLinkDrive }: {
   isAdmin: boolean;
   onOpenHistory: (project: Project) => void;
   onOpenIssues: (project: Project) => void;
   onRequestFinish: (project: Project) => void;
+  onLinkDrive: (project: Project) => void;
 }): ColumnDef<DisplayRow>[] {
   return [
     {
@@ -575,7 +594,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
       header: 'Project Info',
       columns: [
         projectNumberColumn,
-        driveLinkColumn,
+        driveLinkColumn(isAdmin, onLinkDrive),
         projectNameColumn(isAdmin),
         salesColumn(),
         picColumn(),
@@ -601,8 +620,8 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
         selectCol('service_or_goods', 'Service/Goods', 120, GOODS_OR_SERVICE, false),
         selectDate('date_customer_received_doc1', 'Tanggal Terima SP Customer', 170),
         selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 170),
-        text('doc2_number_id', 'No PO/PKS Customer', 170, true, false),
-        numberCol('customer_price', 'Nilai PO/PKS Customer', 110),
+        text('doc2_number_id', 'No PO/PKS Customer', 150, true, false),
+        numberCol('customer_price', 'Nilai PO/PKS Customer', 130),
         selectDate('customer_start_contract', 'Start Contract - Cust', 170),
         selectDate('customer_end_contract', 'End Contract - Cust', 170),
       ],
@@ -613,7 +632,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
       // Vendor fields moved onto per-project vendor lines: read-only,
       // non-sortable, one row per line (planning_customers_vendors Phase 5).
       columns: [
-        vendorTextCol('Vendor', 160),
+        vendorTextCol('Vendor', 200),
         vendorNumberCol('Nilai RAB', 120),
         vendorSelectCol('vendor_type', 'Type Vendor Service/Goods', 120),
         vendorDateCol('project_sent_date', 'Tanggal Kirim FPT', 170),
@@ -623,7 +642,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
         vendorDateCol('approval_date', 'Tanggal Terima SP Vendor', 170),
         vendorDateCol('document_sent_date', 'Tanggal kirim PO/PKS vendor', 170),
         vendorTextInputCol('document_id', 'No PO/PKS Vendor', 170),
-        vendorNumberCol('Nilai PO/PKS Vendor', 120),
+        vendorNumberCol('Nilai PO/PKS Vendor', 150),
         vendorDateCol('vendor_start_contract', 'Start Contract - Vendor', 170),
         vendorDateCol('vendor_end_contract', 'End Contract2 - Vendor', 170),
         agingColumn,

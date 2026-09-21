@@ -16,9 +16,12 @@ export const driveFileEntrySchema = z.object({
   size: z.string().optional(),
 });
 
-// POST /api/drive/:projectId/link request body.
+// POST /api/drive/:projectId/link request body. folderName optionally records
+// the display name shown in the Folder column; when omitted only the folder id
+// is stored.
 export const linkDriveFolderSchema = z.object({
   folderInput: z.string().min(1, 'Folder ID or Google Drive URL is required'),
+  folderName: z.string().optional(),
 });
 
 // POST /api/drive/:projectId/create-folder request body.

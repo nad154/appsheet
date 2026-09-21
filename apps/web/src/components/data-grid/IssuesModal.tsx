@@ -88,7 +88,10 @@ export function IssuesModal({
         aria-label={`Issues — ${project.project_name}`}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-          <h2 className="text-base font-semibold text-gray-800">{project.project_name} — Issues</h2>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Issues</p>
+            <h2 className="text-base font-semibold text-gray-800">{project.project_name}</h2>
+          </div>
           <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label="Close">✕</button>
         </div>
 

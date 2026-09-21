@@ -67,6 +67,23 @@ test('staff cannot call the link endpoint directly', async ({ page, request }) =
   expect(res.status()).toBe(403);
 });
 
+test('admin opens the quick-link modal from an unlinked folder cell', async ({ page }) => {
+  await login(page, 'admin@example.com', 'admin12345');
+  await page.getByLabel('Link Drive folder for Admin Project A').click();
+
+  const dialog = page.getByRole('dialog', { name: 'Link Drive folder for Admin Project A' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Link to existing drive' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Create drive folder' })).toBeVisible();
+  await expect(dialog.getByLabel('Drive folder URL or ID')).toBeVisible();
+  await expect(dialog.getByLabel('Folder name')).toBeVisible();
+});
+
+test('staff sees no link affordance on unlinked folder cells', async ({ page }) => {
+  await login(page, 'staff1@example.com', 'staff12345');
+  await expect(page.getByLabel('Link Drive folder for Staff Project A')).toHaveCount(0);
+});
+
 test('staff cannot call the create-folder endpoint directly', async ({ page, request }) => {
   const token = await staffToken(page);
   const res = await request.post(`/api/drive/${ADMIN_PROJECT_A_ID}/create-folder`, {

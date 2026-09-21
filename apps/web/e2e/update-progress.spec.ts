@@ -87,7 +87,7 @@ test('admin sees the unread dot and can review the update history', async ({ pag
   await row.getByTitle('View update history').click();
   const dialog = page.getByRole('dialog', { name: 'Update history — Staff Project A' });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText('Staff Project A — Update History')).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Staff Project A' })).toBeVisible();
 
   // The entry shows who changed what (old → new) and the mandatory note. The
   // customer change records the new customer_id (diff semantics), not the name.

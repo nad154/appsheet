@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Project, ProjectStage, ProjectVendorLine } from '@tracker/shared';
 import { computeAging, computePriority } from '@tracker/shared';
 import type { AssignableUser } from '../../hooks/useProjects';
 import { useLinkFolder, useCreateFolder } from '../../hooks/useDriveActions';
 import { useAgingThresholds } from '../../hooks/useSettings';
+import { formatGridDate, formatGridNumber } from '../../lib/format';
 import {
   useAddVendorLine,
   useUpdateVendorLine,
@@ -202,6 +203,138 @@ function StageFieldInput({
   );
 }
 
+// Number/price fields render like the grid ("Rp 1,234,567") once the field
+// loses focus. While focused you type raw digits (no cursor jumping); the draft
+// stays a plain string so normalize()'s Number() conversion is unchanged.
+function PriceField({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [editing, setEditing] = useState('');
+
+  const handleFocus = () => {
+    setEditing(value);
+    setFocused(true);
+  };
+
+  const handleBlur = () => {
+    setFocused(false);
+    onChange(sanitizeNumeric(editing));
+  };
+
+  const display = focused ? editing : value ? `Rp ${formatGridNumber(value)}` : '';
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={display}
+      placeholder="Rp —"
+      aria-label={ariaLabel}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onChange={(e) => setEditing(sanitizeNumeric(e.target.value))}
+      className={`mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+        display ? 'text-gray-800' : 'text-gray-400'
+      }`}
+    />
+  );
+}
+
+// Keep only digits and at most one decimal point — mirrors Number(v) parsing
+// on save.
+function sanitizeNumeric(input: string): string {
+  const cleaned = input.replace(/[^0-9.]/g, '');
+  return cleaned.replace(/(\..*)\./g, '$1');
+}
+
+// Date fields show the long grid format ("15 September 2026"); clicking the
+// field opens the native date picker via a hidden input, and ✕ clears it. The
+// draft stays YYYY-MM-DD.
+function DateField({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const display = formatGridDate(value);
+
+  const openPicker = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    if (typeof el.showPicker === 'function') {
+      try {
+        el.showPicker();
+        return;
+      } catch {
+        // fall through to click
+      }
+    }
+    el.click();
+    el.focus();
+  };
+
+  return (
+    <div className="mt-1 flex w-full items-center rounded border border-gray-300 px-2 py-1">
+      <button
+        type="button"
+        onClick={openPicker}
+        title={display || 'Pick a date'}
+        className={`flex flex-1 cursor-pointer items-center justify-between gap-2 text-left text-sm focus:outline-none ${
+          display ? 'text-gray-800' : 'text-gray-400'
+        }`}
+      >
+        {display || '—'}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-3.5 w-3.5 text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
+        </svg>
+      </button>
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="Clear date"
+          title="Clear date"
+          className="ml-1 rounded p-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+        >
+          ✕
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        className="sr-only"
+        tabIndex={-1}
+      />
+    </div>
+  );
+}
+
 function FieldInput({
   field,
   value,
@@ -215,14 +348,26 @@ function FieldInput({
 }) {
   const editType = FIELD_TYPES[field] ?? 'text';
   const label = <span className="text-xs text-gray-600">{FIELD_LABELS[field] ?? field}</span>;
-  const cls =
-    'mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300';
+  // Empty fields render their value/placeholder in light gray so a null/blank
+  // field reads as empty instead of looking like plain dark text.
+  const cls = `mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+    value ? 'text-gray-800' : 'text-gray-400'
+  }`;
 
   if (editType === 'date') {
     return (
       <label className="flex flex-col">
         {label}
-        <input type="date" value={value} onChange={(e) => onChange(field, e.target.value)} className={cls} />
+        <DateField value={value} onChange={(v) => onChange(field, v)} ariaLabel={FIELD_LABELS[field] ?? field} />
+      </label>
+    );
+  }
+
+  if (editType === 'number') {
+    return (
+      <label className="flex flex-col">
+        {label}
+        <PriceField value={value} onChange={(v) => onChange(field, v)} ariaLabel={FIELD_LABELS[field] ?? field} />
       </label>
     );
   }
@@ -272,7 +417,7 @@ function FieldInput({
     <label className="flex flex-col">
       {label}
       <input
-        type={editType === 'number' ? 'number' : 'text'}
+        type="text"
         value={value}
         onChange={(e) => onChange(field, e.target.value)}
         className={cls}
@@ -717,7 +862,10 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
         aria-label={`Edit ${project.project_name}`}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-          <h2 className="text-base font-semibold text-gray-800">Edit project — {project.project_name}</h2>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Edit project</p>
+            <h2 className="text-base font-semibold text-gray-800">{project.project_name}</h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -763,8 +911,10 @@ export function VendorLineRow({
   onSelectVendor: (id: string) => void;
   onRemove: () => void;
 }) {
-  const cls =
-    'w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300';
+  const cls = (v: unknown): string =>
+    `w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+      v ? 'text-gray-800' : 'text-gray-400'
+    }`;
   return (
     <div className="rounded border border-gray-200 p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -803,7 +953,7 @@ export function VendorLineRow({
             return (
               <label key={f.key} className="flex flex-col">
                 {labelEl}
-                <select value={line[f.key] as string} onChange={(e) => onChange(f.key, e.target.value)} className={cls}>
+                <select value={line[f.key] as string} onChange={(e) => onChange(f.key, e.target.value)} className={cls(line[f.key])}>
                   <option value="">–</option>
                   {(f.options ?? []).map((o) => (
                     <option key={o} value={o}>
@@ -814,14 +964,30 @@ export function VendorLineRow({
               </label>
             );
           }
+          if (f.type === 'date') {
+            return (
+              <label key={f.key} className="flex flex-col">
+                {labelEl}
+                <DateField value={line[f.key] as string} onChange={(v) => onChange(f.key, v)} ariaLabel={f.label} />
+              </label>
+            );
+          }
+          if (f.type === 'number') {
+            return (
+              <label key={f.key} className="flex flex-col">
+                {labelEl}
+                <PriceField value={line[f.key] as string} onChange={(v) => onChange(f.key, v)} ariaLabel={f.label} />
+              </label>
+            );
+          }
           return (
             <label key={f.key} className="flex flex-col">
               {labelEl}
               <input
-                type={f.type === 'date' ? 'date' : f.type === 'number' ? 'number' : 'text'}
+                type="text"
                 value={line[f.key] as string}
                 onChange={(e) => onChange(f.key, e.target.value)}
-                className={cls}
+                className={cls(line[f.key])}
               />
             </label>
           );

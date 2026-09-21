@@ -4,25 +4,27 @@
 
 /* Drill-down arrival: brief highlight of the grid row the user navigated to
    from a dashboard chart. Applied via the arbitrary-value class
-   `animate-[row-flash_1.2s_ease-in-out]` on the row element. */
+   `animate-[row-flash_1.2s_ease-in-out]` on the row element. The end color is
+   the row's own stripe background (set per row via the `--stripe-bg` custom
+   property), so the flash fades back to the alternating project tint. */
 @keyframes row-flash {
   0% {
     background-color: #fef08a;
   }
   100% {
-    background-color: transparent;
+    background-color: var(--stripe-bg, #ffffff);
   }
 }
 
 /* Same flash for the sticky Project Info cells, which must never go
    transparent (rows scroll beneath them). The animation overrides the cells'
-   inline white background during the flash, then reverts seamlessly to white.
-   Applied via `animate-[row-flash-sticky_1.2s_ease-in-out]`. */
+   inline background during the flash, then reverts seamlessly to the row's
+   stripe color. Applied via `animate-[row-flash-sticky_1.2s_ease-in-out]`. */
 @keyframes row-flash-sticky {
   0% {
     background-color: #fef08a;
   }
   100% {
-    background-color: #ffffff;
+    background-color: var(--stripe-bg, #ffffff);
   }
 }

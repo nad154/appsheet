@@ -99,4 +99,5 @@ export const FIELD_TYPES: Record<string, EditType> = {
 export const FIELD_SELECT_OPTIONS: Record<string, readonly string[]> = {
   current_stage: PROJECT_STAGES,
   service_or_goods: GOODS_OR_SERVICE,
+  vendor_type: GOODS_OR_SERVICE,
 };

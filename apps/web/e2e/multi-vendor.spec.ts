@@ -39,7 +39,11 @@ async function adminApi(page) {
     return (await res.json()).id as string;
   };
 
-  const createProject = async (name: string, lines: Array<{ vendor_id: string; project_sent_date?: string }>) => {
+  const createProject = async (
+    name: string,
+    lines: Array<{ vendor_id: string; project_sent_date?: string }>,
+    createdAt?: string,
+  ) => {
     const res = await page.request.post('/api/projects', {
       headers,
       data: {
@@ -52,7 +56,15 @@ async function adminApi(page) {
       },
     });
     expect(res.ok()).toBeTruthy();
-    return (await res.json()).id as string;
+    const id = (await res.json()).id as string;
+    if (createdAt) {
+      // Pinning created_at (SUPER_ADMIN-only) sinks the fixture to the front of
+      // the grid's default created_at-ASC ordering, so tests can find it on page
+      // 1 without sorting — the Project column isn't sortable anymore.
+      const patch = await page.request.patch(`/api/projects/${id}`, { headers, data: { created_at: createdAt } });
+      expect(patch.ok()).toBeTruthy();
+    }
+    return id;
   };
 
   const deleteProjects = async (names: string[]) => {
@@ -76,13 +88,12 @@ function thirtyDaysAgo(): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Click the Project column header once (first click ⇒ ASC, no prior sort in a
-// fresh context) and wait for the server-side reorder to land: the Project
-// header appends a "↑" arrow once sorted, so instead of inspecting aria-sort we
-// just wait for the row that must sort first under project_name ASC.
-async function sortByNameAsc(page, firstProject: string) {
-  const header = page.getByRole('columnheader', { name: 'Project', exact: true });
-  await header.click();
+// Reload the grid (a full refetch picks up fixtures created through the API and
+// their patched created_at) and wait for the fixture that must sit first under
+// the default created_at-ASC order. The Project column is not sortable, so the
+// tests locate fixtures by pinning an old created_at instead of sorting by name.
+async function reloadAndShowFirst(page, firstProject: string) {
+  await page.goto('/grid');
   await expect(page.getByText(firstProject, { exact: true })).toBeVisible();
 }
 
@@ -93,12 +104,16 @@ test('a multi-vendor project renders its project cells only on the first vendor 
 
   const v1 = await api.createVendor('0 E2E Alpha Vendor One');
   const v2 = await api.createVendor('0 E2E Alpha Vendor Two');
-  await api.createProject('0 E2E MV Alpha', [
-    { vendor_id: v1, project_sent_date: thirtyDaysAgo() },
-    { vendor_id: v2 },
-  ]);
+  await api.createProject(
+    '0 E2E MV Alpha',
+    [
+      { vendor_id: v1, project_sent_date: thirtyDaysAgo() },
+      { vendor_id: v2 },
+    ],
+    '2000-01-01T00:00:00.000Z',
+  );
 
-  await sortByNameAsc(page, '0 E2E MV Alpha');
+  await reloadAndShowFirst(page, '0 E2E MV Alpha');
 
   // The name appears exactly once — on the group-header row, which doubles as
   // the first vendor line's row.
@@ -127,12 +142,16 @@ test('vendor lines can be added and removed in the edit modal', async ({ page })
 
   const v1 = await api.createVendor('0 E2E Beta Vendor One');
   const v2 = await api.createVendor('0 E2E Beta Vendor Two');
-  await api.createProject('0 E2E MV Beta', [
-    { vendor_id: v1, project_sent_date: thirtyDaysAgo() },
-    { vendor_id: v2 },
-  ]);
+  await api.createProject(
+    '0 E2E MV Beta',
+    [
+      { vendor_id: v1, project_sent_date: thirtyDaysAgo() },
+      { vendor_id: v2 },
+    ],
+    '2000-06-01T00:00:00.000Z',
+  );
 
-  await sortByNameAsc(page, '0 E2E MV Beta');
+  await reloadAndShowFirst(page, '0 E2E MV Beta');
 
   const name = page.getByText('0 E2E MV Beta', { exact: true });
   await expect(name).toBeVisible();
@@ -149,7 +168,7 @@ test('vendor lines can be added and removed in the edit modal', async ({ page })
   const line3 = dialog.getByText('Vendor 3', { exact: true }).locator('xpath=ancestor::div[contains(@class,"border-gray-200")]');
   await dialog.getByLabel('Vendor 3').fill('0 E2E Beta Vendor Three');
   await dialog.getByRole('button', { name: 'Add "0 E2E Beta Vendor Three"' }).click();
-  await line3.getByLabel('Project sent date').fill(thirtyDaysAgo());
+  await line3.getByRole('textbox', { name: 'Tanggal Kirim FPT' }).fill(thirtyDaysAgo());
   await dialog.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Saved.', { exact: true })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -178,22 +197,23 @@ test('a project too large for the remaining page space starts fresh on the next 
   const api = await adminApi(page);
   await api.deleteProjects(['0 E2E A1', '0 E2E A2', '0 E2E A3', '0 E2E BIG']);
 
-  // Four projects that all sort consecutively under project_name ASC:
-  // '0 E2E A1' < '0 E2E A2' < '0 E2E A3' < '0 E2E BIG'. The fillers carry one
-  // line each; BIG carries exactly page_size (25) lines — it can never share a
-  // page with another project, so after A1..A3 it must start fresh on the next
-  // page rather than split (planning_customers_vendors §3.1 / Phase 5 gate).
+  // Four projects that all land consecutively under the grid's default
+  // created_at-ASC order: '0 E2E A1' < '0 E2E A2' < '0 E2E A3' < '0 E2E BIG'
+  // (staggered 2000 dates, earlier than every seed). The fillers carry one line
+  // each; BIG carries exactly page_size (25) lines — it can never share a page
+  // with another project, so after A1..A3 it must start fresh on the next page
+  // rather than split (planning_customers_vendors §3.1 / Phase 5 gate).
   const vA1 = await api.createVendor('0 E2E AV1');
   const vA2 = await api.createVendor('0 E2E AV2');
   const vA3 = await api.createVendor('0 E2E AV3');
-  await api.createProject('0 E2E A1', [{ vendor_id: vA1 }]);
-  await api.createProject('0 E2E A2', [{ vendor_id: vA2 }]);
-  await api.createProject('0 E2E A3', [{ vendor_id: vA3 }]);
+  await api.createProject('0 E2E A1', [{ vendor_id: vA1 }], '2000-01-01T00:00:00.000Z');
+  await api.createProject('0 E2E A2', [{ vendor_id: vA2 }], '2000-01-02T00:00:00.000Z');
+  await api.createProject('0 E2E A3', [{ vendor_id: vA3 }], '2000-01-03T00:00:00.000Z');
   const vBig = await api.createVendor('0 E2E BV');
-  await api.createProject('0 E2E BIG', Array.from({ length: 25 }, () => ({ vendor_id: vBig })));
+  await api.createProject('0 E2E BIG', Array.from({ length: 25 }, () => ({ vendor_id: vBig })), '2000-01-04T00:00:00.000Z');
 
+  await reloadAndShowFirst(page, '0 E2E A1');
   await page.getByLabel('Rows per page').selectOption('25');
-  await sortByNameAsc(page, '0 E2E A1');
 
   // Page 1: only the three fillers — fewer than page_size rows — BIG deferred.
   await expect(page.getByText('0 E2E A1', { exact: true })).toBeVisible();

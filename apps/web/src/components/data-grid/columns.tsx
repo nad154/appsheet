@@ -80,7 +80,7 @@ function ProjectNameCell({
       {isAdmin && unread && (
         <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-label="Unread update" data-testid="unread-update-dot" />
       )}
-      <span className="block min-w-0 flex-1 truncate text-sm text-gray-800" title={name}>
+      <span className="block min-w-0 flex-1 break-words text-sm leading-snug text-gray-800">
         {name}
       </span>
     </span>
@@ -91,7 +91,9 @@ function projectNameColumn(isAdmin: boolean): ColumnDef<DisplayRow> {
   return {
     accessorKey: 'project_name',
     header: 'Project',
-    size: 220,
+    // Width includes the always-reserved pencil slot (see ProjectTable), so the
+    // hover-revealed edit button never crowds the name text.
+    size: 300,
     enableSorting: false,
     meta: { editable: true, editType: 'text' } as ColumnMeta,
     cell: ({ row }) => (row.original.isFirstOfGroup ? <ProjectNameCell row={row.original} isAdmin={isAdmin} /> : null),
@@ -184,7 +186,7 @@ function customerColumn(size = 160): ColumnDef<DisplayRow> {
         }
         return <span className="text-gray-300">—</span>;
       }
-      return <span className="block truncate text-sm text-gray-800" title={customer_name}>{customer_name}</span>;
+      return <span className="block break-words text-sm leading-snug text-gray-800">{customer_name}</span>;
     },
   };
 }
@@ -238,7 +240,7 @@ function driveLinkColumn(
   return {
     accessorKey: 'drive_folder_id',
     header: 'Folder',
-    size: 100,
+    size: 160,
     enableSorting: false,
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
@@ -305,7 +307,7 @@ function vendorTextCol(header: string, size = 160): ColumnDef<DisplayRow> {
         }
         return <span className="text-gray-300">—</span>;
       }
-      return <span className="block truncate text-sm text-gray-800" title={v}>{v}</span>;
+      return <span className="block break-words text-sm leading-snug text-gray-800">{v}</span>;
     },
   };
 }

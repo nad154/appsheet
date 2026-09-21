@@ -25,7 +25,7 @@ test('admin drills into a pie slice and lands on the highlighted grid row', asyn
 
   await page.getByRole('button', { name: 'Add view' }).click();
   await page.getByLabel('Chart type').selectOption({ label: 'Pie' });
-  await page.getByLabel('Column').selectOption({ label: 'Stage' });
+  await page.getByLabel('Group by').selectOption({ label: 'Stage' });
   const label = uniqueViewLabel('E2E Drilldown Stage');
   await page.getByLabel('Display label').fill(label);
   await page.getByRole('button', { name: 'Add view' }).click();

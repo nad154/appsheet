@@ -318,7 +318,9 @@ export function ProjectTable({
     setFlashActive(true);
     requestAnimationFrame(() => {
       // Center the highlighted row without depending on the virtualizer's
-      // measurement timing (a fresh mount may not have measurements yet).
+      // measurement timing (a fresh mount may not have measurements yet). Rows
+      // are measured dynamically (measureElement), so wrapped multi-line rows
+      // make this an approximation — close enough for a scroll-to-highlight.
       const el = parentRef.current;
       if (el) {
         const rowOffset = idx * 44; // matches the virtualizer estimateSize
@@ -490,6 +492,8 @@ export function ProjectTable({
               return (
                 <div
                   key={row.id}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
                   role="row"
                   data-testid={isHighlighted ? 'highlighted-row' : undefined}
                   onClick={!isAdmin && isFirstOfGroup ? () => setEditModalRow(project) : undefined}
@@ -556,34 +560,38 @@ export function ProjectTable({
 
                       // The project-name cell hosts the row-edit affordance: a
                       // pencil revealed on row hover, opening the full-field modal.
+                      // The pencil sits in an always-reserved fixed-width slot so
+                      // its appearance never crowds the name text.
                       if (field === 'project_name' && isFirstOfGroup) {
                         content = (
                           <div className="group relative flex w-full items-center">
                             <span className="min-w-0 flex-1">{rendered}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditModalRow(project);
-                              }}
-                              className="ml-1 hidden shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 group-hover:inline-flex"
-                              aria-label={`Edit ${project.project_name}`}
-                              title="Edit project"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
+                            <span className="ml-1 flex w-5 shrink-0 items-center justify-center">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditModalRow(project);
+                                }}
+                                className="hidden rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 group-hover:inline-flex"
+                                aria-label={`Edit ${project.project_name}`}
+                                title="Edit project"
                               >
-                                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                              </svg>
-                            </button>
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                                </svg>
+                              </button>
+                            </span>
                           </div>
                         );
                       } else {

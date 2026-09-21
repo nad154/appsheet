@@ -22,7 +22,7 @@ test('admin can create a Stage pie view and sees both stages in the legend', asy
 
   await page.getByRole('button', { name: 'Add view' }).click();
   await page.getByLabel('Chart type').selectOption({ label: 'Pie' });
-  await page.getByLabel('Column').selectOption({ label: 'Stage' });
+  await page.getByLabel('Group by').selectOption({ label: 'Stage' });
   const label = uniqueViewLabel('E2E Admin Stage');
   await page.getByLabel('Display label').fill(label);
   await page.getByRole('button', { name: 'Add view' }).click();
@@ -52,7 +52,7 @@ test("staff sees only their own dashboard views, not the admin's", async ({ page
   await expect(page.getByRole('heading', { name: adminLabel })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Add view' }).click();
-  await page.getByLabel('Column').selectOption({ label: 'Stage' });
+  await page.getByLabel('Group by').selectOption({ label: 'Stage' });
   const staffLabel = uniqueViewLabel('E2E Staff Stage');
   await page.getByLabel('Display label').fill(staffLabel);
   await page.getByRole('button', { name: 'Add view' }).click();

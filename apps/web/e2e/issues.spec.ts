@@ -45,8 +45,8 @@ test('SUPER_ADMIN adds issues with date/assignee and sees the full history', asy
   for (const p of existing) {
     if (p.project_name === PROJECT_NAME) await page.request.delete(`/api/projects/${p.id}`, { headers });
   }
-  const users = await (await page.request.get('/api/projects/users', { headers })).json();
-  const staff = users.find((u) => u.role === 'STAFF');
+  const users = await (await page.request.get('/api/settings/users', { headers })).json();
+  const staff = users.find((u) => u.role === 'STAFF' && u.email === STAFF_EMAIL);
   const created = await page.request.post('/api/projects', {
     headers,
     data: { project_name: PROJECT_NAME, staff_assigned_id: staff.id, current_stage: 'on_progress' },

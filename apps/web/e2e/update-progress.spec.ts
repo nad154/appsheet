@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { scrollGridTo } from './helpers';
 
 // Covers the replacement for the approval flow: STAFF edits require an Update
 // Progress note, pipe onto project_updates, and are surfaced to SUPER_ADMIN via
@@ -41,6 +42,7 @@ async function selectCustomer(dialog, name: string) {
 test('staff save is blocked while Update Progress is empty', async ({ page }) => {
   await login(page, 'staff1@example.com', 'staff12345');
 
+  await scrollGridTo(page, 'Staff Project A');
   const dialog = await openRowModal(page, 'Staff Project A');
   await selectCustomer(dialog, 'E2E Progress Blocked');
 
@@ -59,6 +61,7 @@ test('staff save is blocked while Update Progress is empty', async ({ page }) =>
 test('staff edit with an Update Progress note applies immediately', async ({ page }) => {
   await login(page, 'staff1@example.com', 'staff12345');
 
+  await scrollGridTo(page, 'Staff Project A');
   const dialog = await openRowModal(page, 'Staff Project A');
   await selectCustomer(dialog, 'E2E Live Update');
   await dialog.getByLabel('Update progress').fill('Changed the customer name after a vendor call.');
@@ -68,6 +71,7 @@ test('staff edit with an Update Progress note applies immediately', async ({ pag
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // No approval step: the grid refetches and shows the new value plus the note.
+  await scrollGridTo(page, 'E2E Live Update');
   await expect(page.getByText('E2E Live Update', { exact: true })).toBeVisible();
   await expect(page.getByText('Changed the customer name after a vendor call.', { exact: true })).toBeVisible();
 });
@@ -75,6 +79,7 @@ test('staff edit with an Update Progress note applies immediately', async ({ pag
 test('admin sees the unread dot and can review the update history', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
 
+  await scrollGridTo(page, 'Staff Project A');
   const nameCell = page.getByText('Staff Project A', { exact: true });
   await expect(nameCell).toBeVisible();
   const row = nameCell.locator('xpath=ancestor::div[@role="row"]');
@@ -97,8 +102,8 @@ test('admin sees the unread dot and can review the update history', async ({ pag
   // customer's id (line-through).
   await expect(dialog.getByText(/→ [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/).first()).toBeVisible();
   // The note div's text merges with the next card's header in the accessibility
-  // tree, so match on a substring rather than exact text.
-  await expect(dialog.getByText(/Changed the customer name after a vendor call\./)).toBeVisible();
+  // tree, so match on a substring (first match: the oldest entry) rather than exact text.
+  await expect(dialog.getByText(/Changed the customer name after a vendor call\./).first()).toBeVisible();
   await expect(dialog.getByText('Update Progress', { exact: true }).first()).toBeVisible();
 
   // Closing the modal marks the entries read and clears the dot in the grid.

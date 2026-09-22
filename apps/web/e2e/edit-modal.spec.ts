@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { scrollGridTo } from './helpers';
 
 async function login(page, email: string, password: string) {
   await page.goto('/login');
@@ -9,6 +10,7 @@ async function login(page, email: string, password: string) {
 }
 
 async function openRowModal(page, projectName: string) {
+  await scrollGridTo(page, projectName);
   const nameCell = page.getByText(projectName, { exact: true });
   await expect(nameCell).toBeVisible();
   await nameCell.hover();
@@ -37,6 +39,7 @@ async function selectCustomer(dialog, name: string) {
 test('hovering a project name reveals the edit button', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
 
+  await scrollGridTo(page, 'Admin Project A');
   const nameCell = page.getByText('Admin Project A', { exact: true });
   await expect(nameCell).toBeVisible();
   const pencil = nameCell.locator('xpath=ancestor::div[@role="row"]').locator('button[title="Edit project"]');

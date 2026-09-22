@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { scrollGridTo } from './helpers';
 
 // Drive integration access-control tests. These deliberately avoid calling the
 // real Google Drive API (no service-account.json in the dev/test environment),
@@ -18,6 +19,7 @@ async function login(page, email: string, password: string) {
 }
 
 async function openRowModal(page, projectName: string) {
+  await scrollGridTo(page, projectName);
   const nameCell = page.getByText(projectName, { exact: true });
   await expect(nameCell).toBeVisible();
   await nameCell.hover();
@@ -69,6 +71,7 @@ test('staff cannot call the link endpoint directly', async ({ page, request }) =
 
 test('admin opens the quick-link modal from an unlinked folder cell', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
+  await scrollGridTo(page, 'Admin Project A');
   await page.getByLabel('Link Drive folder for Admin Project A').click();
 
   const dialog = page.getByRole('dialog', { name: 'Link Drive folder for Admin Project A' });

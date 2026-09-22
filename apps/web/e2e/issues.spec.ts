@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { scrollGridTo } from './helpers';
 
 // The Issues column is SUPER_ADMIN-only for adding/logging: admins open a modal
 // (add + full history), STAFF see only the latest issue (text + date +
@@ -55,6 +56,7 @@ test('SUPER_ADMIN adds issues with date/assignee and sees the full history', asy
 
   // Reload so the grid picks the new project up.
   await page.reload();
+  await scrollGridTo(page, PROJECT_NAME);
   await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible();
 
   const projectRow = row(page, PROJECT_NAME);
@@ -106,6 +108,7 @@ test('STAFF sees only the latest issue and cannot click into history', async ({ 
   await login(page, STAFF_EMAIL, 'staff12345');
 
   // The dedicated project was assigned to staff in the admin test above.
+  await scrollGridTo(page, PROJECT_NAME);
   await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible();
   const projectRow = row(page, PROJECT_NAME);
 

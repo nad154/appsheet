@@ -415,7 +415,7 @@ export function ProjectTable({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-400">
           {isAdmin

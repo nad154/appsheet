@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { scrollGridTo } from './helpers';
 
 async function login(page, email: string, password: string) {
   await page.goto('/login');
@@ -6,6 +7,13 @@ async function login(page, email: string, password: string) {
   await page.fill('#password', password);
   await page.getByRole('button', { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/grid/, { timeout: 15000 });
+}
+
+// Navigate back to the grid and bring the priority fixture row into the
+// virtualized window (it sits below the fold once the grid scrolls internally).
+async function goBackToGrid(page) {
+  await page.getByRole('link', { name: 'Grid' }).click();
+  await scrollGridTo(page, 'Staff Project A');
 }
 
 async function saveThresholds(page, low: string, medium: string) {
@@ -53,7 +61,7 @@ test('priority badge follows the aging thresholds configured by the admin', asyn
   // Normalize thresholds first (a previously crashed run may have left them
   // non-default, which would change the assertions below).
   await saveThresholds(page, '15', '30');
-  await page.getByRole('link', { name: 'Grid' }).click();
+  await goBackToGrid(page);
 
   // Give Staff Project A's vendor line a known aging: 30 calendar days ago ≈
   // 20–22 business days. With the defaults (low 15, medium 30) that is Medium.
@@ -81,17 +89,17 @@ test('priority badge follows the aging thresholds configured by the admin', asyn
 
   // Shrink both thresholds so the same aging is now High.
   await saveThresholds(page, '5', '8');
-  await page.getByRole('link', { name: 'Grid' }).click();
+  await goBackToGrid(page);
   await expect(row.getByText('High', { exact: true })).toBeVisible();
 
   // Expand them so the same aging drops back to Low.
   await saveThresholds(page, '60', '120');
-  await page.getByRole('link', { name: 'Grid' }).click();
+  await goBackToGrid(page);
   await expect(row.getByText('Low', { exact: true })).toBeVisible();
 
   // Restore the defaults so later runs start from a known state.
   await saveThresholds(page, '15', '30');
-  await page.getByRole('link', { name: 'Grid' }).click();
+  await goBackToGrid(page);
 
   // ── Multi-vendor gate: two vendor lines → two Aging/Priority badges ──────
   // Add a second line to Staff Project A with the same aging and assert the
@@ -128,20 +136,20 @@ test('priority badge follows the aging thresholds configured by the admin', asyn
 
   // Shrink both thresholds → the two badges flip to High together.
   await saveThresholds(page, '5', '8');
-  await page.getByRole('link', { name: 'Grid' }).click();
+  await goBackToGrid(page);
   await expect(row.getByText('High', { exact: true })).toBeVisible();
   await expect(row2.getByText('High', { exact: true })).toBeVisible();
 
   // Expand them again → both flip back to Low together.
   await saveThresholds(page, '60', '120');
-  await page.getByRole('link', { name: 'Grid' }).click();
+  await goBackToGrid(page);
   await expect(row.getByText('Low', { exact: true })).toBeVisible();
   await expect(row2.getByText('Low', { exact: true })).toBeVisible();
 
   // Restore the defaults and drop the second line so later suite runs start
   // from the original single-line fixture.
   await saveThresholds(page, '15', '30');
-  await page.getByRole('link', { name: 'Grid' }).click();
+  await goBackToGrid(page);
   dialog = await openRowModal(page, 'Staff Project A');
   const line2Again = await vendorBlock(dialog, 'Vendor 2');
   await line2Again.getByRole('button', { name: 'Remove' }).click();
@@ -151,7 +159,7 @@ test('priority badge follows the aging thresholds configured by the admin', asyn
   await expect(row2).toHaveCount(0);
 
   // Removing the sent date clears the badge entirely (aging = null).
-  await page.getByRole('link', { name: 'Grid' }).click();
+  await goBackToGrid(page);
   await setSentDate('');
   await expect(row.getByText('Medium', { exact: true })).toHaveCount(0);
 });

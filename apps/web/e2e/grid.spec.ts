@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { scrollGridTo } from './helpers';
 
 async function login(page, email: string, password: string) {
   await page.goto('/login');
@@ -12,7 +13,9 @@ test('admin sees all projects and role-aware nav', async ({ page }) => {
 
   await expect(page).toHaveURL(/\/grid/);
   await expect(page.getByRole('heading', { name: 'Project Grid' })).toBeVisible();
+  await scrollGridTo(page, 'Admin Project A');
   await expect(page.getByText('Admin Project A', { exact: true })).toBeVisible();
+  await scrollGridTo(page, 'Staff Project B');
   await expect(page.getByText('Staff Project B', { exact: true })).toBeVisible();
 
   // Role-aware nav: the Approvals link is gone (updates apply immediately);
@@ -48,6 +51,7 @@ test('admin can create a project with Sales and PIC via the add form', async ({ 
   await page.getByRole('button', { name: 'Create' }).click();
 
   await expect(page.getByText('Project created.', { exact: true })).toBeVisible();
+  await scrollGridTo(page, 'E2E PIC Issues Project');
   await expect(page.getByText('E2E PIC Issues Project', { exact: true })).toBeVisible();
 });
 
@@ -56,6 +60,7 @@ test('admin can change the assigned Sales for an existing project inline', async
   await expect(page).toHaveURL(/\/grid/);
 
   const adminRow = page.getByText('Admin Project A', { exact: true });
+  await scrollGridTo(page, 'Admin Project A');
   await expect(adminRow).toBeVisible();
 
   const row = adminRow.locator('xpath=ancestor::div[@role="row"]');

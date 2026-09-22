@@ -36,10 +36,19 @@ test('admin drills into a pie slice and lands on the highlighted grid row', asyn
   // The dashboard may already hold seed/leftover charts, so scope the click to
   // this card's own pie (recharts sectors are <path class="recharts-sector">).
   // Recharts re-renders/anims sectors on every data refresh, which keeps
-  // detaching the DOM node, so click the named wedge with force to skip the
-  // stability/interception checks and dispatch straight onto the sector.
+  // detaching the DOM node between a locator resolve and its click — so don't
+  // click the node at all: read a live bounding box and deliver a coordinate
+  // click on the viewport, which can't race the detach.
   const chartCard = card.locator('xpath=ancestor::div[contains(@class, "border-gray-200")]');
-  await chartCard.locator('.recharts-sector[name="on_progress"]').first().click({ force: true });
+  const sector = chartCard.locator('.recharts-sector[name="on_progress"]').first();
+  await expect(sector).toBeVisible({ timeout: 15000 });
+  let box: { x: number; y: number; width: number; height: number } | null = null;
+  for (let i = 0; i < 100 && !box; i++) {
+    box = await sector.boundingBox();
+    if (!box) await page.waitForTimeout(100);
+  }
+  if (!box) throw new Error('pie sector has no bounding box');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 
   const panel = page.getByTestId('drill-down-panel');
   await expect(panel).toBeVisible();

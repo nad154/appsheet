@@ -213,7 +213,7 @@ test('hovering one vendor line tints every row of the project, sticky cells incl
   await reloadAndShowFirst(page, '0 E2E Sticky Hover');
 
   // First on page 1 (created_at 1999), so this project sits on a WHITE stripe:
-  // base rgb(255,255,255), hover rgb(243,244,246).
+  // base rgb(255,255,255), hover rgb(219,219,219).
   const row1 = page
     .getByText('0 E2E Sticky Hover', { exact: true })
     .locator('xpath=ancestor::div[@role="row"]');
@@ -229,8 +229,8 @@ test('hovering one vendor line tints every row of the project, sticky cells incl
 
   // Hover the second vendor line → BOTH lines' sticky Project cells tint.
   await page.getByText('0 E2E Sticky Hover Vendor', { exact: true }).last().hover();
-  await expect(await cellBg( projectCell1)).toBe('rgb(243, 244, 246)');
-  await expect(await cellBg( projectCell2)).toBe('rgb(243, 244, 246)');
+  await expect(await cellBg( projectCell1)).toBe('rgb(219, 219, 219)');
+  await expect(await cellBg( projectCell2)).toBe('rgb(219, 219, 219)');
 
   // Pointer leaves the table → both revert to the white stripe.
   await page.mouse.move(0, 0);

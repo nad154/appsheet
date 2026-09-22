@@ -15,6 +15,9 @@ import {
 import { EntityCombobox, type EntityOption } from '../../components/EntityCombobox';
 import { StageConfirmModal } from '../../components/data-grid/StageConfirmModal';
 import { STAGE_LABEL } from '../../components/data-grid/columns';
+import { getColumnSizes } from '../../components/data-grid/columns';
+import { StickyColumnsMenu } from '../../components/data-grid/StickyColumnsMenu';
+import { useStickyColumns } from '../../hooks/useStickyColumns';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/Toast';
@@ -36,6 +39,7 @@ export function GridPage() {
   const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const { stickyColumnIds, setStickyColumnIds, resetStickyColumns } = useStickyColumns(user?.id);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -234,6 +238,12 @@ export function GridPage() {
               ))}
             </select>
           </label>
+          <StickyColumnsMenu
+            selectedIds={stickyColumnIds}
+            columnWidths={getColumnSizes()}
+            onChange={setStickyColumnIds}
+            onReset={resetStickyColumns}
+          />
         </div>
         <button
           type="button"
@@ -396,6 +406,7 @@ export function GridPage() {
         onNotice={showToast}
         highlightedRowId={highlightedRowId}
         onHighlightDone={() => setHighlightedRowId(null)}
+        stickyColumnIds={stickyColumnIds}
       />
 
       {stageFinishConfirm && (

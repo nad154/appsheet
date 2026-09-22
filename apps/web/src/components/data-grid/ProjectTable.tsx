@@ -53,9 +53,10 @@ interface ProjectTableProps {
   // dashboard drill-down click).
   highlightedRowId?: string | null;
   onHighlightDone?: () => void;
+  // Ids of the columns pinned to the left edge (in display order; a column
+  // sticks when it reaches the edge). Empty = nothing sticky.
+  stickyColumnIds?: string[];
 }
-
-const STICKY_GROUP_ID = 'project_info';
 
 // Leaf-header tints, keyed by the parent column-group id from columns.tsx:
 // headers under the Customer group render light green, under Vendor light
@@ -244,6 +245,7 @@ export function ProjectTable({
   onNotice,
   highlightedRowId,
   onHighlightDone,
+  stickyColumnIds = [],
 }: ProjectTableProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>(null);
   const [savingCell, setSavingCell] = useState<string | null>(null);
@@ -253,6 +255,10 @@ export function ProjectTable({
   const [stageConfirmRow, setStageConfirmRow] = useState<Project | null>(null);
   const [linkDriveRow, setLinkDriveRow] = useState<Project | null>(null);
   const [flashActive, setFlashActive] = useState(false);
+  // Project id of the row under the pointer. CSS :hover can't tint the whole
+  // project — every vendor line is its own row <div> and sticky cells are
+  // opaque — so hover is driven by state (D1).
+  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
 
   // Column definitions are rebuilt per-role: STAFF never gets any inline
   // editable cell (row-click opens the modal instead), and SUPER_ADMIN gets the
@@ -283,17 +289,21 @@ export function ProjectTable({
   const leafHeaders = table.getHeaderGroups().at(-1)?.headers ?? [];
   const gridTemplateColumns = leafHeaders.map((h) => `${h.getSize()}px`).join(' ');
 
-  const stickyColIds: string[] = [];
-  let stickyAcc = 0;
+  const stickySet = useMemo(() => new Set(stickyColumnIds), [stickyColumnIds]);
+
+  // Left offset = widths of sticky columns before it, in DISPLAY order — so a
+  // column sticks exactly when it reaches the edge (D3). runEndIds marks the
+  // last column of each contiguous sticky run (gets the right-edge shadow).
   const stickyLeftOffsets = new Map<string, number>();
-  for (const h of leafHeaders) {
-    if (h.column.parent?.id === STICKY_GROUP_ID) {
-      stickyLeftOffsets.set(h.column.id, stickyAcc);
-      stickyColIds.push(h.column.id);
-      stickyAcc += h.getSize();
-    }
-  }
-  const lastStickyColId = stickyColIds[stickyColIds.length - 1];
+  const runEndIds = new Set<string>();
+  let stickyAcc = 0;
+  leafHeaders.forEach((h, i) => {
+    if (!stickySet.has(h.column.id)) return;
+    stickyLeftOffsets.set(h.column.id, stickyAcc);
+    stickyAcc += h.getSize();
+    const next = leafHeaders[i + 1];
+    if (!next || !stickySet.has(next.column.id)) runEndIds.add(h.column.id);
+  });
 
   const rowVirtualizer = useVirtualizer({
     count: modelRows.length,
@@ -419,6 +429,7 @@ export function ProjectTable({
         className="relative min-h-0 flex-1 overflow-auto rounded-md border border-gray-200"
         role="table"
         aria-label="Projects grid"
+        onMouseLeave={() => setHoveredProjectId(null)}
       >
         <div style={{ display: 'grid', width: tableWidth, minWidth: '100%' }}>
           <div role="rowgroup" style={{ display: 'grid', position: 'sticky', top: 0, zIndex: Z.thead }}>
@@ -429,14 +440,22 @@ export function ProjectTable({
                 {headerGroup.headers.map((header) => {
                   const isGroup = header.subHeaders.length > 0;
                   if (isGroup) {
-                    return <ColumnGroupHeader key={header.id} header={header} />;
+                    return (
+                      <ColumnGroupHeader
+                        key={header.id}
+                        header={header}
+                        stickySet={stickySet}
+                        stickyLeftOffsets={stickyLeftOffsets}
+                        runEndIds={runEndIds}
+                      />
+                    );
                   }
                   const columnId = header.column.id;
                   const isSortable = header.column.getCanSort();
                   const isActiveSort = isSortable && columnId === sortBy;
-                  const isStickyCol = header.column.parent?.id === STICKY_GROUP_ID;
-                  const stickyLeft = isStickyCol ? stickyLeftOffsets.get(header.column.id) ?? 0 : undefined;
-                  const isLastStickyCol = header.column.id === lastStickyColId;
+                  const isStickyCol = stickySet.has(columnId);
+                  const stickyLeft = isStickyCol ? stickyLeftOffsets.get(columnId) ?? 0 : undefined;
+                  const isLastStickyCol = runEndIds.has(columnId);
                   const leafTint = LEAF_HEADER_TINT[header.column.parent?.id ?? ''] ?? '';
                   // main table header 
                   return (
@@ -453,7 +472,10 @@ export function ProjectTable({
                         position: isStickyCol ? 'sticky' : undefined,
                         left: isStickyCol ? stickyLeft : undefined,
                         zIndex: isStickyCol ? Z.stickyHeaderCol : undefined,
-                        backgroundColor: isStickyCol ? '#f9fafb' : undefined,
+                        // Tinted (Customer/Vendor) headers are already opaque
+                        // and must keep their colour when sticky; only the plain
+                        // grey headers need an explicit opaque background.
+                        backgroundColor: isStickyCol && !leafTint ? '#f9fafb' : undefined,
                         boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.08)' : undefined,
                         cursor: isSortable ? 'pointer' : undefined,
                       }}
@@ -489,6 +511,9 @@ export function ProjectTable({
               const isStripeGray = index % 2 === 0;
               const isHighlighted =
                 flashActive && isFirstOfGroup && row.original.project.id === highlightedRowId;
+              const stripeBg = isStripeGray ? '#f3f4f6' : '#ffffff';
+              const hoverBg = '#DBDBDB';
+              const rowBg = hoveredProjectId === project.id ? hoverBg : stripeBg;
               return (
                 <div
                   key={row.id}
@@ -497,7 +522,8 @@ export function ProjectTable({
                   role="row"
                   data-testid={isHighlighted ? 'highlighted-row' : undefined}
                   onClick={!isAdmin && isFirstOfGroup ? () => setEditModalRow(project) : undefined}
-                  className={`border-b border-gray-100 ${isStripeGray ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-100'}  ${
+                  onMouseEnter={() => setHoveredProjectId(project.id)}
+                  className={`border-b border-gray-100 ${
                     isHighlighted ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
                   } ${!isAdmin ? 'cursor-pointer' : ''}`}
                   style={{
@@ -506,15 +532,18 @@ export function ProjectTable({
                     position: 'absolute', 
                     transform: `translateY(${virtualRow.start}px)`, 
                     width: tableWidth,
-                    // Stripe color inherited by the sticky cells and used as
-                    // the end color of the row-flash drill-down animation.
-                    ['--stripe-bg']: isStripeGray ? '#f3f4f6' : '#fff',
+                    backgroundColor: rowBg,
+                    // Stripe color (flash end colour, unchanged meaning) and the
+                    // live row colour incl. hover; sticky cells read --row-bg so
+                    // they tint together with the rest of the project's rows.
+                    ['--stripe-bg']: stripeBg,
+                    ['--row-bg']: rowBg,
                   } as CSSProperties}
                 >
                   {row.getVisibleCells().map((cell) => {
-                    const isStickyCol = cell.column.parent?.id === STICKY_GROUP_ID;
+                    const isStickyCol = stickySet.has(cell.column.id);
                     const stickyLeft = isStickyCol ? stickyLeftOffsets.get(cell.column.id) ?? 0 : undefined;
-                    const isLastStickyCol = cell.column.id === lastStickyColId;
+                    const isLastStickyCol = runEndIds.has(cell.column.id);
                     const meta = cell.column.columnDef.meta as ColumnMeta | undefined;
                     const field = cell.column.id;
                     const isEditing = !!activeCell && activeCell.rowId === row.id && activeCell.columnId === field;
@@ -615,7 +644,7 @@ export function ProjectTable({
                           position: isStickyCol ? 'sticky' : undefined,
                           left: isStickyCol ? stickyLeft : undefined,
                           zIndex: isStickyCol ? Z.stickyBodyCol : undefined,
-                          background: isStickyCol ? 'var(--stripe-bg)' : undefined,
+                          background: isStickyCol ? 'var(--row-bg)' : undefined,
                           boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.06)' : undefined,
                           cursor: editable ? 'text' : undefined,
                         }}

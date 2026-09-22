@@ -312,14 +312,18 @@ function vendorTextCol(header: string, size = 160): ColumnDef<DisplayRow> {
   };
 }
 
-function vendorNumberCol(header: string, size = 120): ColumnDef<DisplayRow> {
+function vendorNumberCol(
+  key: 'vendor_price' | 'vendor_revenue',
+  header: string,
+  size = 120,
+): ColumnDef<DisplayRow> {
   return {
-    accessorKey: 'vendor_price',
+    accessorKey: key,
     header,
     size,
     enableSorting: false,
     cell: ({ row }) => {
-      const v = vendorCell(row.original, 'vendor_price');
+      const v = vendorCell(row.original, key);
       if (v === null || v === undefined || v === '') return <span className="text-gray-300">Rp —</span>;
       return <span className="block truncate text-sm text-gray-800">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
@@ -635,7 +639,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
       // non-sortable, one row per line (planning_customers_vendors Phase 5).
       columns: [
         vendorTextCol('Vendor', 200),
-        vendorNumberCol('Nilai RAB', 120),
+        vendorNumberCol('vendor_revenue', 'Nilai RAB', 120),
         vendorSelectCol('vendor_type', 'Type Vendor Service/Goods', 120),
         vendorDateCol('project_sent_date', 'Tanggal Kirim FPT', 170),
         vendorDateCol('project_finish_date', 'Tgl Finish FPT', 170),
@@ -644,7 +648,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
         vendorDateCol('approval_date', 'Tanggal Terima SP Vendor', 170),
         vendorDateCol('document_sent_date', 'Tanggal kirim PO/PKS vendor', 170),
         vendorTextInputCol('document_id', 'No PO/PKS Vendor', 170),
-        vendorNumberCol('Nilai PO/PKS Vendor', 150),
+        vendorNumberCol('vendor_price', 'Nilai PO/PKS Vendor', 150),
         vendorDateCol('vendor_start_contract', 'Start Contract - Vendor', 170),
         vendorDateCol('vendor_end_contract', 'End Contract2 - Vendor', 170),
         agingColumn,
@@ -652,7 +656,7 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
       ],
     },
     {
-      id: 'update_progress',
+      id: 'update_progress_group',
       header: 'Update Progress',
       columns: [updateProgressColumn(onOpenHistory, isAdmin)],
     },
@@ -660,3 +664,47 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
 }
 
 export type ActiveCell = { rowId: string; field: string } | null;
+
+export function columnId(def: ColumnDef<DisplayRow>): string {
+  return (def.id ?? (def as { accessorKey?: string }).accessorKey) as string;
+}
+
+export interface ColumnOption { id: string; label: string; group: string }
+
+const NOOP = () => undefined;
+
+// Flat list of every leaf column, for the "Sticky columns" menu.
+export function getColumnOptions(): ColumnOption[] {
+  const groups = buildProjectColumns({
+    isAdmin: true,
+    onOpenHistory: NOOP,
+    onOpenIssues: NOOP,
+    onRequestFinish: NOOP,
+    onLinkDrive: NOOP,
+  });
+  return groups.flatMap((g) =>
+    ((g as { columns?: ColumnDef<DisplayRow>[] }).columns ?? []).map((c) => ({
+      id: columnId(c),
+      label: c.id === 'number' ? '# (row number)' : String(c.header),
+      group: String(g.header),
+    })),
+  );
+}
+
+// Leaf-column pixel widths (from each def's `size`), so the sticky-columns menu
+// can enforce its total-width cap exactly the same way the table lays out.
+export function getColumnSizes(): Record<string, number> {
+  const groups = buildProjectColumns({
+    isAdmin: true,
+    onOpenHistory: NOOP,
+    onOpenIssues: NOOP,
+    onRequestFinish: NOOP,
+    onLinkDrive: NOOP,
+  });
+  return Object.fromEntries(
+    groups.flatMap((g) => (g as { columns?: ColumnDef<DisplayRow>[] }).columns ?? [])
+      .map((c) => [columnId(c), (c as { size?: number }).size ?? 150]),
+  );
+}
+
+export const DEFAULT_STICKY_COLUMN_IDS = ['number', 'drive_folder_id', 'project_name'];

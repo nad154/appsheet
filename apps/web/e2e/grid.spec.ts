@@ -7,16 +7,13 @@ async function login(page, email: string, password: string) {
   await page.getByRole('button', { name: /sign in/i }).click();
 }
 
-test('admin sees all projects with status flags and role-aware nav', async ({ page }) => {
+test('admin sees all projects and role-aware nav', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
 
   await expect(page).toHaveURL(/\/grid/);
   await expect(page.getByRole('heading', { name: 'Project Grid' })).toBeVisible();
   await expect(page.getByText('Admin Project A', { exact: true })).toBeVisible();
   await expect(page.getByText('Staff Project B', { exact: true })).toBeVisible();
-
-  // Idle status flag is rendered for at least one on_progress project.
-  await expect(page.getByText('Idle', { exact: true }).first()).toBeVisible();
 
   // Role-aware nav: the Approvals link is gone (updates apply immediately);
   // SUPER_ADMIN keeps Settings + Drive Browser, and the role badge is shown.

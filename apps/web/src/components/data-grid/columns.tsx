@@ -90,7 +90,7 @@ function ProjectNameCell({
 function projectNameColumn(isAdmin: boolean): ColumnDef<DisplayRow> {
   return {
     accessorKey: 'project_name',
-    header: 'Project',
+    header: 'Project Name',
     // Width includes the always-reserved pencil slot (see ProjectTable), so the
     // hover-revealed edit button never crowds the name text.
     size: 300,
@@ -199,7 +199,7 @@ function customerColumn(size = 160): ColumnDef<DisplayRow> {
 function picColumn(size = 140): ColumnDef<DisplayRow> {
   return {
     accessorKey: 'pic_id',
-    header: 'PIC',
+    header: 'Responsible PIC',
     size,
     meta: { editable: true, editType: 'user' } as ColumnMeta,
     cell: ({ row }) => {
@@ -217,7 +217,7 @@ function picColumn(size = 140): ColumnDef<DisplayRow> {
 function salesColumn(size = 140): ColumnDef<DisplayRow> {
   return {
     accessorKey: 'staff_assigned_id',
-    header: 'Sales',
+    header: 'Sales Name',
     size,
     meta: { editable: true, editType: 'user', adminOnly: true } as ColumnMeta,
     cell: ({ row }) => {
@@ -284,6 +284,27 @@ function driveLinkColumn(
         >
           {empty}
         </button>
+      );
+    },
+  };
+}
+
+// Display-only folder name column, sits right beside the Drive link column.
+// Purely informational — no link, no edit, no click behaviour.
+function folderNameColumn(): ColumnDef<DisplayRow> {
+  return {
+    accessorKey: 'folder_name',
+    header: 'Folder Reference',
+    size: 160,
+    enableSorting: false,
+    cell: ({ row }) => {
+      if (!row.original.isFirstOfGroup) return null;
+      const name = row.original.project.folder_name;
+      if (!name) return <span className="text-gray-300">—</span>;
+      return (
+        <span className="block truncate text-sm text-gray-800" title={name}>
+          {name}
+        </span>
       );
     },
   };
@@ -379,7 +400,7 @@ function vendorTextInputCol(key: keyof ProjectVendorLine, header: string, size =
 
 const agingColumn: ColumnDef<DisplayRow> = {
   id: 'aging',
-  header: 'Aging',
+  header: 'Aging (days)',
   size: 90,
   enableSorting: false,
   accessorFn: (row) => computeAging(row.vendor ?? {}),
@@ -418,7 +439,7 @@ export const STAGE_STYLES: Record<ProjectStage, string> = {
 function stageColumn(onRequestFinish: (project: Project) => void, isAdmin: boolean): ColumnDef<DisplayRow> {
   return {
     accessorKey: 'current_stage',
-    header: 'Stage',
+    header: 'Status',
     size: 120,
     enableSorting: false,
     meta: { editable: false, editType: 'select', options: ['on_progress', 'finish'] as const } as ColumnMeta,
@@ -577,7 +598,7 @@ function issuesColumn(
 ): ColumnDef<DisplayRow> {
   return {
     accessorKey: 'issues',
-    header: 'Issues',
+    header: 'Action',
     size: 220,
     enableSorting: false,
     cell: ({ row }) => {
@@ -600,22 +621,19 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
       header: 'Project Info',
       columns: [
         projectNumberColumn,
-        driveLinkColumn(isAdmin, onLinkDrive),
+        // driveLinkColumn(isAdmin, onLinkDrive),
+        folderNameColumn(),
         projectNameColumn(isAdmin),
         salesColumn(),
         picColumn(),
         stageColumn(onRequestFinish, isAdmin),
-        // selectDate('created_at', 'Created', 150),
-        // {
-        //   id: 'status_flag',
-        //   header: 'Status',
-        //   size: 110,
-        //   enableSorting: false,
-        //   cell: ({ row }) =>
-        //     row.original.isFirstOfGroup ? <StatusFlagCell project={row.original.project} /> : <span className="text-gray-300">—</span>,
-        // },
         issuesColumn(onOpenIssues, isAdmin),
       ],
+    },
+    {
+      id: 'update_progress_group',
+      header: 'Update Progress',
+      columns: [updateProgressColumn(onOpenHistory, isAdmin)],
     },
     {
       id: 'customer',
@@ -623,13 +641,13 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
       columns: [
         customerColumn(),
         text('market_segment', 'Market Segment', 140, true, false),
-        selectCol('service_or_goods', 'Service/Goods', 120, GOODS_OR_SERVICE, false),
-        selectDate('date_customer_received_doc1', 'Tanggal Terima SP Customer', 170),
+        selectCol('service_or_goods', 'Project Type', 120, GOODS_OR_SERVICE, false),
+        selectDate('date_customer_received_doc1', 'SP Received Date', 170),
         selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 170),
-        text('doc2_number_id', 'No PO/PKS Customer', 150, true, false),
+        text('doc2_number_id', 'Number PO/PKS Customer', 150, true, false),
         numberCol('customer_price', 'Nilai PO/PKS Customer', 130),
-        selectDate('customer_start_contract', 'Start Contract - Cust', 170),
-        selectDate('customer_end_contract', 'End Contract - Cust', 170),
+        selectDate('customer_start_contract', 'Start Contract Date', 170),
+        selectDate('customer_end_contract', 'End Contract Date', 170),
       ],
     },
     {
@@ -639,26 +657,21 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
       // non-sortable, one row per line (planning_customers_vendors Phase 5).
       columns: [
         vendorTextCol('Vendor', 200),
-        vendorNumberCol('vendor_revenue', 'Nilai RAB', 120),
-        vendorSelectCol('vendor_type', 'Type Vendor Service/Goods', 120),
-        vendorDateCol('project_sent_date', 'Tanggal Kirim FPT', 170),
+        vendorNumberCol('vendor_revenue', 'RAB Amount', 120),
+        vendorSelectCol('vendor_type', 'Project Type', 120),
+        vendorDateCol('project_sent_date', 'Finish FPT Date', 170),
         vendorDateCol('project_finish_date', 'Tgl Finish FPT', 170),
-        vendorTextInputCol('vendor_project_id', 'No FPT', 170),
-        vendorDateCol('negotiation_date', 'Tanggal Nego Vendor', 170),
-        vendorDateCol('approval_date', 'Tanggal Terima SP Vendor', 170),
-        vendorDateCol('document_sent_date', 'Tanggal kirim PO/PKS vendor', 170),
-        vendorTextInputCol('document_id', 'No PO/PKS Vendor', 170),
-        vendorNumberCol('vendor_price', 'Nilai PO/PKS Vendor', 150),
-        vendorDateCol('vendor_start_contract', 'Start Contract - Vendor', 170),
-        vendorDateCol('vendor_end_contract', 'End Contract2 - Vendor', 170),
+        vendorTextInputCol('vendor_project_id', 'FPT Number', 170),
+        vendorDateCol('negotiation_date', 'Negotiation Date', 170),
+        vendorDateCol('approval_date', 'SP Received Date', 170),
+        vendorDateCol('document_sent_date', 'PO/PKS Sent Date', 170),
+        vendorTextInputCol('document_id', 'Number PO/PKS', 170),
+        vendorNumberCol('vendor_price', 'PO/PKS Amount', 150),
+        vendorDateCol('vendor_start_contract', 'Start Contract Date', 170),
+        vendorDateCol('vendor_end_contract', 'End Contract Date', 170),
         agingColumn,
         priorityColumn,
       ],
-    },
-    {
-      id: 'update_progress_group',
-      header: 'Update Progress',
-      columns: [updateProgressColumn(onOpenHistory, isAdmin)],
     },
   ];
 }

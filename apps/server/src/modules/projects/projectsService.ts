@@ -16,7 +16,7 @@ import {
   packIntoPages,
   totalLinesFor,
 } from '@tracker/shared';
-import type { Project, ProjectList, ProjectCreate, ProjectUpdate, ProjectVendorLine } from '@tracker/shared';
+import type { Project, ProjectList, ProjectCreate, ProjectUpdate, ProjectVendorLine, ProjectStage } from '@tracker/shared';
 
 interface ProjectRow extends Project {
   [key: string]: unknown;
@@ -58,6 +58,8 @@ export interface ProjectListQuery {
   sort_dir?: 'asc' | 'desc';
   /** Restrict results to projects created in the given calendar year. */
   year?: number;
+  /** Restrict results to projects at the given stage (undefined = all stages). */
+  stage?: ProjectStage;
 }
 
 /**
@@ -117,6 +119,13 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
     const end = `${query.year + 1}-01-01`;
     params.push(start, end);
     whereClause = `${yearClause}p.created_at >= ? AND p.created_at < ?`;
+  }
+
+  // Composite stage filter: composes with the RBAC scope and year clauses.
+  if (query.stage) {
+    const stageClause = whereClause ? `${whereClause} AND ` : 'WHERE ';
+    params.push(query.stage);
+    whereClause = `${stageClause}p.current_stage = ?`;
   }
 
   // Step 1 — one lightweight query for the WHOLE scoped set: id + vendor-line

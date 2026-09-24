@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { packIntoPages } from '@tracker/shared';
 import { computeAging, computePriority } from '@tracker/shared';
+import type { ProjectStage } from '@tracker/shared';
 import { useProjects, useAssignableUsers, useProjectYears, type ProjectQueryParams } from '../../hooks/useProjects';
 import { useAgingThresholds } from '../../hooks/useSettings';
 import { ProjectTable, type SortDir, type EditResult } from '../../components/data-grid/ProjectTable';
@@ -46,6 +47,7 @@ export function GridPage() {
   const [sortBy, setSortBy] = useState<string | undefined>(undefined);
   const [sortDir, setSortDir] = useState<SortDir | undefined>(undefined);
   const [yearFilter, setYearFilter] = useState<number | undefined>(undefined);
+  const [stageFilter, setStageFilter] = useState<ProjectStage | undefined>('on_progress');
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
@@ -69,7 +71,7 @@ export function GridPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const params: ProjectQueryParams = { page, page_size: pageSize, sort_by: sortBy, sort_dir: sortDir, year: yearFilter };
+  const params: ProjectQueryParams = { page, page_size: pageSize, sort_by: sortBy, sort_dir: sortDir, year: yearFilter, stage: stageFilter };
   const { data, isLoading, isError, refetch: refetchProjects } = useProjects(params);
   const assignable = useAssignableUsers();
   const years = useProjectYears();
@@ -84,7 +86,7 @@ export function GridPage() {
   // packIntoPages the server used, so the two can never disagree on boundaries.
   const locator = useProjects(
     highlightedRowId
-      ? { page: 1, page_size: 500, sort_by: sortBy, sort_dir: sortDir, year: yearFilter }
+      ? { page: 1, page_size: 500, sort_by: sortBy, sort_dir: sortDir, year: yearFilter, stage: stageFilter }
       : { page: 1, page_size: 500, enabled: false },
   );
 
@@ -135,6 +137,11 @@ export function GridPage() {
 
   const handleYearChange = (next: string) => {
     setYearFilter(next === '' ? undefined : Number(next));
+    setPage(1);
+  };
+
+  const handleStageChange = (next: string) => {
+    setStageFilter(next === 'all' ? undefined : (next as ProjectStage));
     setPage(1);
   };
 
@@ -236,6 +243,19 @@ export function GridPage() {
                   {y}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-gray-600">
+            Stage
+            <select
+              value={stageFilter ?? 'all'}
+              onChange={(e) => handleStageChange(e.target.value)}
+              className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              aria-label="Filter by project stage"
+            >
+              <option value="all">All stages</option>
+              <option value="on_progress">{STAGE_LABEL.on_progress}</option>
+              <option value="finish">{STAGE_LABEL.finish}</option>
             </select>
           </label>
           <StickyColumnsMenu

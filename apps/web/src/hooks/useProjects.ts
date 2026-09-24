@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
-import type { ProjectList } from '@tracker/shared';
+import type { ProjectList, ProjectStage } from '@tracker/shared';
 
 export interface ProjectQueryParams {
   page?: number;
@@ -9,6 +9,8 @@ export interface ProjectQueryParams {
   sort_dir?: 'asc' | 'desc';
   /** Restrict to projects created in the given calendar year (undefined = all). */
   year?: number;
+  /** Restrict to projects at the given stage (undefined = all stages). */
+  stage?: ProjectStage;
   // When false the query stays disabled (e.g. the grid's one-off locator query
   // that runs only while a drill-down highlight is pending). Not part of the
   // query key, so toggling it never invalidates the cached data.
@@ -16,10 +18,10 @@ export interface ProjectQueryParams {
 }
 
 export function useProjects(params: ProjectQueryParams = {}) {
-  const { page = 1, page_size = 50, sort_by, sort_dir, year, enabled = true } = params;
+  const { page = 1, page_size = 50, sort_by, sort_dir, year, stage, enabled = true } = params;
 
   const query = useQuery({
-    queryKey: ['projects', { page, page_size, sort_by, sort_dir, year }],
+    queryKey: ['projects', { page, page_size, sort_by, sort_dir, year, stage }],
     enabled,
     queryFn: async () => {
       const qs = new URLSearchParams();
@@ -28,6 +30,7 @@ export function useProjects(params: ProjectQueryParams = {}) {
       if (sort_by) qs.set('sort_by', sort_by);
       if (sort_dir) qs.set('sort_dir', sort_dir);
       if (year) qs.set('year', String(year));
+      if (stage) qs.set('stage', stage);
       return apiClient.get<ProjectList>(`/api/projects?${qs.toString()}`);
     },
   });

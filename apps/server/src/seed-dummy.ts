@@ -235,7 +235,7 @@ async function main(): Promise<void> {
 
       await exec(insertSql, [
         projectId,
-        null,                                 // folder_name
+        `${docYear}-${String(i + 1).padStart(3, '0')}`, // folder_name (YYYY-NNN)
         projectName,
         null,                                 // staff_assigned_id
         null,                                 // drive_folder_id

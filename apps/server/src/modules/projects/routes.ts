@@ -13,7 +13,7 @@ import {
   ProjectWriteError,
   type ProjectListQuery,
 } from './projectsService.js';
-import { updateProgressFieldSchema } from '@tracker/shared';
+import { updateProgressFieldSchema, PROJECT_STAGES } from '@tracker/shared';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -21,6 +21,7 @@ const listQuerySchema = z.object({
   sort_by: z.string().optional(),
   sort_dir: z.enum(['asc', 'desc']).optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
+  stage: z.enum(PROJECT_STAGES).optional(),
 });
 
 const idParamSchema = z.object({ id: z.string().uuid() });
@@ -42,6 +43,7 @@ projectsRouter.get('/', async (req, res) => {
     sort_by: parsed.data.sort_by,
     sort_dir: parsed.data.sort_dir,
     year: parsed.data.year,
+    stage: parsed.data.stage,
   };
 
   const result = await listProjects(req.user!, query);

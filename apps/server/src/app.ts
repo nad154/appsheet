@@ -11,6 +11,9 @@ import { dashboardRouter } from './modules/dashboard/routes.js';
 import { customersRouter } from './modules/customers/routes.js';
 import { vendorsRouter } from './modules/vendors/routes.js';
 import { projectVendorsRouter } from './modules/project-vendors/routes.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export function createApp() {
   const app = express();
@@ -32,6 +35,17 @@ export function createApp() {
   app.use('/api/drive', driveRouter);
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/dashboard', dashboardRouter);
+
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const webDist = process.env.WEB_DIST_DIR ?? path.resolve(here, '../../web/dist');
+
+  if (fs.existsSync(webDist)) {
+    app.use(express.static(webDist));
+    // SPA fallback for react-router (anything that isn't /api)
+    app.get(/^\/(?!api\/).*/, (_req, res) => {
+      res.sendFile(path.join(webDist, 'index.html'));
+    });
+  }
 
   return app;
 }

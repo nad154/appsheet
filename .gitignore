@@ -12,3 +12,7 @@ playwright-report/
 .DS_Store
 
 graveyard/
+tree.txt
+Dockerfile
+docker-compose.yml
+.dockerignore

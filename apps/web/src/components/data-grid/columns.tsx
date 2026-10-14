@@ -233,61 +233,61 @@ function salesColumn(size = 140): ColumnDef<DisplayRow> {
 // when only folder_name is set, or "—" when unlinked. For SUPER_ADMIN an
 // unlinked project's cell is clickable — it opens the quick LinkDriveModal so a
 // folder can be linked/created without opening the full edit modal.
-function driveLinkColumn(
-  isAdmin: boolean,
-  onLinkDrive: (project: Project) => void,
-): ColumnDef<DisplayRow> {
-  return {
-    accessorKey: 'drive_folder_id',
-    header: 'Folder',
-    size: 160,
-    enableSorting: false,
-    cell: ({ row }) => {
-      if (!row.original.isFirstOfGroup) return null;
-      const project = row.original.project;
-      const id = project.drive_folder_id;
-      const name = project.folder_name;
+// function driveLinkColumn(
+//   isAdmin: boolean,
+//   onLinkDrive: (project: Project) => void,
+// ): ColumnDef<DisplayRow> {
+//   return {
+//     accessorKey: 'drive_folder_id',
+//     header: 'Folder',
+//     size: 160,
+//     enableSorting: false,
+//     cell: ({ row }) => {
+//       if (!row.original.isFirstOfGroup) return null;
+//       const project = row.original.project;
+//       const id = project.drive_folder_id;
+//       const name = project.folder_name;
 
-      if (id) {
-        return (
-          <a
-            href={`https://drive.google.com/drive/folders/${id}`}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-sm text-blue-600 underline"
-            aria-label="Open Drive folder"
-          >
-            {name || 'Folder'}
-          </a>
-        );
-      }
+//       if (id) {
+//         return (
+//           <a
+//             href={`https://drive.google.com/drive/folders/${id}`}
+//             target="_blank"
+//             rel="noreferrer"
+//             onClick={(e) => e.stopPropagation()}
+//             className="text-sm text-blue-600 underline"
+//             aria-label="Open Drive folder"
+//           >
+//             {name || 'Folder'}
+//           </a>
+//         );
+//       }
 
-      const empty = !name ? (
-        <span className="text-gray-300">—</span>
-      ) : (
-        <span className="block truncate text-sm underline">{name}</span>
-      );
+//       const empty = !name ? (
+//         <span className="text-gray-300">—</span>
+//       ) : (
+//         <span className="block truncate text-sm underline">{name}</span>
+//       );
 
-      if (!isAdmin) return empty;
+//       if (!isAdmin) return empty;
 
-      return (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onLinkDrive(project);
-          }}
-          className="flex w-full items-center gap-1.5 rounded text-left hover:outline hover:outline-1 hover:outline-blue-300"
-          title="Link a Google Drive folder"
-          aria-label={`Link Drive folder for ${project.project_name}`}
-        >
-          {empty}
-        </button>
-      );
-    },
-  };
-}
+//       return (
+//         <button
+//           type="button"
+//           onClick={(e) => {
+//             e.stopPropagation();
+//             onLinkDrive(project);
+//           }}
+//           className="flex w-full items-center gap-1.5 rounded text-left hover:outline hover:outline-1 hover:outline-blue-300"
+//           title="Link a Google Drive folder"
+//           aria-label={`Link Drive folder for ${project.project_name}`}
+//         >
+//           {empty}
+//         </button>
+//       );
+//     },
+//   };
+// }
 
 // Display-only folder name column, sits right beside the Drive link column.
 // Purely informational — no link, no edit, no click behaviour.
@@ -608,7 +608,7 @@ function issuesColumn(
   };
 }
 
-export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRequestFinish, onLinkDrive }: {
+export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRequestFinish}: {
   isAdmin: boolean;
   onOpenHistory: (project: Project) => void;
   onOpenIssues: (project: Project) => void;

@@ -11,6 +11,7 @@ import { dashboardRouter } from './modules/dashboard/routes.js';
 import { customersRouter } from './modules/customers/routes.js';
 import { vendorsRouter } from './modules/vendors/routes.js';
 import { projectVendorsRouter } from './modules/project-vendors/routes.js';
+import { preferencesRouter } from './modules/preferences/routes.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/drive', driveRouter);
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/dashboard', dashboardRouter);
+  app.use('/api/me/preferences', preferencesRouter);
 
   const here = path.dirname(fileURLToPath(import.meta.url));
   const webDist = process.env.WEB_DIST_DIR ?? path.resolve(here, '../../web/dist');

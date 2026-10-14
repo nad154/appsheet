@@ -686,6 +686,14 @@ export interface ColumnOption { id: string; label: string; group: string }
 
 const NOOP = () => undefined;
 
+// Columns the user may never hide: without the row number and the project name
+// the grid is unusable. The Project Info group can therefore be collapsed to
+// just these two, but not removed.
+export const LOCKED_COLUMN_IDS: readonly string[] = ['number', 'project_name'];
+
+const columnLabel = (def: ColumnDef<DisplayRow>): string =>
+  def.id === 'number' ? '# (row number)' : String(def.header);
+
 // Flat list of every leaf column, for the "Sticky columns" menu.
 export function getColumnOptions(): ColumnOption[] {
   const groups = buildProjectColumns({
@@ -698,10 +706,101 @@ export function getColumnOptions(): ColumnOption[] {
   return groups.flatMap((g) =>
     ((g as { columns?: ColumnDef<DisplayRow>[] }).columns ?? []).map((c) => ({
       id: columnId(c),
-      label: c.id === 'number' ? '# (row number)' : String(c.header),
+      label: columnLabel(c),
       group: String(g.header),
     })),
   );
+}
+
+export interface ColumnGroupColumn {
+  id: string;
+  label: string;
+  locked: boolean;
+}
+
+export interface ColumnGroupOption {
+  id: string;
+  label: string;
+  columns: ColumnGroupColumn[];
+}
+
+// Grouped view of every leaf column (group id + label, and per-column
+// id/label/locked), for the "Columns" visibility menu.
+export function getColumnGroups(): ColumnGroupOption[] {
+  const groups = buildProjectColumns({
+    isAdmin: true,
+    onOpenHistory: NOOP,
+    onOpenIssues: NOOP,
+    onRequestFinish: NOOP,
+    onLinkDrive: NOOP,
+  });
+  return groups.map((g) => ({
+    id: String(g.id),
+    label: String(g.header),
+    columns: ((g as { columns?: ColumnDef<DisplayRow>[] }).columns ?? []).map((c) => {
+      const id = columnId(c);
+      return { id, label: columnLabel(c), locked: LOCKED_COLUMN_IDS.includes(id) };
+    }),
+  }));
+}
+
+// Build a TanStack `columnVisibility` map from the user's hidden preferences.
+// Locked columns are always shown; a column is hidden when it is individually
+// hidden or when its whole group is hidden.
+export function buildColumnVisibility(
+  hiddenColumnIds: string[],
+  hiddenGroupIds: string[],
+): Record<string, boolean> {
+  const hiddenCols = new Set(hiddenColumnIds);
+  const hiddenGroups = new Set(hiddenGroupIds);
+  const visibility: Record<string, boolean> = {};
+  for (const group of getColumnGroups()) {
+    const groupHidden = hiddenGroups.has(group.id);
+    for (const col of group.columns) {
+      visibility[col.id] = col.locked ? true : !(groupHidden || hiddenCols.has(col.id));
+    }
+  }
+  return visibility;
+}
+
+export type GridPresetId = 'all' | 'compact' | 'customer' | 'vendor';
+
+export interface PresetOption { id: GridPresetId; label: string }
+
+export const GRID_PRESETS: readonly PresetOption[] = [
+  { id: 'all', label: 'All columns' },
+  { id: 'compact', label: 'Compact' },
+  { id: 'customer', label: 'Customer focus' },
+  { id: 'vendor', label: 'Vendor focus' },
+];
+
+// Hidden ids that realise a preset. Presets only set hidden_* (never save a
+// named view); locked columns stay visible regardless. Computed from the live
+// column tree so it stays correct when columns are added.
+export function getPresetHidden(preset: GridPresetId): {
+  hiddenColumnIds: string[];
+  hiddenGroupIds: string[];
+} {
+  const groups = getColumnGroups();
+  const byId = new Map(groups.map((g) => [g.id, g]));
+  switch (preset) {
+    case 'all':
+      return { hiddenColumnIds: [], hiddenGroupIds: [] };
+    case 'compact': {
+      // Project Info + Update Progress + Customer name/price.
+      const keep = new Set(['customer_name', 'customer_price']);
+      const hiddenColumnIds = (byId.get('customer')?.columns ?? [])
+        .filter((c) => !keep.has(c.id))
+        .map((c) => c.id);
+      return { hiddenColumnIds, hiddenGroupIds: ['vendor'] };
+    }
+    case 'customer':
+      // Project Info + Customer Section.
+      return { hiddenColumnIds: [], hiddenGroupIds: ['update_progress_group', 'vendor'] };
+    case 'vendor':
+      // Project Info + Vendor Section.
+      return { hiddenColumnIds: [], hiddenGroupIds: ['update_progress_group', 'customer'] };
+  }
 }
 
 // Leaf-column pixel widths (from each def's `size`), so the sticky-columns menu

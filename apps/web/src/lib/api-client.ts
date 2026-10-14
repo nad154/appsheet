@@ -114,6 +114,9 @@ export const apiClient = {
   async patch<T>(path: string, body?: unknown): Promise<T> {
     return (await doRequest('PATCH', path, body)) as T;
   },
+  async put<T>(path: string, body?: unknown): Promise<T> {
+    return (await doRequest('PUT', path, body)) as T;
+  },
   async del<T>(path: string): Promise<T> {
     return (await doRequest('DELETE', path)) as T;
   },

@@ -155,6 +155,16 @@ CREATE TABLE IF NOT EXISTS aging_thresholds (
   updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
+-- Per-user preferences (e.g. grid column visibility) keyed by pref_key.
+-- Operational/config data — NEVER exported to parquet.
+CREATE TABLE IF NOT EXISTS user_preferences (
+  user_id VARCHAR NOT NULL,           -- FK dropped, project convention
+  pref_key VARCHAR NOT NULL,          -- e.g. 'grid_columns'
+  value_json VARCHAR NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  PRIMARY KEY (user_id, pref_key)
+);
+
 CREATE OR REPLACE VIEW v_users_public AS
   SELECT id, name, email, role, is_active, created_at FROM users;
 `;

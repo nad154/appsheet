@@ -56,6 +56,9 @@ interface ProjectTableProps {
   // Ids of the columns pinned to the left edge (in display order; a column
   // sticks when it reaches the edge). Empty = nothing sticky.
   stickyColumnIds?: string[];
+  // TanStack columnVisibility map derived from the user's preferences. Locked
+  // columns are always true; missing ids default to visible.
+  columnVisibility?: Record<string, boolean>;
 }
 
 // Leaf-header tints, keyed by the parent column-group id from columns.tsx:
@@ -246,6 +249,7 @@ export function ProjectTable({
   highlightedRowId,
   onHighlightDone,
   stickyColumnIds = [],
+  columnVisibility = {},
 }: ProjectTableProps) {
   const [activeCell, setActiveCell] = useState<ActiveCell>(null);
   const [savingCell, setSavingCell] = useState<string | null>(null);
@@ -281,6 +285,7 @@ export function ProjectTable({
     data: displayRows,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    state: { columnVisibility },
   });
 
   const modelRows = table.getRowModel().rows;
@@ -289,7 +294,13 @@ export function ProjectTable({
   const leafHeaders = table.getHeaderGroups().at(-1)?.headers ?? [];
   const gridTemplateColumns = leafHeaders.map((h) => `${h.getSize()}px`).join(' ');
 
-  const stickySet = useMemo(() => new Set(stickyColumnIds), [stickyColumnIds]);
+  // A column can only stick if it is actually rendered. A hidden-but-pinned
+  // column drops out of leafHeaders, so it stops sticking while hidden; its
+  // saved sticky state is untouched and returns when re-shown.
+  const stickySet = useMemo(() => {
+    const visible = new Set(leafHeaders.map((h) => h.column.id));
+    return new Set(stickyColumnIds.filter((id) => visible.has(id)));
+  }, [stickyColumnIds, leafHeaders]);
 
   // Left offset = widths of sticky columns before it, in DISPLAY order — so a
   // column sticks exactly when it reaches the edge (D3). runEndIds marks the

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { packIntoPages } from '@tracker/shared';
 import { computeAging, computePriority } from '@tracker/shared';
@@ -16,9 +16,11 @@ import {
 import { EntityCombobox, type EntityOption } from '../../components/EntityCombobox';
 import { StageConfirmModal } from '../../components/data-grid/StageConfirmModal';
 import { STAGE_LABEL } from '../../components/data-grid/columns';
-import { getColumnSizes } from '../../components/data-grid/columns';
+import { buildColumnVisibility, getColumnSizes } from '../../components/data-grid/columns';
 import { StickyColumnsMenu } from '../../components/data-grid/StickyColumnsMenu';
+import { ColumnsMenu } from '../../components/data-grid/ColumnsMenu';
 import { useStickyColumns } from '../../hooks/useStickyColumns';
+import { useGridPreferences } from '../../hooks/useGridPreferences';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/Toast';
@@ -41,6 +43,18 @@ export function GridPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { stickyColumnIds, setStickyColumnIds, resetStickyColumns } = useStickyColumns(user?.id);
+  const {
+    hiddenColumnIds,
+    hiddenGroupIds,
+    setHidden,
+    applyPreset,
+    reset: resetGridPreferences,
+  } = useGridPreferences(user?.id);
+
+  const columnVisibility = useMemo(
+    () => buildColumnVisibility(hiddenColumnIds, hiddenGroupIds),
+    [hiddenColumnIds, hiddenGroupIds],
+  );
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -258,6 +272,13 @@ export function GridPage() {
               <option value="finish">{STAGE_LABEL.finish}</option>
             </select>
           </label>
+          <ColumnsMenu
+            hiddenColumnIds={hiddenColumnIds}
+            hiddenGroupIds={hiddenGroupIds}
+            onChange={setHidden}
+            onPreset={applyPreset}
+            onReset={resetGridPreferences}
+          />
           <StickyColumnsMenu
             selectedIds={stickyColumnIds}
             columnWidths={getColumnSizes()}
@@ -427,6 +448,7 @@ export function GridPage() {
         highlightedRowId={highlightedRowId}
         onHighlightDone={() => setHighlightedRowId(null)}
         stickyColumnIds={stickyColumnIds}
+        columnVisibility={columnVisibility}
       />
 
       {stageFinishConfirm && (

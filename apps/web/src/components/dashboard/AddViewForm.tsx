@@ -9,6 +9,10 @@ import type {
   DashboardStageFilter,
 } from '@tracker/shared';
 import { METRIC_LABELS, STAGE_LABELS, allowedMetricsFor } from './dashboardMeta';
+import { Button } from '../ui/Button';
+
+const selectCls =
+  'rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40';
 
 const COLUMN_LABELS: Record<DashboardColumn, string> = {
   current_stage: 'Stage',
@@ -58,13 +62,13 @@ export function AddViewForm({ onDone }: { onDone: () => void }) {
     }
   };
 
-  const selectCls =
-    'rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300';
-
   return (
-    <form onSubmit={handleSubmit} className="mb-4 flex flex-wrap items-end gap-3 rounded border border-gray-200 p-4">
+    <form
+      onSubmit={handleSubmit}
+      className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-card"
+    >
       <label className="flex flex-col gap-0.5">
-        <span className="text-[11px] text-gray-500">Chart type</span>
+        <span className="text-[11px] text-ink-muted">Chart type</span>
         <select
           value={chartType}
           onChange={(e) => setChartType(e.target.value as ChartType)}
@@ -79,7 +83,7 @@ export function AddViewForm({ onDone }: { onDone: () => void }) {
       </label>
 
       <label className="flex flex-col gap-0.5">
-        <span className="text-[11px] text-gray-500">Group by</span>
+        <span className="text-[11px] text-ink-muted">Group by</span>
         <select
           value={column}
           onChange={(e) => handleColumnChange(e.target.value as DashboardColumn)}
@@ -95,7 +99,7 @@ export function AddViewForm({ onDone }: { onDone: () => void }) {
 
       {chartType === 'bar' && (
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-500">Value (Y axis)</span>
+          <span className="text-[11px] text-ink-muted">Value (Y axis)</span>
           <select
             value={metric}
             onChange={(e) => setMetric(e.target.value as DashboardMetric)}
@@ -111,7 +115,7 @@ export function AddViewForm({ onDone }: { onDone: () => void }) {
       )}
 
       <label className="flex flex-col gap-0.5">
-        <span className="text-[11px] text-gray-500">Stage</span>
+        <span className="text-[11px] text-ink-muted">Stage</span>
         <select
           value={stage}
           onChange={(e) => setStage(e.target.value as DashboardStageFilter)}
@@ -126,7 +130,7 @@ export function AddViewForm({ onDone }: { onDone: () => void }) {
       </label>
 
       <label className="flex flex-col gap-0.5">
-        <span className="text-[11px] text-gray-500">Year</span>
+        <span className="text-[11px] text-ink-muted">Year</span>
         <select
           value={year}
           onChange={(e) => setYear(e.target.value)}
@@ -143,7 +147,7 @@ export function AddViewForm({ onDone }: { onDone: () => void }) {
       </label>
 
       <label className="flex flex-col gap-0.5">
-        <span className="text-[11px] text-gray-500">Display label</span>
+        <span className="text-[11px] text-ink-muted">Display label</span>
         <input
           type="text"
           required
@@ -155,14 +159,10 @@ export function AddViewForm({ onDone }: { onDone: () => void }) {
         />
       </label>
 
-      <button
-        type="submit"
-        disabled={createView.isPending}
-        className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-      >
+      <Button type="submit" disabled={createView.isPending}>
         {createView.isPending ? 'Adding…' : 'Add view'}
-      </button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      </Button>
+      {error && <span className="text-xs text-danger">{error}</span>}
     </form>
   );
 }

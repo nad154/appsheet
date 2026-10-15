@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { Project, ProjectIssueEntry } from '@tracker/shared';
 import type { AssignableUser } from '../../hooks/useProjects';
 import { useProjectIssues, useAddIssue } from '../../hooks/useProjectIssues';
 import { ApiError } from '../../lib/api-client';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { controlClass } from '../ui/Input';
 
 function todayIso(): string {
   const now = new Date();
@@ -27,15 +29,15 @@ function fmtDateTime(iso: string): string {
 
 function IssueCard({ entry }: { entry: ProjectIssueEntry }) {
   return (
-    <div className="rounded border border-gray-200 p-3">
+    <div className="rounded border border-border p-3">
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-sm font-semibold text-gray-800">{fmtDate(entry.issue_date)}</span>
-        <span className="text-xs text-gray-400">
+        <span className="text-sm font-semibold text-ink">{fmtDate(entry.issue_date)}</span>
+        <span className="text-xs text-ink-muted">
           {entry.created_by_name ?? 'Admin'} · {fmtDateTime(entry.created_at)}
         </span>
       </div>
-      <p className="text-sm text-gray-700">{entry.issue_text}</p>
-      <p className="mt-1 text-xs text-gray-500">Assigned to: {entry.assignee_name ?? '—'}</p>
+      <p className="text-sm text-ink">{entry.issue_text}</p>
+      <p className="mt-1 text-xs text-ink-muted">Assigned to: {entry.assignee_name ?? '—'}</p>
     </div>
   );
 }
@@ -78,87 +80,71 @@ export function IssuesModal({
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} role="presentation">
-      <div
-        className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Issues — ${project.project_name}`}
-      >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Issues</p>
-            <h2 className="text-base font-semibold text-gray-800">{project.project_name}</h2>
-          </div>
-          <button type="button" onClick={onClose} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label="Close">✕</button>
-        </div>
-
-        <div className="space-y-4 px-5 py-4">
-          <fieldset className="rounded border border-gray-200 p-3">
-            <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Add issue</legend>
-            <div className="space-y-3">
-              <label className="flex flex-col text-xs text-gray-600">
-                Issue
-                <textarea
-                  rows={3}
-                  value={issueText}
-                  onChange={(e) => setIssueText(e.target.value)}
-                  placeholder="Describe the issue…"
-                  className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                  aria-label="Issue text"
+  return (
+    <Modal
+      ariaLabel={`Issues — ${project.project_name}`}
+      eyebrow="Issues"
+      title={project.project_name}
+      onClose={onClose}
+      maxWidthClass="max-w-3xl"
+    >
+      <div className="space-y-4 px-5 py-4">
+        <fieldset className="rounded border border-border p-3">
+          <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">Add issue</legend>
+          <div className="space-y-3">
+            <label className="flex flex-col gap-1 text-xs text-ink-muted">
+              Issue
+              <textarea
+                rows={3}
+                value={issueText}
+                onChange={(e) => setIssueText(e.target.value)}
+                placeholder="Describe the issue…"
+                className={controlClass}
+                aria-label="Issue text"
+              />
+            </label>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs text-ink-muted">
+                Date
+                <input
+                  type="date"
+                  value={issueDate}
+                  onChange={(e) => setIssueDate(e.target.value)}
+                  className={controlClass}
+                  aria-label="Issue date"
                 />
               </label>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label className="flex flex-col text-xs text-gray-600">
-                  Date
-                  <input
-                    type="date"
-                    value={issueDate}
-                    onChange={(e) => setIssueDate(e.target.value)}
-                    className="mt-1 rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    aria-label="Issue date"
-                  />
-                </label>
-                <label className="flex flex-col text-xs text-gray-600">
-                  Assign to staff
-                  <select
-                    value={assigneeId}
-                    onChange={(e) => setAssigneeId(e.target.value)}
-                    className="mt-1 rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    aria-label="Assign to staff"
-                  >
-                    <option value="">–</option>
-                    {staff.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              {addError && <p className="text-sm text-red-600">{addError}</p>}
-              <button
-                type="button"
-                onClick={handleAdd}
-                disabled={!issueText.trim() || addIssue.isPending}
-                className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {addIssue.isPending ? 'Adding…' : 'Add issue'}
-              </button>
+              <label className="flex flex-col gap-1 text-xs text-ink-muted">
+                Assign to staff
+                <select
+                  value={assigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                  className={controlClass}
+                  aria-label="Assign to staff"
+                >
+                  <option value="">–</option>
+                  {staff.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          </fieldset>
+            {addError && <p className="text-sm text-danger">{addError}</p>}
+            <Button onClick={handleAdd} disabled={!issueText.trim() || addIssue.isPending}>
+              {addIssue.isPending ? 'Adding…' : 'Add issue'}
+            </Button>
+          </div>
+        </fieldset>
 
-          {isLoading && <p className="text-sm text-gray-500">Loading issues…</p>}
-          {isError && <p className="text-sm text-red-600">Could not load issues.</p>}
-          {!isLoading && !isError && (data?.entries.length ?? 0) === 0 && (
-            <p className="text-sm text-gray-400">No issues recorded for this project yet.</p>
-          )}
-          {data?.entries.map((entry) => <IssueCard key={entry.id} entry={entry} />)}
-        </div>
+        {isLoading && <p className="text-sm text-ink-muted">Loading issues…</p>}
+        {isError && <p className="text-sm text-danger">Could not load issues.</p>}
+        {!isLoading && !isError && (data?.entries.length ?? 0) === 0 && (
+          <p className="text-sm text-ink-muted">No issues recorded for this project yet.</p>
+        )}
+        {data?.entries.map((entry) => <IssueCard key={entry.id} entry={entry} />)}
       </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

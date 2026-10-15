@@ -58,7 +58,7 @@ export function StickyColumnsMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+        className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
         data-testid="sticky-columns-button"
         aria-haspopup="true"
         aria-expanded={open}
@@ -68,13 +68,13 @@ export function StickyColumnsMenu({
 
       {open && (
         <div
-          className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-gray-200 bg-white shadow-lg"
+          className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-surface shadow-overlay"
           data-testid="sticky-columns-panel"
         >
           <div className="max-h-96 overflow-auto p-2">
             {options.map(([group, cols]) => (
               <fieldset key={group} className="mb-2">
-                <legend className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                <legend className="mb-1 px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                   {group}
                 </legend>
                 <div className="space-y-0.5">
@@ -83,7 +83,7 @@ export function StickyColumnsMenu({
                     return (
                       <label
                         key={o.id}
-                        className="flex items-center gap-2 rounded px-1 py-0.5 text-sm text-gray-800 hover:bg-gray-50"
+                        className="flex items-center gap-2 rounded px-1 py-0.5 text-sm text-ink hover:bg-canvas"
                       >
                         <input
                           type="checkbox"
@@ -91,7 +91,7 @@ export function StickyColumnsMenu({
                           aria-label={o.label}
                           disabled={!isSelected && overCap}
                           onChange={(e) => toggle(o.id, e.target.checked)}
-                          className="accent-blue-600 disabled:opacity-40"
+                          className="accent-accent disabled:opacity-40"
                         />
                         <span className="truncate">{o.label}</span>
                       </label>
@@ -101,19 +101,19 @@ export function StickyColumnsMenu({
               </fieldset>
             ))}
           </div>
-          <div className="flex items-center justify-between border-t border-gray-100 px-3 py-2">
-            <span className="text-xs text-gray-500">{totalWidth}px sticky</span>
+          <div className="flex items-center justify-between border-t border-border px-3 py-2">
+            <span className="text-xs text-ink-muted">{totalWidth}px sticky</span>
             <button
               type="button"
               onClick={onReset}
-              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              className="rounded border border-border px-2 py-1 text-xs text-ink-muted hover:bg-canvas"
               data-testid="sticky-reset"
             >
               Reset to default
             </button>
           </div>
           {overCap && (
-            <p className="border-t border-amber-100 bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
+            <p className="border-t border-warning/20 bg-warning-soft px-3 py-1.5 text-xs text-warning">
               Sticky columns are wider than 60% of the screen — uncheck some to add more.
             </p>
           )}

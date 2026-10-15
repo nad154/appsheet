@@ -83,16 +83,17 @@ export function ChartCard({ view, onDelete }: { view: DashboardView; onDelete: (
   };
 
   const filterCls =
-    'rounded border border-gray-300 px-1.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300';
+    'rounded border border-border bg-surface px-1.5 py-1 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40';
 
   return (
-    <div className="rounded border border-gray-200 bg-white p-4">
+    // `border-gray-200` is a structural locator used by dashboard-drilldown.spec.
+    <div className="rounded-lg border border-gray-200 bg-surface p-4 shadow-card">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-800">{view.label}</h3>
+        <h3 className="text-sm font-semibold text-ink">{view.label}</h3>
         <button
           type="button"
           onClick={() => onDelete(view.id)}
-          className="text-xs font-medium text-gray-400 transition-colors hover:text-red-600"
+          className="text-xs font-medium text-ink-muted transition-colors hover:text-danger"
           aria-label={`Delete view ${view.label}`}
         >
           Delete
@@ -143,10 +144,10 @@ export function ChartCard({ view, onDelete }: { view: DashboardView; onDelete: (
         )}
       </div>
 
-      {isLoading && <p className="py-10 text-center text-sm text-gray-400">Loading chart…</p>}
-      {isError && <p className="py-10 text-center text-sm text-red-500">Failed to load chart data.</p>}
+      {isLoading && <p className="py-10 text-center text-sm text-ink-muted">Loading chart…</p>}
+      {isError && <p className="py-10 text-center text-sm text-danger">Failed to load chart data.</p>}
       {!isLoading && !isError && data && chartRows.length === 0 && (
-        <p className="py-10 text-center text-sm text-gray-400">No data yet.</p>
+        <p className="py-10 text-center text-sm text-ink-muted">No data yet.</p>
       )}
       {!isLoading && !isError && chartRows.length > 0 && (
         <ResponsiveContainer width="100%" height={220}>

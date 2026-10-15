@@ -7,8 +7,8 @@ import type { DisplayRow } from './columns';
 // the Customer section renders green, the Vendor section renders purple.
 // project_info — and any other unstyled group — keeps the neutral gray.
 const GROUP_HEADER_TINT: Record<string, string> = {
-  customer: 'bg-green-200 text-green-800',
-  vendor: 'bg-purple-200 text-purple-800',
+  customer: 'bg-emerald-100 text-emerald-800',
+  vendor: 'bg-indigo-100 text-indigo-800',
 };
 
 interface ColumnGroupHeaderProps {
@@ -44,7 +44,7 @@ export function ColumnGroupHeader({
 
   // 2. Label goes in the widest segment (first wins ties).
   const labelIdx = segments.reduce((best, s, i, arr) => (s.width > arr[best].width ? i : best), 0);
-  const tint = GROUP_HEADER_TINT[header.column.id] ?? 'bg-gray-100 text-gray-600';
+  const tint = GROUP_HEADER_TINT[header.column.id] ?? 'bg-canvas text-ink-muted';
 
   return (
     <>
@@ -72,7 +72,7 @@ export function ColumnGroupHeader({
             key={`${header.id}-${i}`}
             role="columnheader"
             style={style}
-            className={`border-b border-r border-gray-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${tint}`}
+            className={`border-b border-r border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${tint}`}
           >
             <span className="block truncate">
               {i === labelIdx && !header.isPlaceholder

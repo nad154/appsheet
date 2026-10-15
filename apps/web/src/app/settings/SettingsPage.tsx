@@ -24,21 +24,23 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import type { PublicUser, Role } from '@tracker/shared';
 import { ROLES } from '@tracker/shared';
+import { useToast } from '../../components/Toast';
+import { PageHeader } from '../../components/ui/PageHeader';
 // import { useToast } from '../../components/Toast'
 
 const btn =
   'rounded border px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-40';
-const btnPrimary = `${btn} bg-blue-600 text-white`;
-const btnDanger = `${btn} bg-red-600 text-white`;
-const btnGhost = `${btn} border-gray-300 text-gray-700 hover:bg-gray-100`;
-const inputCls = 'w-full rounded border border-gray-300 px-2 py-1.5 text-sm';
+const btnPrimary = `${btn} border-accent bg-accent text-white hover:opacity-90`;
+const btnDanger = `${btn} border-danger bg-danger text-white hover:opacity-90`;
+const btnGhost = `${btn} border-border text-ink hover:bg-canvas`;
+const inputCls = 'w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40';
 
 export function SettingsPage() {
   const { user: me } = useAuth();
 
   return (
     <div className="space-y-8">
-      <h1 className="text-lg font-semibold">Settings</h1>
+      <PageHeader title="Settings" />
 
       <UsersPanel me={me} />
       <CustomersPanel />
@@ -59,6 +61,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
   const { data: users, isLoading, isError, error } = useUsers();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const { showToast } = useToast();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -90,7 +93,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
     try {
       await updateUser.mutateAsync({ id: u.id, is_active: !u.is_active });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed.');
+      showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
       // showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
     }
   };
@@ -100,22 +103,22 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
     try {
       await updateUser.mutateAsync({ id: u.id, role: newRole });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed.');
+      showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
       // showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
     }
   };
 
   return (
-    <section className="rounded border border-gray-200 p-4">
+    <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">Users</h2>
 
-      {isLoading && <p className="text-xs text-gray-500">Loading users…</p>}
-      {isError && <p className="text-xs text-red-600">{error instanceof Error ? error.message : 'Failed to load users.'}</p>}
+      {isLoading && <p className="text-xs text-ink-muted">Loading users…</p>}
+      {isError && <p className="text-xs text-danger">{error instanceof Error ? error.message : 'Failed to load users.'}</p>}
 
       {users && (
         <table className="mb-4 w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
               <th className="pb-1 pr-3">Name</th>
               <th className="pb-1 pr-3">Email</th>
               <th className="pb-1 pr-3">Role</th>
@@ -127,18 +130,18 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
             {users.map((u) => {
               const isSelf = u.id === me?.id;
               return (
-                <tr key={u.id} className="border-b border-gray-100 align-middle">
+                <tr key={u.id} className="border-b border-border/60 align-middle">
                   <td className="py-1.5 pr-3">
                     {u.name}
-                    {isSelf && <span className="ml-1 text-xs text-gray-400">(you)</span>}
+                    {isSelf && <span className="ml-1 text-xs text-ink-muted">(you)</span>}
                   </td>
-                  <td className="py-1.5 pr-3 text-gray-600">{u.email}</td>
+                  <td className="py-1.5 pr-3 text-ink">{u.email}</td>
                   <td className="py-1.5 pr-3">
                     <select
                       value={u.role}
                       onChange={(e) => changeRole(u, e.target.value as Role)}
                       disabled={isSelf || updateUser.isPending}
-                      className="rounded border px-1.5 py-0.5 text-xs"
+                      className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-ink"
                       aria-label={`Role for ${u.name}`}
                     >
                       {ROLES.map((r) => (
@@ -149,7 +152,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
                     </select>
                   </td>
                   <td className="py-1.5 pr-3">
-                    <span className={u.is_active ? 'text-green-700' : 'text-gray-400'}>
+                    <span className={u.is_active ? 'text-success' : 'text-ink-muted'}>
                       {u.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
@@ -170,10 +173,10 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
         </table>
       )}
 
-      <h3 className="mb-2 text-xs font-semibold text-gray-500">Add user</h3>
+      <h3 className="mb-2 text-xs font-semibold text-ink-muted">Add user</h3>
       <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-500">Name</span>
+          <span className="text-[11px] text-ink-muted">Name</span>
           <input
             type="text"
             required
@@ -184,7 +187,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-500">Email</span>
+          <span className="text-[11px] text-ink-muted">Email</span>
           <input
             type="email"
             required
@@ -195,7 +198,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-500">Password</span>
+          <span className="text-[11px] text-ink-muted">Password</span>
           <input
             type="password"
             required
@@ -207,11 +210,11 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-500">Role</span>
+          <span className="text-[11px] text-ink-muted">Role</span>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as Role)}
-            className="w-36 rounded border px-2 py-1.5 text-sm"
+            className="w-36 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink"
           >
             {ROLES.map((r) => (
               <option key={r} value={r}>
@@ -223,7 +226,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
         <button type="submit" disabled={createUser.isPending} className={btnPrimary}>
           {createUser.isPending ? 'Creating…' : 'Add user'}
         </button>
-        {addNotice && <span className="text-xs text-red-600">{addNotice}</span>}
+        {addNotice && <span className="text-xs text-danger">{addNotice}</span>}
       </form>
     </section>
   );
@@ -311,12 +314,12 @@ function EntityAdminPanel({
   };
 
   return (
-    <section className="rounded border border-gray-200 p-4">
+    <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">{title}</h2>
 
-      {list.isLoading && <p className="text-xs text-gray-500">Loading…</p>}
+      {list.isLoading && <p className="text-xs text-ink-muted">Loading…</p>}
       {list.isError && (
-        <p className="text-xs text-red-600">
+        <p className="text-xs text-danger">
           {list.error instanceof Error ? list.error.message : 'Failed to load.'}
         </p>
       )}
@@ -324,14 +327,14 @@ function EntityAdminPanel({
       {list.data && list.data.length > 0 && (
         <table className="mb-4 w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
               <th className="pb-1 pr-3">Name</th>
               <th className="pb-1">Actions</th>
             </tr>
           </thead>
           <tbody>
             {list.data.map((row) => (
-              <tr key={row.id} className="border-b border-gray-100 align-middle">
+              <tr key={row.id} className="border-b border-border/60 align-middle">
                 <td className="py-1.5 pr-3">
                   {editingId === row.id ? (
                     <input
@@ -341,7 +344,7 @@ function EntityAdminPanel({
                         if (e.key === 'Enter') void commitRename(row.id);
                         if (e.key === 'Escape') setEditingId(null);
                       }}
-                      className="w-64 rounded border border-gray-300 px-2 py-1 text-sm"
+                      className="w-64 rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink"
                       aria-label={`Rename ${row.name}`}
                     />
                   ) : (
@@ -385,10 +388,10 @@ function EntityAdminPanel({
         </table>
       )}
 
-      <h3 className="mb-2 text-xs font-semibold text-gray-500">Add {title.toLowerCase().replace(/s$/, '')}</h3>
+      <h3 className="mb-2 text-xs font-semibold text-ink-muted">Add {title.toLowerCase().replace(/s$/, '')}</h3>
       <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-500">Name</span>
+          <span className="text-[11px] text-ink-muted">Name</span>
           <input
             type="text"
             required
@@ -402,7 +405,7 @@ function EntityAdminPanel({
           {create.isPending ? 'Adding…' : 'Add'}
         </button>
       </form>
-      {notice && <p className={`mt-2 text-xs ${notice.kind === 'error' ? 'text-red-600' : 'text-green-700'}`}>{notice.text}</p>}
+      {notice && <p className={`mt-2 text-xs ${notice.kind === 'error' ? 'text-danger' : 'text-success'}`}>{notice.text}</p>}
     </section>
   );
 }
@@ -443,6 +446,7 @@ function MarketSegmentsPanel() {
   const { data: segments, isLoading, isError, error } = useMarketSegments();
   const createSegment = useCreateMarketSegment();
   const updateSegment = useUpdateMarketSegment();
+  const { showToast } = useToast();
 
   const [label, setLabel] = useState('');
   const [sortOrder, setSortOrder] = useState('0');
@@ -469,24 +473,24 @@ function MarketSegmentsPanel() {
     try {
       await updateSegment.mutateAsync({ id, is_active: !isActive });
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed.');
+      showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
       // showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
     }
   };
 
   return (
-    <section className="rounded border border-gray-200 p-4">
+    <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">Market Segments</h2>
 
-      {isLoading && <p className="text-xs text-gray-500">Loading segments…</p>}
+      {isLoading && <p className="text-xs text-ink-muted">Loading segments…</p>}
       {isError && (
-        <p className="text-xs text-red-600">{error instanceof Error ? error.message : 'Failed to load segments.'}</p>
+        <p className="text-xs text-danger">{error instanceof Error ? error.message : 'Failed to load segments.'}</p>
       )}
 
       {segments && (
         <table className="mb-4 w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
               <th className="pb-1 pr-3">Label</th>
               <th className="pb-1 pr-3 w-24">Sort order</th>
               <th className="pb-1 pr-3">Status</th>
@@ -495,11 +499,11 @@ function MarketSegmentsPanel() {
           </thead>
           <tbody>
             {segments.map((s) => (
-              <tr key={s.id} className="border-b border-gray-100 align-middle">
+              <tr key={s.id} className="border-b border-border/60 align-middle">
                 <td className="py-1.5 pr-3">{s.label}</td>
-                <td className="py-1.5 pr-3 text-gray-500">{s.sort_order}</td>
+                <td className="py-1.5 pr-3 text-ink-muted">{s.sort_order}</td>
                 <td className="py-1.5 pr-3">
-                  <span className={s.is_active ? 'text-green-700' : 'text-gray-400'}>
+                  <span className={s.is_active ? 'text-success' : 'text-ink-muted'}>
                     {s.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </td>
@@ -519,10 +523,10 @@ function MarketSegmentsPanel() {
         </table>
       )}
 
-      <h3 className="mb-2 text-xs font-semibold text-gray-500">Add segment</h3>
+      <h3 className="mb-2 text-xs font-semibold text-ink-muted">Add segment</h3>
       <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-500">Label</span>
+          <span className="text-[11px] text-ink-muted">Label</span>
           <input
             type="text"
             required
@@ -533,18 +537,18 @@ function MarketSegmentsPanel() {
           />
         </label>
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-500">Sort order</span>
+          <span className="text-[11px] text-ink-muted">Sort order</span>
           <input
             type="number"
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
-            className="w-20 rounded border border-gray-300 px-2 py-1.5 text-sm"
+            className="w-20 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink"
           />
         </label>
         <button type="submit" disabled={createSegment.isPending} className={btnPrimary}>
           {createSegment.isPending ? 'Adding…' : 'Add segment'}
         </button>
-        {addNotice && <span className="text-xs text-red-600">{addNotice}</span>}
+        {addNotice && <span className="text-xs text-danger">{addNotice}</span>}
       </form>
     </section>
   );
@@ -557,6 +561,7 @@ function MarketSegmentsPanel() {
 function AgingThresholdsPanel() {
   const { data, isLoading, isError, error } = useAgingThresholds();
   const updateThresholds = useUpdateAgingThresholds();
+  const { showToast } = useToast();
 
   const [low, setLow] = useState('');
   const [medium, setMedium] = useState('');
@@ -584,53 +589,53 @@ function AgingThresholdsPanel() {
       await updateThresholds.mutateAsync({ low_max_days: lowNum, medium_max_days: mediumNum });
       setNotice('Thresholds updated.');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed.');
+      showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
       // showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
     }
   };
 
   return (
-    <section className="rounded border border-gray-200 p-4">
+    <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">Aging → Priority</h2>
-      <p className="mb-3 text-xs text-gray-500">
+      <p className="mb-3 text-xs text-ink-muted">
         Projects are assigned a Priority from their Aging value. High priority is anything above the
         Medium threshold.
       </p>
 
-      {isLoading && <p className="text-xs text-gray-500">Loading thresholds…</p>}
+      {isLoading && <p className="text-xs text-ink-muted">Loading thresholds…</p>}
       {isError && (
-        <p className="text-xs text-red-600">{error instanceof Error ? error.message : 'Failed to load thresholds.'}</p>
+        <p className="text-xs text-danger">{error instanceof Error ? error.message : 'Failed to load thresholds.'}</p>
       )}
 
       {data && (
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] text-gray-500">Low priority — up to N days</span>
+            <span className="text-[11px] text-ink-muted">Low priority — up to N days</span>
             <input
               type="number"
               min={1}
               value={low}
               onChange={(e) => setLow(e.target.value)}
-              className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm"
+              className="w-28 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink"
             />
           </label>
           <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] text-gray-500">Medium priority — up to N days</span>
+            <span className="text-[11px] text-ink-muted">Medium priority — up to N days</span>
             <input
               type="number"
               min={1}
               value={medium}
               onChange={(e) => setMedium(e.target.value)}
-              className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm"
+              className="w-28 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink"
             />
           </label>
-          <span className="text-sm text-gray-600">High priority — anything above</span>
+          <span className="text-sm text-ink">High priority — anything above</span>
           <button type="button" onClick={handleSave} disabled={!valid || updateThresholds.isPending} className={btnPrimary}>
             {updateThresholds.isPending ? 'Saving…' : 'Save'}
           </button>
-          {notice && <span className="text-xs text-green-700">{notice}</span>}
+          {notice && <span className="text-xs text-success">{notice}</span>}
           {!valid && (
-            <span className="text-xs text-amber-700">Medium must be greater than Low, both must be positive integers.</span>
+            <span className="text-xs text-warning">Medium must be greater than Low, both must be positive integers.</span>
           )}
         </div>
       )}

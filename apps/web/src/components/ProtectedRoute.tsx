@@ -16,7 +16,7 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   const location = useLocation();
 
   if (initializing) {
-    return <div className="flex h-screen items-center justify-center text-sm text-gray-500">Loading…</div>;
+    return <div className="flex h-screen items-center justify-center text-sm text-ink-muted">Loading…</div>;
   }
 
   if (!user) {

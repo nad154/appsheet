@@ -137,12 +137,17 @@ test('priority badge follows the aging thresholds configured by the admin', asyn
   // Shrink both thresholds → the two badges flip to High together.
   await saveThresholds(page, '5', '8');
   await goBackToGrid(page);
+  // The grid is virtualized; the second line sits directly below the group
+  // header row and can fall outside the render window, so scroll to it before
+  // asserting on its badge.
+  await scrollGridTo(page, 'E2E Priority Vendor');
   await expect(row.getByText('High', { exact: true })).toBeVisible();
   await expect(row2.getByText('High', { exact: true })).toBeVisible();
 
   // Expand them again → both flip back to Low together.
   await saveThresholds(page, '60', '120');
   await goBackToGrid(page);
+  await scrollGridTo(page, 'E2E Priority Vendor');
   await expect(row.getByText('Low', { exact: true })).toBeVisible();
   await expect(row2.getByText('Low', { exact: true })).toBeVisible();
 

@@ -5,6 +5,7 @@ import {
   type ColumnGroupOption,
   type GridPresetId,
 } from './columns';
+import { LockIcon } from '../ui/icons';
 
 interface ColumnsMenuProps {
   hiddenColumnIds: string[];
@@ -128,7 +129,7 @@ export function ColumnsMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+        className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
         data-testid="columns-button"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -141,30 +142,30 @@ export function ColumnsMenu({
           role="dialog"
           aria-label="Choose visible columns"
           tabIndex={-1}
-          className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg border border-gray-200 bg-white shadow-lg"
+          className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg border border-border bg-surface shadow-overlay"
           data-testid="columns-panel"
         >
-          <div className="flex flex-wrap gap-1 border-b border-gray-100 p-2">
+          <div className="flex flex-wrap gap-1 border-b border-border p-2">
             {GRID_PRESETS.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => onPreset(p.id)}
-                className="rounded-full border border-gray-300 px-2.5 py-0.5 text-xs text-gray-700 hover:bg-gray-50"
+                className="rounded-full border border-border px-2.5 py-0.5 text-xs text-ink-muted hover:bg-canvas"
               >
                 {p.label}
               </button>
             ))}
           </div>
 
-          <div className="border-b border-gray-100 p-2">
+          <div className="border-b border-border p-2">
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search columns"
               aria-label="Search columns"
-              className="w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              className="w-full rounded border border-border bg-surface px-2 py-1 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
             />
           </div>
 
@@ -186,9 +187,9 @@ export function ColumnsMenu({
                       aria-checked={groupMixed ? 'mixed' : groupChecked}
                       disabled={state.total === 0}
                       onChange={(e) => toggleGroup(group, e.target.checked)}
-                      className="accent-blue-600"
+                      className="accent-accent"
                     />
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
                       {group.label}
                     </span>
                   </legend>
@@ -198,7 +199,7 @@ export function ColumnsMenu({
                       return (
                         <label
                           key={col.id}
-                          className="flex items-center gap-2 rounded px-1 py-0.5 pl-5 text-sm text-gray-800 hover:bg-gray-50"
+                          className="flex items-center gap-2 rounded px-1 py-0.5 pl-5 text-sm text-ink hover:bg-canvas"
                           title={col.locked ? 'This column cannot be hidden' : undefined}
                         >
                           <input
@@ -207,12 +208,14 @@ export function ColumnsMenu({
                             disabled={col.locked}
                             aria-label={col.label}
                             onChange={(e) => toggleColumn(group, col.id, e.target.checked)}
-                            className="accent-blue-600 disabled:opacity-60"
+                            className="accent-accent disabled:opacity-60"
                           />
                           {col.locked && (
-                            <span aria-hidden="true" className="text-xs text-gray-400">
-                              🔒
-                            </span>
+                            <LockIcon
+                              size={12}
+                              aria-hidden="true"
+                              className="shrink-0 text-ink-muted/70"
+                            />
                           )}
                           <span className="truncate">{col.label}</span>
                         </label>
@@ -223,24 +226,24 @@ export function ColumnsMenu({
               );
             })}
             {filteredGroups.length === 0 && (
-              <p className="px-1 py-2 text-xs text-gray-400">No columns match "{search}".</p>
+              <p className="px-1 py-2 text-xs text-ink-muted">No columns match "{search}".</p>
             )}
           </div>
 
           {vendorHidden && (
-            <p className="border-t border-amber-100 bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
+            <p className="border-t border-warning/20 bg-warning-soft px-3 py-1.5 text-xs text-warning">
               Rows are still shown per vendor line.
             </p>
           )}
 
-          <div className="flex items-center justify-between border-t border-gray-100 px-3 py-2">
-            <span className="text-xs text-gray-500">
+          <div className="flex items-center justify-between border-t border-border px-3 py-2">
+            <span className="text-xs text-ink-muted">
               Showing {visibleCount} of {totalColumns} columns
             </span>
             <button
               type="button"
               onClick={onReset}
-              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              className="rounded border border-border px-2 py-1 text-xs text-ink-muted hover:bg-canvas"
               data-testid="columns-reset"
             >
               Reset to default

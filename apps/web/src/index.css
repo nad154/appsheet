@@ -1,6 +1,13 @@
+@import '@fontsource-variable/inter';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-canvas text-ink antialiased;
+  }
+}
 
 /* Drill-down arrival: brief highlight of the grid row the user navigated to
    from a dashboard chart. Applied via the arbitrary-value class
@@ -26,5 +33,17 @@
   }
   100% {
     background-color: var(--stripe-bg, #ffffff);
+  }
+}
+
+/* Toast entrance: applied via `animate-[toast-in_0.18s_ease-out]`. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

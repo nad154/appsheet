@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Project, ProjectStage, ProjectVendorLine } from '@tracker/shared';
 import { computeAging, computePriority } from '@tracker/shared';
 import type { AssignableUser } from '../../hooks/useProjects';
@@ -25,6 +24,8 @@ import {
 } from '../../lib/projectFields';
 import { STAGE_LABEL, STAGE_STYLES } from './columns';
 import { StageConfirmModal } from './StageConfirmModal';
+import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
 import type { EditResult } from './ProjectTable';
 import type { ToastVariant } from '../Toast';
 
@@ -166,9 +167,9 @@ function StageFieldInput({
   onSelectFinish: () => void;
   onChange: (value: string) => void;
 }) {
-  const label = <span className="text-xs text-gray-600">{FIELD_LABELS.current_stage}</span>;
+  const label = <span className="text-xs text-ink-muted">{FIELD_LABELS.current_stage}</span>;
   const cls =
-    'mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300';
+    'mt-1 w-full rounded border border-border px-2 py-1 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40';
 
   if (projectStage === 'finish') {
     return (
@@ -240,8 +241,8 @@ function PriceField({
       onFocus={handleFocus}
       onBlur={handleBlur}
       onChange={(e) => setEditing(sanitizeNumeric(e.target.value))}
-      className={`mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300 ${
-        display ? 'text-gray-800' : 'text-gray-400'
+      className={`mt-1 w-full rounded border border-border px-2 py-1 text-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+        display ? 'text-ink' : 'text-ink-muted'
       }`}
     />
   );
@@ -285,19 +286,19 @@ function DateField({
   };
 
   return (
-    <div className="mt-1 flex w-full items-center rounded border border-gray-300 px-2 py-1">
+    <div className="mt-1 flex w-full items-center rounded border border-border px-2 py-1">
       <button
         type="button"
         onClick={openPicker}
         title={display || 'Pick a date'}
         className={`flex flex-1 cursor-pointer items-center justify-between gap-2 text-left text-sm focus:outline-none ${
-          display ? 'text-gray-800' : 'text-gray-400'
+          display ? 'text-ink' : 'text-ink-muted'
         }`}
       >
         {display || '—'}
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className="h-3.5 w-3.5 text-gray-400"
+          className="h-3.5 w-3.5 text-ink-muted"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -317,7 +318,7 @@ function DateField({
           onClick={() => onChange('')}
           aria-label="Clear date"
           title="Clear date"
-          className="ml-1 rounded p-1 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          className="ml-1 rounded p-1 text-xs text-ink-muted hover:bg-canvas hover:text-ink"
         >
           ✕
         </button>
@@ -347,11 +348,11 @@ function FieldInput({
   onChange: (key: string, value: string) => void;
 }) {
   const editType = FIELD_TYPES[field] ?? 'text';
-  const label = <span className="text-xs text-gray-600">{FIELD_LABELS[field] ?? field}</span>;
+  const label = <span className="text-xs text-ink-muted">{FIELD_LABELS[field] ?? field}</span>;
   // Empty fields render their value/placeholder in light gray so a null/blank
   // field reads as empty instead of looking like plain dark text.
-  const cls = `mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${
-    value ? 'text-gray-800' : 'text-gray-400'
+  const cls = `mt-1 w-full rounded border border-border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+    value ? 'text-ink' : 'text-ink-muted'
   }`;
 
   if (editType === 'date') {
@@ -458,14 +459,14 @@ function FolderBadges({
   const folderName = project.folder_name;
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-      <span className="text-gray-400">
+      <span className="text-ink-muted">
         Folder:{' '}
         {driveFolderId ? (
           <a
             href={`https://drive.google.com/drive/folders/${driveFolderId}`}
             target="_blank"
             rel="noreferrer"
-            className="text-blue-600 underline"
+            className="text-accent underline"
           >
             {folderName || 'open Drive'}
           </a>
@@ -482,13 +483,13 @@ function FolderBadges({
               onChange={(e) => onLinkInput(e.target.value)}
               placeholder="Drive folder URL or ID"
               aria-label="Drive folder URL or ID"
-              className="w-48 rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              className="w-48 rounded border border-border px-2 py-0.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
             />
             <button
               type="button"
               onClick={onLinkFolder}
               disabled={busy !== null || !linkInput.trim()}
-              className="rounded border border-blue-300 px-2 py-0.5 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+              className="rounded-md border border-border bg-surface px-2 py-0.5 text-accent hover:bg-accent-soft disabled:opacity-50"
             >
               {busy === 'link' ? 'Linking…' : 'Link existing folder'}
             </button>
@@ -497,7 +498,7 @@ function FolderBadges({
             type="button"
             onClick={onCreateFolder}
             disabled={busy !== null}
-            className="rounded bg-blue-600 px-2 py-0.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-md bg-accent px-2 py-0.5 font-medium text-white hover:bg-accent-hover disabled:opacity-50"
           >
             {busy === 'create' ? 'Creating…' : 'Create folder'}
           </button>
@@ -508,9 +509,9 @@ function FolderBadges({
 }
 
 const PRIORITY_STYLES: Record<'low' | 'medium' | 'high', string> = {
-  low: 'border-green-300 bg-green-100 text-green-800',
-  medium: 'border-amber-300 bg-amber-100 text-amber-800',
-  high: 'border-red-300 bg-red-100 text-red-800',
+  low: 'border-success/30 bg-success-soft text-success',
+  medium: 'border-warning/30 bg-warning-soft text-warning',
+  high: 'border-danger/30 bg-danger-soft text-danger',
 };
 
 export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onNotice }: EditProjectModalProps) {
@@ -550,14 +551,6 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
   const thresholds = useAgingThresholds();
   const agingThresholds = thresholds.data ?? { low_max_days: 0, medium_max_days: 0 };
   const { showToast } = useToast();
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && (e.target as HTMLElement | null)?.tagName !== 'INPUT') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   const setField = (key: string, value: string) => setDraft((d) => ({ ...d, [key]: value }));
 
@@ -750,11 +743,11 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
       />
       {sections.map(({ section, fields }) => (
         <fieldset key={section} className="mb-5">
-          <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{section}</legend>
+          <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">{section}</legend>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {section === 'Customer' && (
               <label className="flex flex-col">
-                <span className="text-xs text-gray-600">{FIELD_LABELS.customer_id ?? 'Customer'}</span>
+                <span className="text-xs text-ink-muted">{FIELD_LABELS.customer_id ?? 'Customer'}</span>
                 <EntityCombobox
                   value={customerId}
                   valueLabel={customerLabel()}
@@ -784,11 +777,11 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
       ))}
 
       <fieldset className="mb-5">
-        <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+        <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
           Vendor lines {lines.length > 0 && <span className="normal-case">({lines.length})</span>}
         </legend>
         {lines.length === 0 && (
-          <p className="mb-2 text-xs text-gray-400">No vendor lines yet — add one below.</p>
+          <p className="mb-2 text-xs text-ink-muted">No vendor lines yet — add one below.</p>
         )}
         <div className="space-y-4">
           {lines.map((line, index) => (
@@ -806,18 +799,14 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
             />
           ))}
         </div>
-        <button
-          type="button"
-          onClick={addBlankLine}
-          className="mt-3 rounded border border-dashed border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
-        >
+        <Button variant="secondary" size="sm" className="mt-3 border-dashed" onClick={addBlankLine}>
           + Add vendor
-        </button>
+        </Button>
       </fieldset>
 
       {!isAdmin && (
-        <fieldset className="mb-5 rounded border border-amber-200 bg-amber-50 p-3">
-          <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+        <fieldset className="mb-5 rounded border border-warning/20 bg-warning-soft p-3">
+          <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-warning">
             Update Progress <span className="normal-case font-normal">(required)</span>
           </legend>
           <textarea
@@ -826,58 +815,39 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
             value={updateProgress}
             onChange={(e) => setUpdateProgress(e.target.value)}
             placeholder="Describe what you changed and why…"
-            className="w-full rounded border border-amber-300 px-2 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300"
+            className="w-full rounded border border-warning/40 bg-surface px-2 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-warning/40"
             aria-label="Update progress"
           />
         </fieldset>
       )}
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <div className="flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
-        <button type="button" onClick={onClose} className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50">
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || !draft.project_name?.trim() || (!isAdmin && !updateProgress.trim())}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
-      </div>
+      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
     </div>
   );
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-lg bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Edit ${project.project_name}`}
+  return (
+    <>
+      <Modal
+        ariaLabel={`Edit ${project.project_name}`}
+        eyebrow="Edit project"
+        title={project.project_name}
+        onClose={onClose}
+        maxWidthClass="max-w-4xl"
+        footer={
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !draft.project_name?.trim() || (!isAdmin && !updateProgress.trim())}
+            >
+              {saving ? 'Saving…' : 'Save changes'}
+            </Button>
+          </>
+        }
       >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Edit project</p>
-            <h2 className="text-base font-semibold text-gray-800">{project.project_name}</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Close"
-            title="Close"
-          >
-            ✕
-          </button>
-        </div>
         {renderBody()}
-      </div>
+      </Modal>
       {stageFinishConfirm && (
         <StageConfirmModal
           projectName={project.project_name}
@@ -885,8 +855,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
           onCancel={() => setStageFinishConfirm(false)}
         />
       )}
-    </div>,
-    document.body,
+    </>
   );
 }
 
@@ -912,13 +881,13 @@ export function VendorLineRow({
   onRemove: () => void;
 }) {
   const cls = (v: unknown): string =>
-    `w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300 ${
-      v ? 'text-gray-800' : 'text-gray-400'
+    `w-full rounded border border-border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+      v ? 'text-ink' : 'text-ink-muted'
     }`;
   return (
     <div className="rounded border border-gray-200 p-3">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-500">Vendor {index + 1}</span>
+        <span className="text-xs font-semibold text-ink-muted">Vendor {index + 1}</span>
         <span className="flex items-center gap-2">
           {priority && (
             <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${PRIORITY_STYLES[priority]}`}>
@@ -928,7 +897,7 @@ export function VendorLineRow({
           <button
             type="button"
             onClick={onRemove}
-            className="rounded border border-red-200 px-2 py-0.5 text-xs text-red-600 hover:bg-red-50"
+            className="rounded border border-danger/20 px-2 py-0.5 text-xs text-danger hover:bg-danger-soft"
           >
             Remove
           </button>
@@ -936,7 +905,7 @@ export function VendorLineRow({
       </div>
       <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
         <label className="flex flex-col md:col-span-2">
-          <span className="text-xs text-gray-600">Vendor</span>
+          <span className="text-xs text-ink-muted">Vendor</span>
           <EntityCombobox
             value={line.vendor_id}
             valueLabel={valueLabel}
@@ -948,7 +917,7 @@ export function VendorLineRow({
           />
         </label>
         {VENDOR_LINE_FIELDS.map((f) => {
-          const labelEl = <span className="text-xs text-gray-600">{f.label}</span>;
+          const labelEl = <span className="text-xs text-ink-muted">{f.label}</span>;
           if (f.type === 'select') {
             return (
               <label key={f.key} className="flex flex-col">

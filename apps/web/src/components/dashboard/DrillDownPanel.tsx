@@ -26,23 +26,23 @@ export function DrillDownPanel({
   const visible = projects.slice(0, MAX_VISIBLE);
 
   return (
-    <div className="mt-3 border-t border-gray-100 pt-3" data-testid="drill-down-panel">
+    <div className="mt-3 border-t border-border pt-3" data-testid="drill-down-panel">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Projects — {value}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Projects — {value}</p>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close drill-down"
-          className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          className="rounded p-1 text-ink-muted hover:bg-canvas hover:text-ink"
         >
           ×
         </button>
       </div>
 
-      {isLoading && <p className="py-3 text-sm text-gray-400">Loading projects…</p>}
-      {isError && <p className="py-3 text-sm text-red-500">Failed to load projects.</p>}
+      {isLoading && <p className="py-3 text-sm text-ink-muted">Loading projects…</p>}
+      {isError && <p className="py-3 text-sm text-danger">Failed to load projects.</p>}
       {!isLoading && !isError && projects.length === 0 && (
-        <p className="py-3 text-sm text-gray-400">No projects in this category.</p>
+        <p className="py-3 text-sm text-ink-muted">No projects in this category.</p>
       )}
 
       {!isLoading && !isError && visible.length > 0 && (
@@ -53,13 +53,13 @@ export function DrillDownPanel({
                 <button
                   type="button"
                   onClick={() => onSelect(p.id)}
-                  className="flex w-full items-center justify-between gap-3 rounded px-2 py-1 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                  className="flex w-full items-center justify-between gap-3 rounded px-2 py-1 text-left text-sm text-ink hover:bg-accent-soft hover:text-accent"
                 >
                   <span className="truncate">{p.project_name}</span>
                   {/* vendor-based drill-downs (vendor_type / priority) list one
                       entry per vendor line — show which vendor the line belongs to */}
                   {p.vendor_name && (
-                    <span className="shrink-0 truncate text-xs font-normal text-gray-400" title={p.vendor_name}>
+                    <span className="shrink-0 truncate text-xs font-normal text-ink-muted" title={p.vendor_name}>
                       {p.vendor_name}
                     </span>
                   )}
@@ -68,7 +68,7 @@ export function DrillDownPanel({
             ))}
           </ul>
           {projects.length > MAX_VISIBLE && (
-            <p className="mt-2 text-xs text-gray-400">
+            <p className="mt-2 text-xs text-ink-muted">
               Showing {MAX_VISIBLE} of {projects.length} projects.
             </p>
           )}

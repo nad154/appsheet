@@ -3,6 +3,8 @@ import { useDashboardViews, useDeleteDashboardView } from '../../hooks/useDashbo
 import { ChartCard } from '../../components/dashboard/ChartCard';
 import { AddViewForm } from '../../components/dashboard/AddViewForm';
 import { useToast } from '../../components/Toast';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
 
 export function DashboardPage() {
   const { data: views, isLoading } = useDashboardViews();
@@ -20,22 +22,16 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Dashboard</h1>
-        <button
-          type="button"
-          onClick={() => setShowAdd((v) => !v)}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          {showAdd ? 'Cancel' : 'Add view'}
-        </button>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        actions={<Button onClick={() => setShowAdd((v) => !v)}>{showAdd ? 'Cancel' : 'Add view'}</Button>}
+      />
 
       {showAdd && <AddViewForm onDone={() => setShowAdd(false)} />}
 
-      {isLoading && <p className="text-sm text-gray-500">Loading views…</p>}
+      {isLoading && <p className="text-sm text-ink-muted">Loading views…</p>}
       {views && views.length === 0 && !isLoading && (
-        <p className="text-sm text-gray-400">No views yet — add one to get started.</p>
+        <p className="text-sm text-ink-muted">No views yet — add one to get started.</p>
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

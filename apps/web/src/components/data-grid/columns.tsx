@@ -55,8 +55,8 @@ function text(
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey);
-      if (v === null || v === undefined || v === '') return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800" title={String(v)}>{String(v)}</span>;
+      if (v === null || v === undefined || v === '') return <span className="text-ink-muted/50">—</span>;
+      return <span className="block truncate text-sm text-ink" title={String(v)}>{String(v)}</span>;
     },
   };
 }
@@ -80,7 +80,7 @@ function ProjectNameCell({
       {isAdmin && unread && (
         <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-label="Unread update" data-testid="unread-update-dot" />
       )}
-      <span className="block min-w-0 flex-1 break-words text-sm leading-snug text-gray-800">
+      <span className="block min-w-0 flex-1 break-words text-sm leading-snug text-ink">
         {name}
       </span>
     </span>
@@ -110,7 +110,7 @@ const projectNumberColumn: ColumnDef<DisplayRow> = {
   enableSorting: false,
   cell: ({ row }) => {
     if (!row.original.isFirstOfGroup) return null;
-    return <span className="block text-sm text-gray-500">{row.original.index}</span>;
+    return         <span className="block text-sm text-ink-muted">{row.original.index}</span>;
   },
 };
 
@@ -123,8 +123,8 @@ function numberCol(accessorKey: keyof Project, header: string, size = 120): Colu
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey);
-      if (v === null || v === undefined || v === '') return <span className="text-gray-300">Rp —</span>;
-      return <span className="block truncate text-sm text-gray-800">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
+      if (v === null || v === undefined || v === '') return <span className="text-ink-muted/50">Rp —</span>;
+      return <span className="block truncate text-sm text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
   };
 }
@@ -145,8 +145,8 @@ function selectCol(
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey) as string | null | undefined;
-      if (!v) return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800">{v}</span>;
+      if (!v) return <span className="text-ink-muted/50">—</span>;
+      return <span className="block truncate text-sm text-ink">{v}</span>;
     },
   };
 }
@@ -161,8 +161,8 @@ function selectDate(accessorKey: keyof Project, header: string, size = 170): Col
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey) as string | null | undefined;
       const display = formatGridDate(v);
-      if (!display) return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800" title={display}>{display}</span>;
+      if (!display) return <span className="text-ink-muted/50">—</span>;
+      return <span className="block truncate text-sm text-ink" title={display}>{display}</span>;
     },
   };
 }
@@ -182,11 +182,11 @@ function customerColumn(size = 160): ColumnDef<DisplayRow> {
       const { customer_id, customer_name } = row.original.project;
       if (!customer_name) {
         if (customer_id) {
-          return <span className="block truncate text-sm italic text-gray-400">(deleted customer)</span>;
+          return <span className="block truncate text-sm italic text-ink-muted">(deleted customer)</span>;
         }
-        return <span className="text-gray-300">—</span>;
+        return <span className="text-ink-muted/50">—</span>;
       }
-      return <span className="block break-words text-sm leading-snug text-gray-800">{customer_name}</span>;
+      return <span className="block break-words text-sm leading-snug text-ink">{customer_name}</span>;
     },
   };
 }
@@ -205,8 +205,8 @@ function picColumn(size = 140): ColumnDef<DisplayRow> {
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       const name = projectCell(row.original, 'pic_name') as string | null | undefined;
-      if (!name) return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800">{name}</span>;
+      if (!name) return <span className="text-ink-muted/50">—</span>;
+      return <span className="block truncate text-sm text-ink">{name}</span>;
     },
   };
 }
@@ -223,8 +223,8 @@ function salesColumn(size = 140): ColumnDef<DisplayRow> {
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       const name = projectCell(row.original, 'staff_assigned_name') as string | null | undefined;
-      if (!name) return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800">{name}</span>;
+      if (!name) return <span className="text-ink-muted/50">—</span>;
+      return <span className="block truncate text-sm text-ink">{name}</span>;
     },
   };
 }
@@ -264,7 +264,7 @@ function salesColumn(size = 140): ColumnDef<DisplayRow> {
 //       }
 
 //       const empty = !name ? (
-//         <span className="text-gray-300">—</span>
+//         <span className="text-ink-muted/50">—</span>
 //       ) : (
 //         <span className="block truncate text-sm underline">{name}</span>
 //       );
@@ -278,7 +278,7 @@ function salesColumn(size = 140): ColumnDef<DisplayRow> {
 //             e.stopPropagation();
 //             onLinkDrive(project);
 //           }}
-//           className="flex w-full items-center gap-1.5 rounded text-left hover:outline hover:outline-1 hover:outline-blue-300"
+//           className="flex w-full items-center gap-1.5 rounded text-left hover:outline hover:outline-1 hover:outline-accent/40"
 //           title="Link a Google Drive folder"
 //           aria-label={`Link Drive folder for ${project.project_name}`}
 //         >
@@ -300,9 +300,9 @@ function folderNameColumn(): ColumnDef<DisplayRow> {
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
       const name = row.original.project.folder_name;
-      if (!name) return <span className="text-gray-300">—</span>;
+      if (!name) return <span className="text-ink-muted/50">—</span>;
       return (
-        <span className="block truncate text-sm text-gray-800" title={name}>
+        <span className="block truncate text-sm text-ink" title={name}>
           {name}
         </span>
       );
@@ -320,15 +320,15 @@ function vendorTextCol(header: string, size = 160): ColumnDef<DisplayRow> {
     enableSorting: false,
     cell: ({ row }) => {
       const line = row.original.vendor;
-      if (!line) return <span className="text-gray-300">—</span>;
+      if (!line) return <span className="text-ink-muted/50">—</span>;
       const v = line.vendor_name;
       if (!v) {
         if (line.vendor_id) {
-          return <span className="block truncate text-sm italic text-gray-400">(deleted vendor)</span>;
+          return <span className="block truncate text-sm italic text-ink-muted">(deleted vendor)</span>;
         }
-        return <span className="text-gray-300">—</span>;
+        return <span className="text-ink-muted/50">—</span>;
       }
-      return <span className="block break-words text-sm leading-snug text-gray-800">{v}</span>;
+      return <span className="block break-words text-sm leading-snug text-ink">{v}</span>;
     },
   };
 }
@@ -345,8 +345,8 @@ function vendorNumberCol(
     enableSorting: false,
     cell: ({ row }) => {
       const v = vendorCell(row.original, key);
-      if (v === null || v === undefined || v === '') return <span className="text-gray-300">Rp —</span>;
-      return <span className="block truncate text-sm text-gray-800">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
+      if (v === null || v === undefined || v === '') return <span className="text-ink-muted/50">Rp —</span>;
+      return <span className="block truncate text-sm text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
   };
 }
@@ -363,8 +363,8 @@ function vendorSelectCol(
     enableSorting: false,
     cell: ({ row }) => {
       const v = vendorCell(row.original, key) as string | null | undefined;
-      if (!v) return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800">{v}</span>;
+      if (!v) return <span className="text-ink-muted/50">—</span>;
+      return <span className="block truncate text-sm text-ink">{v}</span>;
     },
   };
 }
@@ -378,8 +378,8 @@ function vendorDateCol(key: keyof ProjectVendorLine, header: string, size = 170)
     cell: ({ row }) => {
       const v = vendorCell(row.original, key) as string | null | undefined;
       const display = formatGridDate(v);
-      if (!display) return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800" title={display}>{display}</span>;
+      if (!display) return <span className="text-ink-muted/50">—</span>;
+      return <span className="block truncate text-sm text-ink" title={display}>{display}</span>;
     },
   };
 }
@@ -392,8 +392,8 @@ function vendorTextInputCol(key: keyof ProjectVendorLine, header: string, size =
     enableSorting: false,
     cell: ({ row }) => {
       const v = vendorCell(row.original, key) as string | null | undefined;
-      if (!v) return <span className="text-gray-300">—</span>;
-      return <span className="block truncate text-sm text-gray-800" title={v}>{v}</span>;
+      if (!v) return <span className="text-ink-muted/50">—</span>;
+      return <span className="block truncate text-sm text-ink" title={v}>{v}</span>;
     },
   };
 }
@@ -406,15 +406,15 @@ const agingColumn: ColumnDef<DisplayRow> = {
   accessorFn: (row) => computeAging(row.vendor ?? {}),
   cell: ({ row }) => {
     const aging = computeAging(row.original.vendor ?? {});
-    if (aging === null) return <span className="text-gray-300">—</span>;
-    return <span className="block text-sm text-gray-800">{aging}</span>;
+    if (aging === null) return <span className="text-ink-muted/50">—</span>;
+    return <span className="block text-sm text-ink">{aging}</span>;
   },
 };
 
 const PRIORITY_STYLES: Record<'low' | 'medium' | 'high', string> = {
-  low: 'bg-green-100 text-green-800 border-green-300',
-  medium: 'bg-amber-100 text-amber-800 border-amber-300',
-  high: 'bg-red-100 text-red-800 border-red-300',
+  low: 'bg-success-soft text-success border-success/30',
+  medium: 'bg-warning-soft text-warning border-warning/30',
+  high: 'bg-danger-soft text-danger border-danger/30',
 };
 const PRIORITY_LABEL: Record<'low' | 'medium' | 'high', string> = {
   low: 'Low',
@@ -427,8 +427,8 @@ export const STAGE_LABEL: Record<ProjectStage, string> = {
   finish: 'Finish',
 };
 export const STAGE_STYLES: Record<ProjectStage, string> = {
-  on_progress: 'bg-blue-100 text-blue-800 border-blue-300',
-  finish: 'bg-green-100 text-green-800 border-green-300',
+  on_progress: 'bg-accent-soft text-accent border-accent/30',
+  finish: 'bg-success-soft text-success border-success/30',
 };
 
 // Stage badge, styled like the priority badge. Display always shows one of the
@@ -459,7 +459,7 @@ function stageColumn(onRequestFinish: (project: Project) => void, isAdmin: boole
             e.stopPropagation();
             onRequestFinish(row.original.project);
           }}
-          className="rounded px-0 text-left hover:outline hover:outline-1 hover:outline-blue-300"
+          className="rounded px-0 text-left hover:outline hover:outline-1 hover:outline-accent/40"
           title="Mark project as Finish"
           aria-label={`Mark ${row.original.project.project_name} as Finish`}
         >
@@ -480,7 +480,7 @@ const priorityColumn: ColumnDef<DisplayRow> = {
   accessorKey: 'priority',
   cell: ({ row }) => {
     const p = row.original.vendor?.priority;
-    if (!p) return <span className="text-gray-300">—</span>;
+    if (!p) return <span className="text-ink-muted/50">—</span>;
     return (
       <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${PRIORITY_STYLES[p]}`}>
         {PRIORITY_LABEL[p]}
@@ -504,9 +504,9 @@ function UpdateProgressCell({
 }) {
   const text = row.project.update_progress;
   const content = text ? (
-    <span className="block truncate text-sm text-gray-800" title={text}>{text}</span>
+    <span className="block truncate text-sm text-ink" title={text}>{text}</span>
   ) : (
-    <span className="text-gray-300">—</span>
+    <span className="text-ink-muted/50">—</span>
   );
 
   if (!isAdmin) return content;
@@ -565,14 +565,14 @@ function IssuesCell({
 
   const content = text ? (
     <span className="flex min-w-0 flex-col leading-snug">
-      <span className="block truncate text-sm text-gray-800" title={text}>{text}</span>
-      <span className="block truncate text-[11px] text-gray-400">
+      <span className="block truncate text-sm text-ink" title={text}>{text}</span>
+      <span className="block truncate text-[11px] text-ink-muted">
         {issueDate ? formatIssueDate(issueDate) : '—'}
         {assignee ? ` · ${assignee}` : ''}
       </span>
     </span>
   ) : (
-    <span className="text-gray-300">—</span>
+    <span className="text-ink-muted/50">—</span>
   );
 
   if (!isAdmin) return content;

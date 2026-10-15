@@ -24,6 +24,10 @@ import { useGridPreferences } from '../../hooks/useGridPreferences';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/Toast';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Select, controlClass } from '../../components/ui/Input';
 
 const emptyForm = {
   project_name: '',
@@ -235,43 +239,48 @@ export function GridPage() {
     }
   };
 
-  const inputCls =
-    'mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300';
+  const fieldLabel = 'flex flex-col gap-1 text-xs font-medium text-ink-muted';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Project Grid</h1>
-          <label className="flex items-center gap-1.5 text-xs text-gray-600">
-            Year
-            <select
-              value={yearFilter ?? ''}
-              onChange={(e) => handleYearChange(e.target.value)}
-              className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              aria-label="Filter by creation year"
-            >
-              <option value="">All years</option>
-              {(years.data ?? []).map((y) => (
-                <option key={y} value={String(y)}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-gray-600">
-            Stage
-            <select
-              value={stageFilter ?? 'all'}
-              onChange={(e) => handleStageChange(e.target.value)}
-              className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
-              aria-label="Filter by project stage"
-            >
-              <option value="all">All stages</option>
-              <option value="on_progress">{STAGE_LABEL.on_progress}</option>
-              <option value="finish">{STAGE_LABEL.finish}</option>
-            </select>
-          </label>
+      <PageHeader
+        title="Project Grid"
+        actions={
+          <Button onClick={() => setShowAddForm((v) => !v)}>{showAddForm ? 'Cancel' : 'Add project'}</Button>
+        }
+      />
+
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 shadow-card">
+        <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+          Year
+          <Select
+            value={yearFilter ?? ''}
+            onChange={(e) => handleYearChange(e.target.value)}
+            className="!w-auto py-1 text-sm"
+            aria-label="Filter by creation year"
+          >
+            <option value="">All years</option>
+            {(years.data ?? []).map((y) => (
+              <option key={y} value={String(y)}>
+                {y}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+          Stage
+          <Select
+            value={stageFilter ?? 'all'}
+            onChange={(e) => handleStageChange(e.target.value)}
+            className="!w-auto py-1 text-sm"
+            aria-label="Filter by project stage"
+          >
+            <option value="all">All stages</option>
+            <option value="on_progress">{STAGE_LABEL.on_progress}</option>
+            <option value="finish">{STAGE_LABEL.finish}</option>
+          </Select>
+        </label>
+        <div className="ml-auto flex items-center gap-2">
           <ColumnsMenu
             hiddenColumnIds={hiddenColumnIds}
             hiddenGroupIds={hiddenGroupIds}
@@ -286,28 +295,20 @@ export function GridPage() {
             onReset={resetStickyColumns}
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setShowAddForm((v) => !v)}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Add project
-        </button>
       </div>
 
       {showAddForm && (
-        <div className="mb-4 rounded border border-gray-200 p-4">
-          <h2 className="mb-3 text-sm font-semibold">New project</h2>
+        <Card title="New project" className="mb-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <label className="flex flex-col text-xs text-gray-600">
+            <label className={fieldLabel}>
               Project name *
-              <input value={form.project_name} onChange={(e) => setField('project_name', e.target.value)} className={inputCls} />
+              <input value={form.project_name} onChange={(e) => setField('project_name', e.target.value)} className={controlClass} />
             </label>
-            <label className="flex flex-col text-xs text-gray-600">
+            <label className={fieldLabel}>
               Folder
-              <input value={form.folder_name} onChange={(e) => setField('folder_name', e.target.value)} className={inputCls} />
+              <input value={form.folder_name} onChange={(e) => setField('folder_name', e.target.value)} className={controlClass} />
             </label>
-            <label className="flex flex-col text-xs text-gray-600 md:col-span-2">
+            <label className={`${fieldLabel} md:col-span-2`}>
               Customer
               <EntityCombobox
                 value={customerId}
@@ -319,71 +320,71 @@ export function GridPage() {
                 ariaLabel="Customer"
               />
             </label>
-            <label className="flex flex-col text-xs text-gray-600">
+            <label className={fieldLabel}>
               Market segment
-              <input value={form.market_segment} onChange={(e) => setField('market_segment', e.target.value)} className={inputCls} />
+              <input value={form.market_segment} onChange={(e) => setField('market_segment', e.target.value)} className={controlClass} />
             </label>
-            <label className="flex flex-col text-xs text-gray-600">
+            <label className={fieldLabel}>
               Nilai PO/PKS Customer
-              <input type="number" value={form.customer_price} onChange={(e) => setField('customer_price', e.target.value)} className={inputCls} />
+              <input type="number" value={form.customer_price} onChange={(e) => setField('customer_price', e.target.value)} className={controlClass} />
             </label>
-            <label className="flex flex-col text-xs text-gray-600">
+            <label className={fieldLabel}>
               Type
-              <select value={form.service_or_goods} onChange={(e) => setField('service_or_goods', e.target.value)} className={inputCls}>
+              <Select value={form.service_or_goods} onChange={(e) => setField('service_or_goods', e.target.value)} className="py-1">
                 <option value="">–</option>
                 <option value="service">service</option>
                 <option value="goods">goods</option>
-              </select>
+              </Select>
             </label>
             {isAdmin && (
-              <label className="flex flex-col text-xs text-gray-600">
+              <label className={fieldLabel}>
                 Stage
-                <select
+                <Select
                   value={form.current_stage}
                   onChange={(e) => {
                     const next = e.target.value;
                     if (next === 'finish') setStageFinishConfirm(true);
                     else setField('current_stage', next);
                   }}
-                  className={inputCls}
+                  className="py-1"
                 >
                   <option value="on_progress">{STAGE_LABEL.on_progress}</option>
                   <option value="finish">{STAGE_LABEL.finish}</option>
-                </select>
+                </Select>
               </label>
             )}
             {isAdmin && (
-              <label className="flex flex-col text-xs text-gray-600">
+              <label className={fieldLabel}>
                 Sales
-                <select value={form.staff_assigned_id} onChange={(e) => setField('staff_assigned_id', e.target.value)} className={inputCls}>
+                <Select value={form.staff_assigned_id} onChange={(e) => setField('staff_assigned_id', e.target.value)} className="py-1">
                   <option value="">–</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             )}
-            <label className="flex flex-col text-xs text-gray-600">
+            <label className={fieldLabel}>
               PIC
-              <select value={form.pic_id} onChange={(e) => setField('pic_id', e.target.value)} className={inputCls}>
+              <Select value={form.pic_id} onChange={(e) => setField('pic_id', e.target.value)} className="py-1">
                 <option value="">–</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
 
           <fieldset className="mt-4">
-            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
               Vendor lines {vendorDrafts.length > 0 && <span className="normal-case">({vendorDrafts.length})</span>}
             </legend>
             {vendorDrafts.length === 0 && (
-              <p className="mb-2 text-xs text-gray-400">No vendor lines yet (optional) — add one below.</p>
+              <p className="mb-2 text-xs text-ink-muted">No vendor lines yet (optional) — add one below.</p>
             )}
             <div className="space-y-4">
               {vendorDrafts.map((d, index) => (
@@ -401,30 +402,21 @@ export function GridPage() {
                 />
               ))}
             </div>
-            <button
-              type="button"
-              onClick={addBlankLine}
-              className="mt-3 rounded border border-dashed border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50"
-            >
+            <Button variant="secondary" size="sm" className="mt-3 border-dashed" onClick={addBlankLine}>
               + Add vendor
-            </button>
+            </Button>
           </fieldset>
 
-          {addError && <p className="mt-3 text-sm text-red-600">{addError}</p>}
-          <div className="mt-3 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAddProject}
-              disabled={addSaving || !form.project_name.trim()}
-              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
+          {addError && <p className="mt-3 text-sm text-danger">{addError}</p>}
+          <div className="mt-4 flex items-center gap-2">
+            <Button onClick={handleAddProject} disabled={addSaving || !form.project_name.trim()}>
               {addSaving ? 'Submitting…' : 'Create'}
-            </button>
-            <button type="button" onClick={() => setShowAddForm(false)} className="rounded border px-3 py-1.5 text-sm text-gray-600">
+            </Button>
+            <Button variant="secondary" onClick={() => setShowAddForm(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
       <ProjectTable

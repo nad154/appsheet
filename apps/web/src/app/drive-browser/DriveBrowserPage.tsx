@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useDriveBrowse } from '../../hooks/useDrive';
 import type { DriveFileEntry } from '@tracker/shared';
+import { FolderIcon, FileIcon, ChevronDownIcon, ChevronRightIcon } from '../../components/ui/icons';
+import { PageHeader } from '../../components/ui/PageHeader';
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
@@ -21,21 +23,25 @@ function FolderNode({ folderId, label, depth }: FolderNodeProps) {
   const toggle = () => setExpanded((e) => !e);
   const indent = { paddingLeft: `${depth * 16 + 4}px` };
 
-  const isRoot = depth === 0;
-
   return (
     <li>
       <div className="flex items-center gap-2 py-1" style={indent}>
         <button
           type="button"
           onClick={toggle}
-          className="inline-flex min-w-6 items-center justify-center text-sm text-gray-500 hover:bg-gray-100"
+          className="inline-flex min-w-6 items-center justify-center rounded text-ink-muted hover:bg-canvas"
           aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
         >
-          {isLoading ? '…' : expanded ? '▾' : '▸'}
+          {isLoading ? (
+            '…'
+          ) : expanded ? (
+            <ChevronDownIcon size={14} aria-hidden="true" />
+          ) : (
+            <ChevronRightIcon size={14} aria-hidden="true" />
+          )}
         </button>
-        <span className="text-sm">{isRoot ? '🗀' : '📁'}</span>
-        <span className="truncate text-sm font-medium text-gray-800">{label}</span>
+        <FolderIcon size={15} aria-hidden="true" className="shrink-0 text-accent" />
+        <span className="truncate text-sm font-medium text-ink">{label}</span>
       </div>
       {expanded && (
         <ul>
@@ -61,16 +67,16 @@ function ChildrenList({
 }) {
   const indent = { paddingLeft: `${depth * 16 + 4}px` };
 
-  if (isLoading && !children) return <li style={indent} className="py-1 text-xs text-gray-400">Loading…</li>;
+  if (isLoading && !children) return <li style={indent} className="py-1 text-xs text-ink-muted">Loading…</li>;
   if (isError && !children) {
     return (
-      <li style={indent} className="py-1 text-xs text-red-600">
+      <li style={indent} className="py-1 text-xs text-danger">
         {error instanceof Error ? error.message : 'Failed to load folder.'}
       </li>
     );
   }
   if (!children || children.length === 0) {
-    return <li style={indent} className="py-1 text-xs text-gray-400">Empty folder</li>;
+    return <li style={indent} className="py-1 text-xs text-ink-muted">Empty folder</li>;
   }
 
   return (
@@ -80,8 +86,8 @@ function ChildrenList({
           <FolderNode key={entry.id} folderId={entry.id} label={entry.name} depth={depth} />
         ) : (
           <li key={entry.id} style={indent} className="flex items-center gap-2 py-1">
-            <span className="text-sm">📄</span>
-            <span className="truncate text-sm text-gray-700">{entry.name}</span>
+            <FileIcon size={15} aria-hidden="true" className="shrink-0 text-ink-muted" />
+            <span className="truncate text-sm text-ink">{entry.name}</span>
           </li>
         ),
       )}
@@ -92,8 +98,8 @@ function ChildrenList({
 export function DriveBrowserPage() {
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold">Drive Browser</h1>
-      <div className="rounded border border-gray-200 p-3">
+      <PageHeader title="Drive Browser" />
+      <div className="rounded-lg border border-border bg-surface p-3 shadow-card">
         <ul>
           <FolderNode folderId={null} label="root_folder" depth={0} />
         </ul>

@@ -15,6 +15,7 @@ import { StageConfirmModal } from './StageConfirmModal';
 import { LinkDriveModal } from './LinkDriveModal';
 import type { AssignableUser } from '../../hooks/useProjects';
 import type { ToastVariant } from '../Toast';
+import { PencilIcon } from '../ui/icons';
 
 interface ProjectColumnDef {
   columns?: ProjectColumnDef[];
@@ -66,8 +67,8 @@ interface ProjectTableProps {
 // purple (lighter than the group bands). The sticky Project Info group keeps
 // its neutral gray.
 const LEAF_HEADER_TINT: Record<string, string> = {
-  customer: 'bg-green-100 text-green-700',
-  vendor: 'bg-purple-100 text-purple-700',
+  customer: 'bg-emerald-50 text-emerald-700',
+  vendor: 'bg-indigo-50 text-indigo-700',
 };
 
 const Z = {
@@ -125,7 +126,7 @@ function EditableCell({
   const commit = () => onCommit(draft);
 
   const cls =
-    'w-full rounded border border-blue-400 bg-white px-1.5 py-0.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300';
+    'w-full rounded border border-accent bg-surface px-1.5 py-0.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40';
   
   if (editType === 'date') {
     return (
@@ -419,7 +420,7 @@ export function ProjectTable({
 
   if (isError) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+      <div className="rounded-lg border border-danger/20 bg-danger-soft p-4 text-sm text-danger">
         Failed to load projects. Please try again.
       </div>
     );
@@ -428,16 +429,16 @@ export function ProjectTable({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-ink-muted">
           {isAdmin
             ? 'Click any editable cell or the pencil to change a value directly.'
             : 'Click any row to open the edit form — changes apply immediately.'}
         </p>
-        {isLoading && <p className="text-xs text-gray-400">Refreshing…</p>}
+        {isLoading && <p className="text-xs text-ink-muted">Refreshing…</p>}
       </div>
       <div
         ref={parentRef}
-        className="relative min-h-0 flex-1 overflow-auto rounded-md border border-gray-200"
+        className="relative min-h-0 flex-1 overflow-auto rounded-md border border-border"
         role="table"
         aria-label="Projects grid"
         onMouseLeave={() => setHoveredProjectId(null)}
@@ -475,7 +476,7 @@ export function ProjectTable({
                       role="columnheader"
                       onClick={isSortable ? () => handleSortClick(columnId) : undefined}
                       aria-sort={isActiveSort ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      className={`border-b border-r border-gray-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-gray-100 text-gray-600'}`}
+                      className={`border-b border-r border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-canvas text-ink-muted'}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -486,7 +487,7 @@ export function ProjectTable({
                         // Tinted (Customer/Vendor) headers are already opaque
                         // and must keep their colour when sticky; only the plain
                         // grey headers need an explicit opaque background.
-                        backgroundColor: isStickyCol && !leafTint ? '#f9fafb' : undefined,
+                        backgroundColor: isStickyCol && !leafTint ? '#f8fafc' : undefined,
                         boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.08)' : undefined,
                         cursor: isSortable ? 'pointer' : undefined,
                       }}
@@ -495,7 +496,7 @@ export function ProjectTable({
                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                       </span>
                       {isSortable && (
-                        <span className="ml-1 text-xs text-gray-400">
+                        <span className="ml-1 text-xs text-ink-muted/60">
                           {isActiveSort ? (sortDir === 'desc' ? '↓' : '↑') : ''}
                         </span>
                       )}
@@ -508,7 +509,7 @@ export function ProjectTable({
           <div role="rowgroup" style={{ display: 'grid', height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
             {rows.length === 0 && !isLoading && (
               <div role="row" style={{ display: 'flex', width: '100%' }}>
-                <div role="cell" className="px-3 py-8 text-center text-sm text-gray-400" style={{ width: '100%' }}>
+                <div role="cell" className="px-3 py-8 text-center text-sm text-ink-muted" style={{ width: '100%' }}>
                   No projects to show.
                 </div>
               </div>
@@ -522,7 +523,7 @@ export function ProjectTable({
               const isStripeGray = index % 2 === 0;
               const isHighlighted =
                 flashActive && isFirstOfGroup && row.original.project.id === highlightedRowId;
-              const stripeBg = isStripeGray ? '#f3f4f6' : '#ffffff';
+              const stripeBg = isStripeGray ? '#f1f5f9' : '#ffffff';
               const hoverBg = '#DBDBDB';
               const rowBg = hoveredProjectId === project.id ? hoverBg : stripeBg;
               return (
@@ -534,7 +535,7 @@ export function ProjectTable({
                   data-testid={isHighlighted ? 'highlighted-row' : undefined}
                   onClick={!isAdmin && isFirstOfGroup ? () => setEditModalRow(project) : undefined}
                   onMouseEnter={() => setHoveredProjectId(project.id)}
-                  className={`border-b border-gray-100 ${
+                  className={`border-b border-border/60 ${
                     isHighlighted ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
                   } ${!isAdmin ? 'cursor-pointer' : ''}`}
                   style={{
@@ -578,7 +579,7 @@ export function ProjectTable({
                               onCancel={() => setActiveCell(null)}
                             />
                           </span>
-                          {isSaving && <span className="shrink-0 text-[10px] text-gray-400">saving…</span>}
+                          {isSaving && <span className="shrink-0 text-[10px] text-ink-muted">saving…</span>}
                         </div>
                       );
                     } else {
@@ -589,7 +590,7 @@ export function ProjectTable({
                             e.stopPropagation();
                             setActiveCell({ rowId: row.id, columnId: field });
                           }}
-                          className="w-full cursor-text rounded px-0 text-left hover:outline hover:outline-1 hover:outline-blue-300"
+                          className="w-full cursor-text rounded px-0 text-left hover:outline hover:outline-1 hover:outline-accent/40"
                           title={`Edit ${field}`}
                         >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -613,23 +614,11 @@ export function ProjectTable({
                                   e.stopPropagation();
                                   setEditModalRow(project);
                                 }}
-                                className="hidden rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 group-hover:inline-flex"
+                                className="hidden rounded p-0.5 text-ink-muted hover:bg-canvas hover:text-ink group-hover:inline-flex"
                                 aria-label={`Edit ${project.project_name}`}
                                 title="Edit project"
                               >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                                </svg>
+                                <PencilIcon size={14} />
                               </button>
                             </span>
                           </div>
@@ -643,7 +632,7 @@ export function ProjectTable({
                       <div
                         key={cell.id}
                         role="cell"
-                        className={`px-3 py-2 text-gray-700 ${
+                        className={`px-3 py-2 text-ink ${
                           isStickyCol && isHighlighted
                             ? 'animate-[row-flash-sticky_1.2s_ease-in-out]'
                             : ''
@@ -671,13 +660,13 @@ export function ProjectTable({
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-gray-200 bg-white py-2 text-sm text-gray-600">
+      <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-border bg-surface py-2 text-sm text-ink-muted">
         <div className="flex items-center gap-2">
           <span>Rows per page</span>
           <select
             value={pageSize}
             onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            className="rounded-md border px-2 py-1"
+            className="rounded-md border border-border px-2 py-1"
             aria-label="Rows per page"
           >
             {[25, 50, 100].map((n) => (
@@ -694,7 +683,7 @@ export function ProjectTable({
           <button
             onClick={() => handlePageChange(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40"
+            className="rounded-md border border-border px-3 py-1 disabled:opacity-40"
           >
             Prev
           </button>
@@ -704,7 +693,7 @@ export function ProjectTable({
           <button
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="rounded-md border border-gray-300 px-3 py-1 disabled:opacity-40"
+            className="rounded-md border border-border px-3 py-1 disabled:opacity-40"
           >
             Next
           </button>

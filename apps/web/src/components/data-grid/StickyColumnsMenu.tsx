@@ -68,7 +68,7 @@ export function StickyColumnsMenu({
 
       {open && (
         <div
-          className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-surface shadow-overlay"
+          className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-surface shadow-overlay"
           data-testid="sticky-columns-panel"
         >
           <div className="max-h-96 overflow-auto p-2">

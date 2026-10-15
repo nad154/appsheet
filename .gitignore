@@ -7,6 +7,7 @@ dist/
 apps/server/secrets/
 apps/secrets/
 apps/server/data/parquet/*.parquet
+apps/server/data
 test-results/
 playwright-report/
 .DS_Store

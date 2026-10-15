@@ -142,7 +142,7 @@ export function ColumnsMenu({
           role="dialog"
           aria-label="Choose visible columns"
           tabIndex={-1}
-          className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg border border-border bg-surface shadow-overlay"
+          className="absolute right-0 top-full z-50 mt-1 w-80 rounded-lg border border-border bg-surface shadow-overlay"
           data-testid="columns-panel"
         >
           <div className="flex flex-wrap gap-1 border-b border-border p-2">

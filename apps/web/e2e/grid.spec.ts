@@ -29,8 +29,8 @@ test('admin can see PIC, Issues and Aging columns in the grid', async ({ page })
   await login(page, 'admin@example.com', 'admin12345');
   await expect(page).toHaveURL(/\/grid/);
 
-  await expect(page.getByRole('columnheader', { name: 'PIC' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Issues' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Responsible PIC' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Action' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Aging' })).toBeVisible();
 });
 
@@ -40,13 +40,13 @@ test('admin can create a project with Sales and PIC via the add form', async ({ 
 
   await page.getByRole('button', { name: 'Add project' }).click();
 
-  await page.getByLabel(/Project name/).fill('E2E PIC Issues Project');
+  await page.getByLabel(/Project Name/).fill('E2E PIC Issues Project');
   await page.getByLabel(/Sales/).selectOption({ label: 'Staff One' });
   await page.getByLabel(/PIC/).selectOption({ label: 'Staff One' });
 
   // Issues is no longer part of the add form — it's logged exclusively through
   // the SUPER_ADMIN-only Issues modal (add endpoint), never via create/update.
-  await expect(page.getByLabel(/Issues/)).toHaveCount(0);
+  await expect(page.getByLabel(/Action/)).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Create' }).click();
 

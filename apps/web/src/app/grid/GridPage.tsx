@@ -28,6 +28,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Select, controlClass } from '../../components/ui/Input';
+import { FIELD_LABELS } from '../../lib/projectFields';
 
 const emptyForm = {
   project_name: '',
@@ -301,11 +302,11 @@ export function GridPage() {
         <Card title="New project" className="mb-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <label className={fieldLabel}>
-              Project name *
+              {FIELD_LABELS.project_name} *
               <input value={form.project_name} onChange={(e) => setField('project_name', e.target.value)} className={controlClass} />
             </label>
             <label className={fieldLabel}>
-              Folder
+              {FIELD_LABELS.folder_name}
               <input value={form.folder_name} onChange={(e) => setField('folder_name', e.target.value)} className={controlClass} />
             </label>
             <label className={`${fieldLabel} md:col-span-2`}>
@@ -321,15 +322,15 @@ export function GridPage() {
               />
             </label>
             <label className={fieldLabel}>
-              Market segment
+              {FIELD_LABELS.market_segment}
               <input value={form.market_segment} onChange={(e) => setField('market_segment', e.target.value)} className={controlClass} />
             </label>
             <label className={fieldLabel}>
-              Nilai PO/PKS Customer
+              {FIELD_LABELS.customer_price}
               <input type="number" value={form.customer_price} onChange={(e) => setField('customer_price', e.target.value)} className={controlClass} />
             </label>
             <label className={fieldLabel}>
-              Type
+              {FIELD_LABELS.service_or_goods}
               <Select value={form.service_or_goods} onChange={(e) => setField('service_or_goods', e.target.value)} className="py-1">
                 <option value="">–</option>
                 <option value="service">service</option>
@@ -338,7 +339,7 @@ export function GridPage() {
             </label>
             {isAdmin && (
               <label className={fieldLabel}>
-                Stage
+                {FIELD_LABELS.current_stage}
                 <Select
                   value={form.current_stage}
                   onChange={(e) => {
@@ -355,7 +356,7 @@ export function GridPage() {
             )}
             {isAdmin && (
               <label className={fieldLabel}>
-                Sales
+                {FIELD_LABELS.staff_assigned_id}
                 <Select value={form.staff_assigned_id} onChange={(e) => setField('staff_assigned_id', e.target.value)} className="py-1">
                   <option value="">–</option>
                   {users.map((u) => (
@@ -367,7 +368,7 @@ export function GridPage() {
               </label>
             )}
             <label className={fieldLabel}>
-              PIC
+              {FIELD_LABELS.pic_id}
               <Select value={form.pic_id} onChange={(e) => setField('pic_id', e.target.value)} className="py-1">
                 <option value="">–</option>
                 {users.map((u) => (

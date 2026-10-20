@@ -64,7 +64,7 @@ export interface VendorLineDraft {
 }
 
 export const VENDOR_LINE_FIELDS: { key: keyof VendorLineDraft; label: string; type: 'date' | 'number' | 'text' | 'select'; options?: readonly string[] }[] = [
-  { key: 'vendor_type', label: 'Vendor type', type: 'select', options: FIELD_SELECT_OPTIONS.vendor_type },
+  { key: 'vendor_type', label: FIELD_LABELS.vendor_type, type: 'select', options: FIELD_SELECT_OPTIONS.vendor_type },
   { key: 'vendor_revenue', label: FIELD_LABELS.vendor_revenue, type: 'number' },
   { key: 'project_sent_date', label: FIELD_LABELS.project_sent_date, type: 'date' },
   { key: 'project_finish_date', label: FIELD_LABELS.project_finish_date, type: 'date' },

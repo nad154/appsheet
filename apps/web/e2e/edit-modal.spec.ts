@@ -62,11 +62,11 @@ test('admin can edit multiple fields in the modal with one PATCH', async ({ page
   await expect(dialog.getByRole('group', { name: 'Vendor lines' })).toBeVisible();
 
   await selectCustomer(dialog, 'E2E Admin Customer');
-  await dialog.getByLabel('Market segment').fill('E2E Admin Segment');
+  await dialog.getByLabel('Market Segment').fill('E2E Admin Segment');
 
   // Issues is no longer editable here — it's logged exclusively through the
   // SUPER_ADMIN-only Issues modal (add endpoint), never through create/update.
-  await expect(dialog.getByLabel('Issues')).toHaveCount(0);
+  await expect(dialog.getByLabel('Action')).toHaveCount(0);
 
   await dialog.getByRole('button', { name: 'Save changes' }).click();
 
@@ -105,5 +105,5 @@ test('staff cannot reassign the Sales owner via the modal', async ({ page }) => 
   const dialog = await openRowModal(page, 'Staff Project A');
 
   // The Sales (staff_assigned_id) field is admin-only in the modal.
-  await expect(dialog.getByLabel('Assigned staff')).toHaveCount(0);
+  await expect(dialog.getByLabel('Sales Name')).toHaveCount(0);
 });

@@ -28,7 +28,7 @@ import type {
   DashboardStageFilter,
 } from '@tracker/shared';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'];
+const COLORS = ['#9f1239', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'];
 
 interface ChartRow {
   name: string;

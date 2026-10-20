@@ -250,8 +250,8 @@ export function GridPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 shadow-card">
-        <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-accent px-3 py-2 shadow-card">
+        <label className="flex items-center gap-1.5 text-xs text-white">
           Year
           <Select
             value={yearFilter ?? ''}
@@ -267,7 +267,7 @@ export function GridPage() {
             ))}
           </Select>
         </label>
-        <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+        <label className="flex items-center gap-1.5 text-xs text-white">
           Stage
           <Select
             value={stageFilter ?? 'all'}

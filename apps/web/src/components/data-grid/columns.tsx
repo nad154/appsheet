@@ -427,7 +427,7 @@ export const STAGE_LABEL: Record<ProjectStage, string> = {
   finish: 'Finish',
 };
 export const STAGE_STYLES: Record<ProjectStage, string> = {
-  on_progress: 'bg-accent-soft text-accent border-accent/30',
+  on_progress: 'bg-warning-soft text-warning border-warning/30',
   finish: 'bg-success-soft text-success border-success/30',
 };
 

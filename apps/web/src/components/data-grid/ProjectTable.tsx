@@ -519,11 +519,11 @@ export function ProjectTable({
               const { project, isFirstOfGroup, index } = row.original;
               // Alternate the row tint per project: the page-relative project
               // ordinal is shared by every vendor line, so a multi-vendor
-              // project colors as one stripe (even ordinals gray, odd white).
+              // project colors as one stripe (even ordinals light red, odd white).
               const isStripeGray = index % 2 === 0;
               const isHighlighted =
                 flashActive && isFirstOfGroup && row.original.project.id === highlightedRowId;
-              const stripeBg = isStripeGray ? '#f1f5f9' : '#ffffff';
+              const stripeBg = isStripeGray ? '#fef2f2' : '#ffffff';
               const hoverBg = '#DBDBDB';
               const rowBg = hoveredProjectId === project.id ? hoverBg : stripeBg;
               return (

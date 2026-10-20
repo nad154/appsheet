@@ -1,10 +1,34 @@
 import { useProjectUpdateHistory } from '../../hooks/useProjectUpdates';
-import { FIELD_LABELS } from '../../lib/projectFields';
+import { FIELD_LABELS, FIELD_TYPES, NUMBER_FIELDS } from '../../lib/projectFields';
+import { formatGridDate, formatGridNumber } from '../../lib/format';
 import type { Project, ProjectUpdateEntry } from '@tracker/shared';
 import { Modal } from '../ui/Modal';
 
-function fmt(value: unknown): string {
+// Vendor-line field keys, so history entries render the same formatting as the
+// project-level ones (dates and rupiah amounts).
+const DATE_KEYS = new Set([
+  ...Object.entries(FIELD_TYPES)
+    .filter(([, type]) => type === 'date')
+    .map(([key]) => key),
+  'project_sent_date',
+  'project_finish_date',
+  'negotiation_date',
+  'approval_date',
+  'document_sent_date',
+  'vendor_start_contract',
+  'vendor_end_contract',
+]);
+const MONEY_KEYS = new Set([...NUMBER_FIELDS, 'vendor_revenue', 'vendor_price']);
+
+// Old/new values are stored as raw JSON, so format them the same way the grid
+// does: dates as "15 September 2026", amounts as "Rp 1,234,567".
+function fmtValue(key: string, value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
+  if (MONEY_KEYS.has(key)) {
+    const n = Number(value);
+    if (!Number.isNaN(n)) return `Rp ${formatGridNumber(n)}`;
+  }
+  if (DATE_KEYS.has(key)) return formatGridDate(String(value));
   return String(value);
 }
 
@@ -30,8 +54,8 @@ function HistoryEntryCard({ entry }: { entry: ProjectUpdateEntry }) {
             {fields.map((key) => (
               <tr key={key} className="border-b border-border/60 align-top">
                 <td className="w-2/5 py-1 pr-2 text-ink-muted">{FIELD_LABELS[key] ?? key}</td>
-                <td className="w-1/4 py-1 pr-2 text-ink-muted line-through">{fmt(entry.changes[key].old)}</td>
-                <td className="py-1 font-medium text-success">→ {fmt(entry.changes[key].new)}</td>
+                <td className="w-1/4 py-1 pr-2 text-ink-muted line-through">{fmtValue(key, entry.changes[key].old)}</td>
+                <td className="py-1 font-medium text-success">→ {fmtValue(key, entry.changes[key].new)}</td>
               </tr>
             ))}
           </tbody>

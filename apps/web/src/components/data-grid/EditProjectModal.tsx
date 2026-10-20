@@ -286,7 +286,7 @@ function DateField({
   };
 
   return (
-    <div className="mt-1 flex w-full items-center rounded border border-border px-2 py-1">
+    <div data-date-field className="mt-1 flex w-full items-center rounded border border-border px-2 py-1">
       <button
         type="button"
         onClick={openPicker}
@@ -742,8 +742,21 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
         onCreateFolder={handleCreateFolder}
       />
       {sections.map(({ section, fields }) => (
-        <fieldset key={section} className="mb-5">
-          <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">{section}</legend>
+        <fieldset
+          key={section}
+          className={`mb-5 rounded border-2 p-3 ${
+            section === 'Customer'
+              ? 'border-emerald-300 bg-emerald-100/80 [&_input:not([type=\'date\'])]:bg-white [&_select]:bg-white [&_textarea]:bg-white [&_[data-date-field]]:bg-white'
+              : 'border-border bg-canvas/60'
+          }`}
+        >
+          <legend
+            className={`mb-2 px-1 text-xs font-semibold uppercase tracking-wide ${
+              section === 'Customer' ? 'text-emerald-800' : 'text-ink-muted'
+            }`}
+          >
+            {section}
+          </legend>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {section === 'Customer' && (
               <label className="flex flex-col">
@@ -776,8 +789,8 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
         </fieldset>
       ))}
 
-      <fieldset className="mb-5">
-        <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+      <fieldset className="mb-5 rounded border-2 border-indigo-300 bg-indigo-100/80 p-3 [&_input:not([type='date'])]:bg-white [&_select]:bg-white [&_textarea]:bg-white [&_[data-date-field]]:bg-white">
+        <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">
           Vendor lines {lines.length > 0 && <span className="normal-case">({lines.length})</span>}
         </legend>
         {lines.length === 0 && (

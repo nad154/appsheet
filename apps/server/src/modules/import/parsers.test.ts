@@ -36,6 +36,19 @@ describe('parseDateCell', () => {
     { raw: '1 Mei 2026', format: 'DD/MM/YYYY', expected: '2026-05-01' },
     { raw: '31 Desember 2026', format: 'DD/MM/YYYY', expected: '2026-12-31' },
     { raw: '3 sep 2026', format: 'DD/MM/YYYY', expected: '2026-09-03' },
+    // month names with dash/dot separators and 2-digit years ("9-Jun-26")
+    { raw: '9-Jun-26', format: 'D-Mon-YY', expected: '2026-06-09' },
+    { raw: '9-Jun-26', format: 'DD/MM/YYYY', expected: '2026-06-09' },
+    { raw: '9-Jun-2026', format: 'DD/MM/YYYY', expected: '2026-06-09' },
+    { raw: '9.Jun.2026', format: 'DD/MM/YYYY', expected: '2026-06-09' },
+    { raw: '9-juni-26', format: 'DD/MM/YYYY', expected: '2026-06-09' },
+    { raw: '21-Aug-26', format: 'DD/MM/YYYY', expected: '2026-08-21' },
+    { raw: '24-Aug-26', format: 'D-Mon-YY', expected: '2026-08-24' },
+    { raw: '21-Oct-26', format: 'DD/MM/YYYY', expected: '2026-10-21' },
+    { raw: '31-Des-26', format: 'D-Mon-YY', expected: '2026-12-31' },
+    { raw: '1-Jan-99', format: 'D-Mon-YY', expected: '1999-01-01' },
+    { raw: '29-Feb-24', format: 'D-Mon-YY', expected: '2024-02-29' },
+    { raw: '31-Feb-26', format: 'D-Mon-YY', expected: 'error' },
     // leap years and impossible dates
     { raw: '29/02/2024', format: 'DD/MM/YYYY', expected: '2024-02-29' },
     { raw: '29/02/2025', format: 'DD/MM/YYYY', expected: 'error' },
@@ -86,12 +99,17 @@ describe('parseNumberCell', () => {
     expect(parseNumberCell('1,234.567')).toEqual({ ok: true, value: 1235, warning: 'decimal_rounded' });
   });
 
-  it('accepts the exact INTEGER limit', () => {
-    expect(parseNumberCell('2147483647')).toEqual({ ok: true, value: 2147483647 });
+  it('accepts large Rupiah values well past the old INTEGER ceiling', () => {
+    expect(parseNumberCell('7255000000')).toEqual({ ok: true, value: 7255000000 });
+    expect(parseNumberCell('Rp7,255,000,000')).toEqual({ ok: true, value: 7255000000 });
+    expect(parseNumberCell(String(Number.MAX_SAFE_INTEGER))).toEqual({
+      ok: true,
+      value: Number.MAX_SAFE_INTEGER,
+    });
   });
 
-  it('rejects values above the INTEGER limit', () => {
-    for (const raw of ['2147483648', '4000000000', '9999999999999']) {
+  it('rejects values above the safe-integer limit', () => {
+    for (const raw of ['9007199254740992', '99999999999999999999']) {
       const r = parseNumberCell(raw);
       expect(r.ok, raw).toBe(false);
       if (!r.ok) expect(r.code).toBe('number_too_large');

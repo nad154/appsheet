@@ -33,15 +33,24 @@ export interface ImportField {
 }
 
 // Date formats offered by the import options dropdown. Any format still
-// accepts YYYY-MM-DD, ISO timestamps and the grid's long format
-// ("15 September 2026") regardless of the choice.
-export const IMPORT_DATE_FORMATS = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'D Month YYYY'] as const;
+// accepts YYYY-MM-DD, ISO timestamps, the grid's long format
+// ("15 September 2026") and a month name with dashes or dots
+// ("9-Jun-26", "9.Jun.2026") regardless of the choice.
+export const IMPORT_DATE_FORMATS = [
+  'DD/MM/YYYY',
+  'MM/DD/YYYY',
+  'YYYY-MM-DD',
+  'D Month YYYY',
+  'D-Mon-YY',
+] as const;
 export type ImportDateFormat = (typeof IMPORT_DATE_FORMATS)[number];
 export const DEFAULT_IMPORT_DATE_FORMAT: ImportDateFormat = 'DD/MM/YYYY';
 
-// customer_price, vendor_revenue and vendor_price are DuckDB INTEGER columns.
-// Values above this fail the insert, so validation must report it clearly.
-export const IMPORT_MAX_INTEGER = 2147483647;
+// customer_price, vendor_revenue and vendor_price are DuckDB BIGINT columns
+// (signed 64-bit). JSON/JS carries them as Numbers, so the real ceiling is the
+// safe-integer limit (9,007,199,254,740,991 ≈ Rp 9 quadrillion) — larger values
+// would lose precision. Validation reports anything above it clearly.
+export const IMPORT_MAX_INTEGER = Number.MAX_SAFE_INTEGER;
 
 export const IMPORT_FIELD_SECTIONS = ['Project info', 'Customer', 'Vendor line'] as const;
 

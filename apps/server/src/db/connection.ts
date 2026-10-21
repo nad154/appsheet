@@ -4,6 +4,9 @@ import { Mutex } from 'async-mutex';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
+import { normalizeBigInt } from './normalize.js';
+
+export { normalizeBigInt };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,7 +58,7 @@ async function execute<T extends QueryResult>(sql: string, params: unknown[] = [
   return new Promise<T[]>((resolve, reject) => {
     (conn.all as (sql: string, ...args: unknown[]) => void)(sql, ...params, (err: Error | null, rows: T[]) => {
       if (err) reject(err);
-      else resolve((rows ?? []) as T[]);
+      else resolve(((rows ?? []) as T[]).map((row) => normalizeBigInt(row)));
     });
   });
 }

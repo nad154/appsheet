@@ -78,7 +78,7 @@ describe('import constants', () => {
     expect(DEFAULT_IMPORT_DATE_FORMAT).toBe('DD/MM/YYYY');
   });
 
-  it('caps numbers at the DuckDB INTEGER limit', () => {
-    expect(IMPORT_MAX_INTEGER).toBe(2147483647);
+  it('caps numbers at the JS safe-integer limit', () => {
+    expect(IMPORT_MAX_INTEGER).toBe(Number.MAX_SAFE_INTEGER);
   });
 });

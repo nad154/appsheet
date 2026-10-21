@@ -6,6 +6,14 @@ import { columnSamples, type MappingSuggestion } from '../../lib/csvImport';
 import { Select } from '../ui/Input';
 import { cn } from '../ui/cn';
 
+const DATE_FORMAT_EXAMPLES: Record<ImportDateFormat, string> = {
+  'DD/MM/YYYY': '09/06/2026',
+  'MM/DD/YYYY': '06/09/2026',
+  'YYYY-MM-DD': '2026-06-09',
+  'D Month YYYY': '9 June 2026',
+  'D-Mon-YY': '9-Jun-26',
+};
+
 export interface MappingStepProps {
   headers: string[];
   /** Raw CSV rows — used for the per-column sample values. */
@@ -170,6 +178,7 @@ export function ColumnMappingStep({
               {IMPORT_DATE_FORMATS.map((f) => (
                 <option key={f} value={f}>
                   {f}
+                  {DATE_FORMAT_EXAMPLES[f] ? `  (e.g. ${DATE_FORMAT_EXAMPLES[f]})` : ''}
                 </option>
               ))}
             </Select>

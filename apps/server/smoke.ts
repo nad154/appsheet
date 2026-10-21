@@ -336,17 +336,35 @@ async function main(): Promise<void> {
   const gammaList = await listProjectsAll();
   check('bad date commit wrote nothing', !gammaList.some((r: any) => r.project_name === 'Smoke Import Gamma'));
 
-  // Amount above the DuckDB INTEGER limit is a validation error, not a 500.
+  // Amounts up to the JS safe-integer limit are valid BIGINT money values now
+  // (the old 2.1B INTEGER ceiling was removed). 3 billion imports cleanly.
+  const bigOkBody = {
+    options: importBody.options,
+    rows: [{ ...projectKeys, project_name: 'Smoke Import Big', folder_name: 'SMK-IMP-B3', customer_price: '3000000000' }],
+  };
+  const bigOkPreview = await req('POST', '/api/import/projects/preview', admin, bigOkBody);
+  check('3-billion amount is accepted (above the old INTEGER limit)', bigOkPreview.status === 200
+    && (bigOkPreview.json as any)?.summary?.errors === 0, bigOkPreview.json);
+  const bigOkCommit = await req('POST', '/api/import/projects/commit', admin, bigOkBody);
+  check('3-billion amount commits 200', bigOkCommit.status === 200, bigOkCommit.json);
+  // Regression guard: BIGINT columns must serialize as JSON numbers, not crash
+  // the response with "Do not know how to serialize a BigInt".
+  const bigOkRow = (await listProjectsAll()).find((r: any) => r.project_name === 'Smoke Import Big');
+  check('3-billion amount round-trips as a JSON number', bigOkRow
+    && typeof bigOkRow.customer_price === 'number'
+    && bigOkRow.customer_price === 3000000000, bigOkRow);
+
+  // Above the safe-integer limit is a validation error, not a 500.
   const bigBody = {
     options: importBody.options,
-    rows: [{ ...projectKeys, project_name: 'Smoke Import Huge', folder_name: 'SMK-IMP-H', customer_price: '3000000000' }],
+    rows: [{ ...projectKeys, project_name: 'Smoke Import Huge', folder_name: 'SMK-IMP-H', customer_price: '9007199254740992' }],
   };
   const bigPreview = await req('POST', '/api/import/projects/preview', admin, bigBody);
-  check('amount above INTEGER limit reported', bigPreview.status === 200
+  check('amount above safe-integer limit reported', bigPreview.status === 200
     && (bigPreview.json as any)?.summary?.errors === 1
     && (bigPreview.json as any)?.errors?.[0]?.message.includes('maximum the database can store'), bigPreview.json);
   const bigCommit = await req('POST', '/api/import/projects/commit', admin, bigBody);
-  check('amount above INTEGER limit commit 400 (not 500)', bigCommit.status === 400, bigCommit.json);
+  check('amount above safe-integer limit commit 400 (not 500)', bigCommit.status === 400, bigCommit.json);
 
   // Missing sales user: error, users are never created by import.
   const ghostBody = {

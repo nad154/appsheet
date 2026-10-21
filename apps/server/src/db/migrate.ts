@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS projects (
   date_customer_received_doc1 DATE,
   date_customer_received_doc2 DATE,
   doc2_number_id VARCHAR,
-  customer_price INTEGER,
+  customer_price BIGINT,
   customer_start_contract DATE,
   customer_end_contract DATE,
   current_stage VARCHAR CHECK (current_stage IN ('on_progress','finish')) DEFAULT 'on_progress',
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS project_vendors (
   project_id VARCHAR NOT NULL,
   vendor_id VARCHAR NOT NULL,
   vendor_type VARCHAR CHECK (vendor_type IN ('service','goods')),
-  vendor_revenue INTEGER,
+  vendor_revenue BIGINT,
   project_sent_date DATE,
   project_finish_date DATE,
   vendor_project_id VARCHAR,
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS project_vendors (
   approval_date DATE,
   document_sent_date DATE,
   document_id VARCHAR,
-  vendor_price INTEGER,
+  vendor_price BIGINT,
   vendor_start_contract DATE,
   vendor_end_contract DATE,
   sort_order INTEGER NOT NULL DEFAULT 0,
@@ -182,6 +182,7 @@ export async function migrate(): Promise<void> {
 
   await migrateColumns();
   await migrateDashboardViewColumns();
+  await widenMoneyColumns();
   await dropPendingEdits();
   await seedAgingThresholds();
   await importLegacySnapshots();
@@ -208,6 +209,44 @@ async function columnExists(table: string, column: string): Promise<boolean> {
     [table, column],
   );
   return rows.length > 0;
+}
+
+/** Current SQL type of a column, or undefined when the column is absent. */
+async function columnType(table: string, column: string): Promise<string | undefined> {
+  const rows = await runRead<{ data_type: string }>(
+    `SELECT data_type FROM duckdb_columns() WHERE table_name = ? AND column_name = ?`,
+    [table, column],
+  );
+  return rows[0]?.data_type;
+}
+
+/**
+ * Widen the money columns from INTEGER to BIGINT so real Rupiah contract
+ * values (e.g. Rp7,255,000,000) fit — INTEGER caps at 2,147,483,647. Widening
+ * is lossless; run only when the live column is still INTEGER, so this is a
+ * no-op on every startup after the first. Both tables are parquet-exported.
+ */
+async function widenMoneyColumns(): Promise<void> {
+  const targets: Array<{ table: string; column: string }> = [
+    { table: 'projects', column: 'customer_price' },
+    { table: 'project_vendors', column: 'vendor_revenue' },
+    { table: 'project_vendors', column: 'vendor_price' },
+  ];
+
+  let altered = false;
+  for (const { table, column } of targets) {
+    const current = await columnType(table, column);
+    // undefined = column absent (legacy shape); skip — a later migration adds it.
+    if (current && current.toUpperCase() !== 'BIGINT') {
+      await runWrite(async (exec) => {
+        await exec(`ALTER TABLE ${table} ALTER COLUMN ${column} SET DATA TYPE BIGINT`);
+      });
+      altered = true;
+    }
+  }
+  if (altered) {
+    await exportSnapshots(['projects', 'project_vendors']);
+  }
 }
 
 /**

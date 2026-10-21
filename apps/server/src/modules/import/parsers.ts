@@ -41,9 +41,9 @@ const MONTH_BY_NAME: Record<string, number> = {
   may: 5, mei: 5,
   june: 6, juni: 6, jun: 6,
   july: 7, juli: 7, jul: 7,
-  august: 8, agustus: 8, agu: 8, agt: 8,
+  august: 8, agustus: 8, aug: 8, agu: 8, agt: 8,
   september: 9, sep: 9, sept: 9,
-  october: 10, oktober: 10, okt: 10,
+  october: 10, oktober: 10, oct: 10, okt: 10,
   november: 11, nov: 11,
   december: 12, desember: 12, dec: 12, des: 12,
 };
@@ -78,25 +78,39 @@ function matchIsoDate(raw: string): { y: number; m: number; d: number } | null {
   return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
 }
 
-function matchLongDate(raw: string): { y: number; m: number; d: number } | null {
-  const m = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(raw);
+/**
+ * Expand a 2-digit year: 00-68 -> 2000-2068, 69-99 -> 1969-1999 (the JS Date
+ * pivot), so "9-Jun-26" means 2026.
+ */
+function expandShortYear(y: number): number {
+  if (y >= 100) return y;
+  return y <= 68 ? 2000 + y : 1900 + y;
+}
+
+/**
+ * Match a date written with a month name, either space-separated
+ * ("15 September 2026") or dash/dot-separated ("9-Jun-26", "9.Jun.2026").
+ * Accepts a 2- or 4-digit year; 2-digit years use expandShortYear.
+ */
+function matchMonthNameDate(raw: string): { y: number; m: number; d: number } | null {
+  const m = /^(\d{1,2})[\s./-]+([A-Za-z]+)[\s./-]+(\d{2}|\d{4})$/.exec(raw);
   if (!m) return null;
   const month = MONTH_BY_NAME[m[2].toLowerCase()];
   if (!month) return null;
-  return { y: Number(m[3]), m: month, d: Number(m[1]) };
+  return { y: expandShortYear(Number(m[3])), m: month, d: Number(m[1]) };
 }
 
 /**
  * Parse a date cell. Blank -> null. Accepts the chosen format, plus always
- * YYYY-MM-DD, ISO timestamps (cut to the date part) and the grid's long
- * format ("15 September 2026"). Output is always YYYY-MM-DD; impossible
- * dates (31 Feb) are rejected.
+ * YYYY-MM-DD, ISO timestamps (cut to the date part) and any month-name form
+ * ("15 September 2026", "9-Jun-26", "9.Jun.2026"). Output is always
+ * YYYY-MM-DD; impossible dates (31 Feb) are rejected.
  */
 export function parseDateCell(raw: string, format: ImportDateFormat): CellParseResult {
   const t = raw.trim();
   if (isBlankCell(t)) return { ok: true, value: null };
 
-  const hit = matchIsoDate(t) ?? matchLongDate(t) ?? matchNumericDate(t, format);
+  const hit = matchIsoDate(t) ?? matchMonthNameDate(t) ?? matchNumericDate(t, format);
   if (!hit || !isRealDate(hit.y, hit.m, hit.d)) {
     return { ok: false, code: 'invalid_date', raw: t };
   }
@@ -109,7 +123,7 @@ export function parseDateCell(raw: string, format: ImportDateFormat): CellParseR
  * Parse a whole-Rupiah amount. Blank -> null. Strips "Rp" and spaces, then
  * removes thousands separators (`.` or `,`). A decimal part at the end (",50",
  * ".5") is rounded and reported as a `decimal_rounded` warning since the
- * columns are integers. Values above `IMPORT_MAX_INTEGER` fail with
+ * columns are whole numbers. Values above `IMPORT_MAX_INTEGER` fail with
  * `number_too_large`.
  */
 export function parseNumberCell(raw: string): CellParseResult {

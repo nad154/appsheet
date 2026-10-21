@@ -24,6 +24,7 @@ import { useGridPreferences } from '../../hooks/useGridPreferences';
 import { apiClient, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/Toast';
+import { ImportCsvModal } from '../../components/import/ImportCsvModal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -68,6 +69,7 @@ export function GridPage() {
   const [yearFilter, setYearFilter] = useState<number | undefined>(undefined);
   const [stageFilter, setStageFilter] = useState<ProjectStage | undefined>('on_progress');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImportCsv, setShowImportCsv] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
   const [stageFinishConfirm, setStageFinishConfirm] = useState(false);
@@ -247,7 +249,18 @@ export function GridPage() {
       <PageHeader
         title="Project Grid"
         actions={
-          <Button onClick={() => setShowAddForm((v) => !v)}>{showAddForm ? 'Cancel' : 'Add project'}</Button>
+          <>
+            {isAdmin && (
+              <Button
+                variant="secondary"
+                onClick={() => setShowImportCsv((v) => !v)}
+                data-testid="open-import-csv"
+              >
+                {showImportCsv ? 'Cancel' : 'Import CSV'}
+              </Button>
+            )}
+            <Button onClick={() => setShowAddForm((v) => !v)}>{showAddForm ? 'Cancel' : 'Add project'}</Button>
+          </>
         }
       />
 
@@ -443,6 +456,13 @@ export function GridPage() {
         stickyColumnIds={stickyColumnIds}
         columnVisibility={columnVisibility}
       />
+
+      {showImportCsv && (
+        <ImportCsvModal
+          onClose={() => setShowImportCsv(false)}
+          onImported={() => void refetchProjects()}
+        />
+      )}
 
       {stageFinishConfirm && (
         <StageConfirmModal

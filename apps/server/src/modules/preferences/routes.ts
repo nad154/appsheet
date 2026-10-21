@@ -6,6 +6,9 @@ import {
   getGridPreferences,
   saveGridPreferences,
   resetGridPreferences,
+  getImportMapping,
+  saveImportMapping,
+  resetImportMapping,
   PreferencesError,
 } from './preferencesService.js';
 
@@ -36,6 +39,34 @@ preferencesRouter.put('/grid-columns', async (req, res) => {
 preferencesRouter.delete('/grid-columns', async (req, res) => {
   try {
     await resetGridPreferences(req.user!.id);
+    res.json({ ok: true });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// GET /api/me/preferences/import-mapping — this user's saved CSV mapping.
+preferencesRouter.get('/import-mapping', async (req, res) => {
+  try {
+    res.json(await getImportMapping(req.user!.id));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// PUT /api/me/preferences/import-mapping — validate and store for this user.
+preferencesRouter.put('/import-mapping', async (req, res) => {
+  try {
+    res.json(await saveImportMapping(req.user!.id, req.body));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// DELETE /api/me/preferences/import-mapping — forget the saved mapping.
+preferencesRouter.delete('/import-mapping', async (req, res) => {
+  try {
+    await resetImportMapping(req.user!.id);
     res.json({ ok: true });
   } catch (err) {
     handleError(err, res);

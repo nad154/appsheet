@@ -16,6 +16,7 @@
     "@tanstack/react-table": "^8.20.5",
     "@tanstack/react-virtual": "^3.10.8",
     "@tracker/shared": "*",
+    "papaparse": "^5.7.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.52.2",
@@ -24,6 +25,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

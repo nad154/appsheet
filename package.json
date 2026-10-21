@@ -11,12 +11,16 @@
     "dev:web": "npm run dev -w @tracker/web",
     "dev:server": "npm run dev -w @tracker/server",
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1"
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^20.14.15",
+    "vite": "^5.4.10",
+    "vitest": "^3.2.4"
   }
 }

@@ -292,7 +292,8 @@ export function ProjectTable({
   const modelRows = table.getRowModel().rows;
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const leafHeaders = table.getHeaderGroups().at(-1)?.headers ?? [];
+  const headerGroups = table.getHeaderGroups();
+  const leafHeaders = headerGroups[headerGroups.length - 1]?.headers ?? [];
   const gridTemplateColumns = leafHeaders.map((h) => `${h.getSize()}px`).join(' ');
 
   // A column can only stick if it is actually rendered. A hidden-but-pinned

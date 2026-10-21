@@ -324,12 +324,14 @@ const PROJECT_COLUMNS: (keyof ProjectCreate)[] = [
   'pic_id',
 ];
 
-function insertProjectSql(): string {
+// Exported for the CSV import service so import and create can't diverge on
+// the column lists (plan §6 commit transaction rules).
+export function insertProjectSql(): string {
   return `INSERT INTO projects (${[...PROJECT_COLUMNS, 'id', 'created_at', 'updated_at'].join(', ')})
           VALUES (${[...PROJECT_COLUMNS, 'id'].map(() => '?').join(', ')}, current_timestamp, current_timestamp)`;
 }
 
-function buildInsertValues(id: string, payload: ProjectCreate | Record<string, unknown>): unknown[] {
+export function buildInsertValues(id: string, payload: ProjectCreate | Record<string, unknown>): unknown[] {
   const values: unknown[] = [];
   for (const col of PROJECT_COLUMNS) {
     values.push((payload as Record<string, unknown>)[col] ?? null);
@@ -353,7 +355,7 @@ const VENDOR_LINE_COLUMNS = [
   'vendor_end_contract',
 ] as const;
 
-function insertVendorLineSql(): string {
+export function insertVendorLineSql(): string {
   // id, project_id, vendor_id, the line columns and sort_order are the 16
   // bound values; created_at/updated_at are literal current_timestamp. Mirrors
   // the inline INSERT in projectVendorsService so the two can never diverge.
@@ -363,7 +365,7 @@ function insertVendorLineSql(): string {
   ) VALUES (${placeholders}, current_timestamp, current_timestamp)`;
 }
 
-function vendorLineValues(
+export function vendorLineValues(
   lineId: string,
   projectId: string,
   line: { vendor_id: string; sort_order?: number } & Record<string, unknown>,

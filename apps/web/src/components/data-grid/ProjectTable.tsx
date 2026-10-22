@@ -49,6 +49,9 @@ interface ProjectTableProps {
   onPageSizeChange: (size: number) => void;
   onSortChange: (sortBy: string | undefined, sortDir: SortDir | undefined) => void;
   onRowUpdate: (row: Project, changes: Record<string, unknown>) => Promise<EditResult>;
+  // SUPER_ADMIN-only project delete, issued from the edit modal. Omitted =
+  // the delete button is hidden.
+  onDelete?: (row: Project) => Promise<EditResult>;
   onNotice?: (message: string, variant?: ToastVariant) => void;
   // Id of a project to scroll to and briefly flash (set when arriving from a
   // dashboard drill-down click).
@@ -246,6 +249,7 @@ export function ProjectTable({
   onPageSizeChange,
   onSortChange,
   onRowUpdate,
+  onDelete,
   onNotice,
   highlightedRowId,
   onHighlightDone,
@@ -709,6 +713,7 @@ export function ProjectTable({
           isAdmin={!!isAdmin}
           onClose={() => setEditModalRow(null)}
           onSave={onRowUpdate}
+          onDelete={onDelete}
           onNotice={onNotice}
         />
       )}

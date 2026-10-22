@@ -145,6 +145,19 @@ export function GridPage() {
     }
   };
 
+  const handleRowDelete = async (row: { id: string }): Promise<EditResult> => {
+    try {
+      await apiClient.del<{ ok?: boolean }>(`/api/projects/${row.id}`);
+      const res = await refetchProjects();
+      // The deleted project may have been the last row on the last page —
+      // fall back to the first page instead of showing an empty grid.
+      if ((res.data?.rows.length ?? 0) === 0 && page > 1) setPage(1);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e instanceof ApiError ? e.message : 'Could not delete project.' };
+    }
+  };
+
   const handlePageChange = (next: number) => setPage(Math.max(1, next));
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
@@ -450,6 +463,7 @@ export function GridPage() {
         onPageSizeChange={handlePageSizeChange}
         onSortChange={handleSortChange}
         onRowUpdate={handleRowUpdate}
+        onDelete={handleRowDelete}
         onNotice={showToast}
         highlightedRowId={highlightedRowId}
         onHighlightDone={() => setHighlightedRowId(null)}

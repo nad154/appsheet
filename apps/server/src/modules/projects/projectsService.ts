@@ -505,6 +505,9 @@ export async function deleteProject(user: AuthUser, projectId: string): Promise<
     await ex(`DELETE FROM project_vendors WHERE project_id = ?`, [projectId]);
     await ex(`DELETE FROM project_updates WHERE project_id = ?`, [projectId]);
     await ex(`DELETE FROM project_issues WHERE project_id = ?`, [projectId]);
+    // Aging-alert notifications carry the project_id, so they'd outlive the
+    // project as orphans pointing at a row that no longer exists.
+    await ex(`DELETE FROM notifications WHERE project_id = ?`, [projectId]);
     await ex(`DELETE FROM projects WHERE id = ?`, [projectId]);
   });
   await exportSnapshots(['projects', 'project_vendors', 'project_updates', 'project_issues']);

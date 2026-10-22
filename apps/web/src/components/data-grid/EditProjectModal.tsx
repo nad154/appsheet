@@ -24,6 +24,7 @@ import {
 } from '../../lib/projectFields';
 import { STAGE_LABEL, STAGE_STYLES } from './columns';
 import { StageConfirmModal } from './StageConfirmModal';
+import { DeleteProjectConfirmModal } from './DeleteProjectConfirmModal';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import type { EditResult } from './ProjectTable';
@@ -35,6 +36,8 @@ interface EditProjectModalProps {
   isAdmin: boolean;
   onClose: () => void;
   onSave: (row: Project, changes: Record<string, unknown>) => Promise<EditResult>;
+  // SUPER_ADMIN-only project delete. Omitted (or non-admin) hides the button.
+  onDelete?: (row: Project) => Promise<EditResult>;
   onNotice?: (message: string, variant?: ToastVariant) => void;
 }
 
@@ -514,7 +517,7 @@ const PRIORITY_STYLES: Record<'low' | 'medium' | 'high', string> = {
   high: 'border-danger/30 bg-danger-soft text-danger',
 };
 
-export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onNotice }: EditProjectModalProps) {
+export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onDelete, onNotice }: EditProjectModalProps) {
   const [draft, setDraft] = useState(() => toDraft(project));
   const [customerId, setCustomerId] = useState(project.customer_id ?? '');
   const [saving, setSaving] = useState(false);
@@ -522,6 +525,12 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
   // SUPER_ADMIN selecting "Finish" on an on_progress project must first confirm
   // in a blocking modal — the draft only flips to finish on OK.
   const [stageFinishConfirm, setStageFinishConfirm] = useState(false);
+  // SUPER_ADMIN deleting the project must confirm in a blocking modal too. The
+  // delete is a hard delete, so the confirm modal stays open on failure and
+  // shows the error inline.
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   // STAFF must describe what changed before saving — wired into handleSave and
   // the Save button's disabled state below. SUPER_ADMIN edits never see it.
   const [updateProgress, setUpdateProgress] = useState('');
@@ -729,6 +738,28 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
     }
   };
 
+  // SUPER_ADMIN-only hard delete. The server rejects non-SUPER_ADMIN callers
+  // with 403; this button is only ever rendered for admins.
+  const handleDelete = async () => {
+    if (deleting || !onDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await onDelete(project);
+      if (!res.ok) {
+        setDeleteError(res.message ?? 'Could not delete project.');
+        return;
+      }
+      onNotice?.('Project deleted.', 'success');
+      setDeleteConfirm(false);
+      onClose();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete project.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const renderBody = (): ReactNode => (
     <div className="px-5 py-4">
       <FolderBadges
@@ -843,10 +874,27 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
         ariaLabel={`Edit ${project.project_name}`}
         eyebrow="Edit project"
         title={project.project_name}
-        onClose={onClose}
+        // The shared Modal binds Escape on window, so a stacked confirm modal
+        // would close this one too. Ignore Escape here while the delete
+        // confirmation is open — the confirm modal handles it.
+        onClose={deleteConfirm ? () => undefined : onClose}
         maxWidthClass="max-w-4xl"
         footer={
           <>
+            {isAdmin && onDelete && (
+              <Button
+                variant="danger"
+                className="mr-auto"
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteConfirm(true);
+                }}
+                disabled={saving || deleting}
+                data-testid="delete-project"
+              >
+                Delete
+              </Button>
+            )}
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
@@ -866,6 +914,19 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onN
           projectName={project.project_name}
           onConfirm={handleConfirmStageFinish}
           onCancel={() => setStageFinishConfirm(false)}
+        />
+      )}
+      {deleteConfirm && (
+        <DeleteProjectConfirmModal
+          projectName={project.project_name}
+          vendorLineCount={(project.vendors ?? []).length}
+          error={deleteError}
+          busy={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => {
+            setDeleteConfirm(false);
+            setDeleteError(null);
+          }}
         />
       )}
     </>

@@ -56,7 +56,7 @@ function text(
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey);
       if (v === null || v === undefined || v === '') return <span className="text-ink-muted/50">—</span>;
-      return <span className="block truncate text-sm text-ink" title={String(v)}>{String(v)}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink" title={String(v)}>{String(v)}</span>;
     },
   };
 }
@@ -124,7 +124,7 @@ function numberCol(accessorKey: keyof Project, header: string, size = 120): Colu
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey);
       if (v === null || v === undefined || v === '') return <span className="text-ink-muted/50">Rp —</span>;
-      return <span className="block truncate text-sm text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
   };
 }
@@ -146,7 +146,7 @@ function selectCol(
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey) as string | null | undefined;
       if (!v) return <span className="text-ink-muted/50">—</span>;
-      return <span className="block truncate text-sm text-ink">{v}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">{v}</span>;
     },
   };
 }
@@ -162,7 +162,7 @@ function selectDate(accessorKey: keyof Project, header: string, size = 170): Col
       const v = projectCell(row.original, accessorKey) as string | null | undefined;
       const display = formatGridDate(v);
       if (!display) return <span className="text-ink-muted/50">—</span>;
-      return <span className="block truncate text-sm text-ink" title={display}>{display}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink" title={display}>{display}</span>;
     },
   };
 }
@@ -182,11 +182,11 @@ function customerColumn(size = 160): ColumnDef<DisplayRow> {
       const { customer_id, customer_name } = row.original.project;
       if (!customer_name) {
         if (customer_id) {
-          return <span className="block truncate text-sm italic text-ink-muted">(deleted customer)</span>;
+          return <span className="block w-full min-w-0 break-words text-sm italic text-ink-muted">(deleted customer)</span>;
         }
         return <span className="text-ink-muted/50">—</span>;
       }
-      return <span className="block break-words text-sm leading-snug text-ink">{customer_name}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">{customer_name}</span>;
     },
   };
 }
@@ -210,11 +210,11 @@ function picColumn(size = 140): ColumnDef<DisplayRow> {
         // The PIC user was permanently deleted: the id stays on the project, so
         // flag it (like "(deleted customer)") for the admin to reassign.
         if (pic_id) {
-          return <span className="block truncate text-sm italic text-ink-muted">(deleted user)</span>;
+          return <span className="block w-full min-w-0 break-words text-sm italic text-ink-muted">(deleted user)</span>;
         }
         return <span className="text-ink-muted/50">—</span>;
       }
-      return <span className="block truncate text-sm text-ink">{name}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">{name}</span>;
     },
   };
 }
@@ -236,11 +236,11 @@ function salesColumn(size = 140): ColumnDef<DisplayRow> {
         // The assigned user was permanently deleted: the id stays on the
         // project, so flag it for the admin to reassign.
         if (staff_assigned_id) {
-          return <span className="block truncate text-sm italic text-ink-muted">(deleted user)</span>;
+          return <span className="block w-full min-w-0 break-words text-sm italic text-ink-muted">(deleted user)</span>;
         }
         return <span className="text-ink-muted/50">—</span>;
       }
-      return <span className="block truncate text-sm text-ink">{name}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">{name}</span>;
     },
   };
 }
@@ -259,7 +259,7 @@ function folderNameColumn(): ColumnDef<DisplayRow> {
       const name = row.original.project.folder_name;
       if (!name) return <span className="text-ink-muted/50">—</span>;
       return (
-        <span className="block truncate text-sm text-ink" title={name}>
+        <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink" title={name}>
           {name}
         </span>
       );
@@ -281,11 +281,11 @@ function vendorTextCol(header: string, size = 160): ColumnDef<DisplayRow> {
       const v = line.vendor_name;
       if (!v) {
         if (line.vendor_id) {
-          return <span className="block truncate text-sm italic text-ink-muted">(deleted vendor)</span>;
+          return <span className="block w-full min-w-0 break-words text-sm italic text-ink-muted">(deleted vendor)</span>;
         }
         return <span className="text-ink-muted/50">—</span>;
       }
-      return <span className="block break-words text-sm leading-snug text-ink">{v}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">{v}</span>;
     },
   };
 }
@@ -303,7 +303,7 @@ function vendorNumberCol(
     cell: ({ row }) => {
       const v = vendorCell(row.original, key);
       if (v === null || v === undefined || v === '') return <span className="text-ink-muted/50">Rp —</span>;
-      return <span className="block truncate text-sm text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
   };
 }
@@ -321,7 +321,7 @@ function vendorSelectCol(
     cell: ({ row }) => {
       const v = vendorCell(row.original, key) as string | null | undefined;
       if (!v) return <span className="text-ink-muted/50">—</span>;
-      return <span className="block truncate text-sm text-ink">{v}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">{v}</span>;
     },
   };
 }
@@ -336,7 +336,7 @@ function vendorDateCol(key: keyof ProjectVendorLine, header: string, size = 170)
       const v = vendorCell(row.original, key) as string | null | undefined;
       const display = formatGridDate(v);
       if (!display) return <span className="text-ink-muted/50">—</span>;
-      return <span className="block truncate text-sm text-ink" title={display}>{display}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink" title={display}>{display}</span>;
     },
   };
 }
@@ -350,7 +350,7 @@ function vendorTextInputCol(key: keyof ProjectVendorLine, header: string, size =
     cell: ({ row }) => {
       const v = vendorCell(row.original, key) as string | null | undefined;
       if (!v) return <span className="text-ink-muted/50">—</span>;
-      return <span className="block truncate text-sm text-ink" title={v}>{v}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink" title={v}>{v}</span>;
     },
   };
 }
@@ -461,7 +461,7 @@ function UpdateProgressCell({
 }) {
   const text = row.project.update_progress;
   const content = text ? (
-    <span className="block truncate text-sm text-ink" title={text}>{text}</span>
+    <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink" title={text}>{text}</span>
   ) : (
     <span className="text-ink-muted/50">—</span>
   );
@@ -523,8 +523,8 @@ function IssuesCell({
 
   const content = text ? (
     <span className="flex min-w-0 flex-col leading-snug">
-      <span className="block truncate text-sm text-ink" title={text}>{text}</span>
-      <span className="block truncate text-[11px] text-ink-muted">
+      <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink" title={text}>{text}</span>
+      <span className="block break-words text-[11px] text-ink-muted">
         {issueDate ? formatIssueDate(issueDate) : '—'}
         {assignee ? ` · ${assignee}` : assigneeId ? ' · (deleted user)' : ''}
       </span>
@@ -600,9 +600,9 @@ export function buildProjectColumns({ isAdmin, onOpenHistory, onOpenIssues, onRe
         text('market_segment', 'Market Segment', 140, true, false),
         selectCol('service_or_goods', 'Project Type', 120, GOODS_OR_SERVICE, false),
         selectDate('date_customer_received_doc1', 'SP Received Date', 170),
-        selectDate('date_customer_received_doc2', 'Tanggal Terima PO/PKS Customer', 170),
+        selectDate('date_customer_received_doc2', 'PO/PKS received date', 170),
         text('doc2_number_id', 'Number PO/PKS Customer', 150, true, false),
-        numberCol('customer_price', 'Nilai PO/PKS Customer', 130),
+        numberCol('customer_price', 'Amount PO/PKS Customer', 130),
         selectDate('customer_start_contract', 'Start Contract Date', 170),
         selectDate('customer_end_contract', 'End Contract Date', 170),
       ],

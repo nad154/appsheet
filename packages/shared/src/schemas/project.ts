@@ -54,6 +54,9 @@ export const projectSchema = z.object({
   // projects.issues itself (denormalized, kept in sync by the add-issue write).
   latest_issue_date: z.string().nullable().optional(),
   latest_issue_assignee: z.string().nullable().optional(),
+  // Retained even after the assignee is permanently deleted, so the grid can
+  // flag the issue as "(deleted user)" instead of rendering a silent blank.
+  latest_issue_assignee_id: z.string().nullable().optional(),
 
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
@@ -76,6 +79,7 @@ export const projectCreateSchema = projectSchema.omit({
   has_unread_update: true,
   latest_issue_date: true,
   latest_issue_assignee: true,
+  latest_issue_assignee_id: true,
   customer_name: true,
   vendors: true,
   // issues is SUPER_ADMIN-only and only ever written through the add-issue

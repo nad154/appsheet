@@ -20,6 +20,14 @@ export const marketSegmentUpdateSchema = z.object({
   sort_order: z.number().int().optional(),
 });
 
+// Impact of permanently deleting a segment, shown in the Settings confirmation
+// modal before the delete. Projects store the segment as plain text, so they
+// keep their label after the lookup row is removed.
+export const marketSegmentUsageSchema = z.object({
+  projects: z.number().int().nonnegative(),
+});
+
 export type MarketSegment = z.infer<typeof marketSegmentSchema>;
 export type MarketSegmentCreate = z.infer<typeof marketSegmentCreateSchema>;
 export type MarketSegmentUpdate = z.infer<typeof marketSegmentUpdateSchema>;
+export type MarketSegmentUsage = z.infer<typeof marketSegmentUsageSchema>;

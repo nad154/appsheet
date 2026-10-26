@@ -10,7 +10,9 @@ export const projectUpdateEntrySchema = z.object({
   id: z.string().uuid(),
   project_id: z.string().uuid(),
   staff_id: z.string().uuid(),
-  staff_name: z.string(),
+  // NULL once the authoring user is permanently deleted (the history row is
+  // kept; the modal renders "(deleted user)").
+  staff_name: z.string().nullable(),
   changes: z.record(z.string(), projectUpdateFieldDiffSchema),
   update_progress: z.string(),
   is_read: z.boolean(),

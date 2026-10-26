@@ -37,7 +37,9 @@ function IssueCard({ entry }: { entry: ProjectIssueEntry }) {
         </span>
       </div>
       <p className="text-sm text-ink">{entry.issue_text}</p>
-      <p className="mt-1 text-xs text-ink-muted">Assigned to: {entry.assignee_name ?? '—'}</p>
+      <p className="mt-1 text-xs text-ink-muted">
+        Assigned to: {entry.assignee_name ?? (entry.assignee_id ? '(deleted user)' : '—')}
+      </p>
     </div>
   );
 }

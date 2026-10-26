@@ -19,10 +19,12 @@ import type {
   MarketSegment,
   MarketSegmentCreate,
   MarketSegmentUpdate,
+  MarketSegmentUsage,
   PublicUser,
   User,
   UserCreate,
   UserUpdate,
+  UserUsage,
 } from '@tracker/shared';
 
 export class SettingsError extends Error {
@@ -128,6 +130,50 @@ export async function updateMarketSegment(id: string, rawPayload: unknown): Prom
   });
 }
 
+/**
+ * Permanent delete for a market segment. Only allowed once the segment has been
+ * deactivated (two-step gate, enforced here rather than only in the UI).
+ *
+ * Projects store the segment as plain text (`projects.market_segment` is a
+ * VARCHAR with no FK), so deleting the lookup row never mutates project data —
+ * existing rows keep their label, mirroring the customers/vendors orphan
+ * convention. `getMarketSegmentUsage` reports how many projects carry it.
+ */
+export async function getMarketSegmentUsage(id: string): Promise<MarketSegmentUsage> {
+  const rows = await runRead<{ label: string }>(
+    `SELECT label FROM market_segments WHERE id = ?`,
+    [id],
+  );
+  const segment = rows[0];
+  if (!segment) {
+    throw new SettingsError('Market segment not found', 404);
+  }
+
+  const [countRow] = await runRead<{ count: number | bigint }>(
+    `SELECT count(*) AS count FROM projects WHERE market_segment = ?`,
+    [segment.label],
+  );
+  return { projects: Number(countRow?.count ?? 0) };
+}
+
+export async function deleteMarketSegment(id: string): Promise<void> {
+  await runWrite(async (ex) => {
+    const existing = await ex<{ id: string; is_active: boolean }>(
+      `SELECT id, is_active FROM market_segments WHERE id = ?`,
+      [id],
+    );
+    if (existing.length === 0) {
+      throw new SettingsError('Market segment not found', 404);
+    }
+    if (existing[0].is_active) {
+      throw new SettingsError('Deactivate the market segment first, then delete it permanently', 409);
+    }
+
+    // market_segments is operational/config data — not exported to parquet.
+    await ex(`DELETE FROM market_segments WHERE id = ?`, [id]);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Users (SUPER_ADMIN manages roles and active status)
 // ---------------------------------------------------------------------------
@@ -227,6 +273,77 @@ export async function updateUser(id: string, rawPayload: unknown, caller: AuthUs
     await revokeAllSessionsForUser(id);
   }
 
+  await exportSnapshots(['users']);
+}
+
+/**
+ * Impact of permanently deleting a user: how many projects reference them as
+ * the assigned staff member / PIC, plus how many logged issues name them as the
+ * assignee. Shown in the Settings confirmation modal before the delete.
+ */
+export async function getUserUsage(id: string): Promise<UserUsage> {
+  const existing = await runRead<{ id: string }>(`SELECT id FROM users WHERE id = ?`, [id]);
+  if (existing.length === 0) {
+    throw new SettingsError('User not found', 404);
+  }
+
+  const [row] = await runRead<{
+    projects_assigned: number | bigint;
+    projects_pic: number | bigint;
+    issue_assignments: number | bigint;
+  }>(
+    `SELECT
+       (SELECT count(*) FROM projects WHERE staff_assigned_id = ?) AS projects_assigned,
+       (SELECT count(*) FROM projects WHERE pic_id = ?) AS projects_pic,
+       (SELECT count(*) FROM project_issues WHERE assignee_id = ?) AS issue_assignments`,
+    [id, id, id],
+  );
+
+  return {
+    projects_assigned: Number(row?.projects_assigned ?? 0),
+    projects_pic: Number(row?.projects_pic ?? 0),
+    issue_assignments: Number(row?.issue_assignments ?? 0),
+  };
+}
+
+/**
+ * Permanent delete for a user. Only allowed once the user has been deactivated
+ * (two-step gate, enforced here rather than only in the UI).
+ *
+ * Per-user operational rows are removed with the account. Project assignments
+ * (`projects.staff_assigned_id` / `pic_id`) and the audit trail
+ * (`project_updates` / `project_issues`) are intentionally left dangling: the
+ * grid flags those rows as "(deleted user)" so a SUPER_ADMIN can reassign them,
+ * and the history keeps its entries (joined LEFT, so the name is just null).
+ */
+export async function deleteUser(id: string, caller: AuthUser): Promise<void> {
+  // Same lockout reasoning as self-deactivation: there is no recovery path, and
+  // this delete is irreversible.
+  if (id === caller.id) {
+    throw new SettingsError('You cannot delete your own account', 400);
+  }
+
+  await runWrite(async (ex) => {
+    const existing = await ex<{ id: string; is_active: boolean }>(
+      `SELECT id, is_active FROM users WHERE id = ?`,
+      [id],
+    );
+    if (existing.length === 0) {
+      throw new SettingsError('User not found', 404);
+    }
+    if (existing[0].is_active) {
+      throw new SettingsError('Deactivate the user first, then delete them permanently', 409);
+    }
+
+    await ex(`DELETE FROM sessions WHERE user_id = ?`, [id]);
+    await ex(`DELETE FROM notifications WHERE recipient_id = ?`, [id]);
+    await ex(`DELETE FROM dashboard_views WHERE user_id = ?`, [id]);
+    await ex(`DELETE FROM user_preferences WHERE user_id = ?`, [id]);
+    await ex(`DELETE FROM users WHERE id = ?`, [id]);
+  });
+
+  // users.parquet is exported from v_users_public (never the raw table, so no
+  // password_hash can leak into the snapshot).
   await exportSnapshots(['users']);
 }
 

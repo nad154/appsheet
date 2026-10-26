@@ -382,6 +382,11 @@ function FieldInput({
         {label}
         <select value={value} onChange={(e) => onChange(field, e.target.value)} className={cls}>
           <option value="">–</option>
+          {/* A stale id (user permanently deleted) would otherwise render as no
+              selection — show it explicitly so the admin knows to reassign. */}
+          {value !== '' && !users.some((u) => u.id === value) && (
+            <option value={value}>(deleted user)</option>
+          )}
           {users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}

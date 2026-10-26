@@ -7,9 +7,13 @@ import {
   listMarketSegments,
   createMarketSegment,
   updateMarketSegment,
+  getMarketSegmentUsage,
+  deleteMarketSegment,
   listUsers,
   createUser,
   updateUser,
+  getUserUsage,
+  deleteUser,
   getAgingThresholds,
   updateAgingThresholds,
   SettingsError,
@@ -48,6 +52,27 @@ settingsRouter.patch('/market-segments/:id', async (req, res) => {
   }
 });
 
+// Permanent delete — only allowed once the segment is deactivated, so the UI
+// can show the impact count first.
+settingsRouter.get('/market-segments/:id/usage', async (req, res) => {
+  const { id } = idParam.parse(req.params);
+  try {
+    res.json(await getMarketSegmentUsage(id));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+settingsRouter.delete('/market-segments/:id', async (req, res) => {
+  const { id } = idParam.parse(req.params);
+  try {
+    await deleteMarketSegment(id);
+    res.json({ ok: true });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
 // Users
 settingsRouter.get('/users', async (_req, res) => {
   try {
@@ -70,6 +95,27 @@ settingsRouter.patch('/users/:id', async (req, res) => {
   const { id } = idParam.parse(req.params);
   try {
     await updateUser(id, req.body, req.user!);
+    res.json({ ok: true });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// Permanent delete — only allowed once the user is deactivated, so the UI can
+// show how many projects still point at them first.
+settingsRouter.get('/users/:id/usage', async (req, res) => {
+  const { id } = idParam.parse(req.params);
+  try {
+    res.json(await getUserUsage(id));
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+settingsRouter.delete('/users/:id', async (req, res) => {
+  const { id } = idParam.parse(req.params);
+  try {
+    await deleteUser(id, req.user!);
     res.json({ ok: true });
   } catch (err) {
     handleError(err, res);

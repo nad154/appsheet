@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
-import type { MarketSegment, PublicUser, Role } from '@tracker/shared';
+import type { MarketSegment, MarketSegmentUsage, PublicUser, Role, UserUsage } from '@tracker/shared';
 
 export function useMarketSegments() {
   const query = useQuery({
@@ -34,6 +34,28 @@ export function useUpdateMarketSegment() {
       const { id, ...body } = input;
       return apiClient.patch<{ ok: boolean }>(`/api/settings/market-segments/${id}`, body);
     },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings', 'market-segments'] });
+    },
+  });
+}
+
+// Impact count for the permanent-delete confirmation (projects still carrying
+// the segment label). `null` disables the query while the modal is closed.
+export function useMarketSegmentUsage(id: string | null) {
+  return useQuery({
+    queryKey: ['settings', 'market-segments', id, 'usage'],
+    queryFn: () => apiClient.get<MarketSegmentUsage>(`/api/settings/market-segments/${id}/usage`),
+    enabled: !!id,
+  });
+}
+
+// SUPER_ADMIN-only permanent delete. The server rejects an active segment (409),
+// so the button is only offered for deactivated rows.
+export function useDeleteMarketSegment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.del<{ ok: boolean }>(`/api/settings/market-segments/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings', 'market-segments'] });
     },
@@ -80,6 +102,30 @@ export function useUpdateUser() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings', 'users'] });
+    },
+  });
+}
+
+// Impact counts for the permanent-delete confirmation (projects assigned / PIC,
+// issue assignments). `null` disables the query while the modal is closed.
+export function useUserUsage(id: string | null) {
+  return useQuery({
+    queryKey: ['settings', 'users', id, 'usage'],
+    queryFn: () => apiClient.get<UserUsage>(`/api/settings/users/${id}/usage`),
+    enabled: !!id,
+  });
+}
+
+// SUPER_ADMIN-only permanent delete. The server rejects an active user (409),
+// so the button is only offered for deactivated rows. Invalidates the grid too:
+// projects that referenced the user now render the "(deleted user)" marker.
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.del<{ ok: boolean }>(`/api/settings/users/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['settings', 'users'] });
+      qc.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 }

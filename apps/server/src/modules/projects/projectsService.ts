@@ -209,6 +209,7 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
     has_unread_update: updateInfo.get(r.id)?.has_unread_update ?? false,
     latest_issue_date: issueMeta.get(r.id)?.issue_date ?? null,
     latest_issue_assignee: issueMeta.get(r.id)?.assignee_name ?? null,
+    latest_issue_assignee_id: issueMeta.get(r.id)?.assignee_id ?? null,
   }));
 
   return { rows, total, total_pages, total_lines, page, page_size: pageSize };
@@ -274,6 +275,7 @@ export async function getProject(user: AuthUser, projectId: string): Promise<Pro
     has_unread_update: updateInfo.get(projectId)?.has_unread_update ?? false,
     latest_issue_date: issueMeta.get(projectId)?.issue_date ?? null,
     latest_issue_assignee: issueMeta.get(projectId)?.assignee_name ?? null,
+    latest_issue_assignee_id: issueMeta.get(projectId)?.assignee_id ?? null,
   };
 }
 

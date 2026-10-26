@@ -132,8 +132,11 @@ export async function addIssue(user: AuthUser, projectId: string, rawPayload: un
  */
 export async function getLatestIssueMeta(
   projectIds: string[],
-): Promise<Map<string, { issue_date: string; assignee_name: string | null }>> {
-  const result = new Map<string, { issue_date: string; assignee_name: string | null }>();
+): Promise<Map<string, { issue_date: string; assignee_name: string | null; assignee_id: string | null }>> {
+  const result = new Map<
+    string,
+    { issue_date: string; assignee_name: string | null; assignee_id: string | null }
+  >();
   if (projectIds.length === 0) return result;
 
   const placeholders = projectIds.map(() => '?').join(', ');
@@ -141,9 +144,10 @@ export async function getLatestIssueMeta(
     project_id: string;
     issue_date: string;
     assignee_name: string | null;
+    assignee_id: string | null;
     created_at: string;
   }>(
-    `SELECT pi.project_id, pi.issue_date, a.name AS assignee_name, pi.created_at
+    `SELECT pi.project_id, pi.issue_date, pi.assignee_id, a.name AS assignee_name, pi.created_at
      FROM project_issues pi
      LEFT JOIN users a ON a.id = pi.assignee_id
      WHERE pi.project_id IN (${placeholders})
@@ -153,7 +157,11 @@ export async function getLatestIssueMeta(
 
   for (const row of rows) {
     if (!result.has(row.project_id)) {
-      result.set(row.project_id, { issue_date: dateOnly(row.issue_date), assignee_name: row.assignee_name });
+      result.set(row.project_id, {
+        issue_date: dateOnly(row.issue_date),
+        assignee_name: row.assignee_name,
+        assignee_id: row.assignee_id,
+      });
     }
   }
   return result;

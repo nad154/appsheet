@@ -14,7 +14,9 @@ interface ProjectUpdateRow extends QueryResult {
   id: string;
   project_id: string;
   staff_id: string;
-  staff_name: string;
+  // NULL once the authoring user has been permanently deleted; the row is kept
+  // so the audit trail survives (the modal renders "(deleted user)").
+  staff_name: string | null;
   changes_json: string;
   update_progress: string;
   is_read: boolean;
@@ -73,7 +75,7 @@ export async function getHistoryAndMarkRead(projectId: string): Promise<ProjectU
   return runWrite(async (ex) => {
     const rows = (await ex(
       `SELECT pu.*, u.name AS staff_name
-       FROM project_updates pu JOIN users u ON u.id = pu.staff_id
+       FROM project_updates pu LEFT JOIN users u ON u.id = pu.staff_id
        WHERE pu.project_id = ?
        ORDER BY pu.created_at DESC`,
       [projectId],

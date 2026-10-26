@@ -45,7 +45,7 @@ function HistoryEntryCard({ entry }: { entry: ProjectUpdateEntry }) {
   return (
     <div className="rounded border border-border p-3">
       <div className="mb-2 flex items-baseline justify-between">
-        <span className="text-sm font-semibold text-ink">{entry.staff_name}</span>
+        <span className="text-sm font-semibold text-ink">{entry.staff_name ?? '(deleted user)'}</span>
         <span className="text-xs text-ink-muted">{fmtDate(entry.created_at)}</span>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

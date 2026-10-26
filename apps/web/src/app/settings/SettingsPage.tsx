@@ -3,9 +3,13 @@ import {
   useMarketSegments,
   useCreateMarketSegment,
   useUpdateMarketSegment,
+  useMarketSegmentUsage,
+  useDeleteMarketSegment,
   useUsers,
   useCreateUser,
   useUpdateUser,
+  useUserUsage,
+  useDeleteUser,
   useAgingThresholds,
   useUpdateAgingThresholds,
 } from '../../hooks/useSettings';
@@ -22,16 +26,18 @@ import {
   useDeleteVendor,
 } from '../../hooks/useVendors';
 import { useAuth } from '../../hooks/useAuth';
-import type { PublicUser, Role } from '@tracker/shared';
+import type { MarketSegmentUsage, PublicUser, Role, UserUsage } from '@tracker/shared';
 import { ROLES } from '@tracker/shared';
 import { useToast } from '../../components/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { PermanentDeleteConfirmModal } from '../../components/settings/PermanentDeleteConfirmModal';
 // import { useToast } from '../../components/Toast'
 
 const btn =
   'rounded border px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-40';
 const btnPrimary = `${btn} border-accent bg-accent text-white hover:opacity-90`;
 const btnDanger = `${btn} border-danger bg-danger text-white hover:opacity-90`;
+const btnDangerGhost = `${btn} border-danger text-danger hover:bg-danger/10`;
 const btnGhost = `${btn} border-border text-ink hover:bg-canvas`;
 const inputCls = 'w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40';
 
@@ -57,10 +63,38 @@ export function SettingsPage() {
 /* Users                                                                      */
 /* -------------------------------------------------------------------------- */
 
+// Impact copy for the permanent-delete confirmation. Counts come from the
+// dedicated usage endpoint so the admin sees them before committing.
+function userImpactLines(usage: UserUsage | undefined, loading: boolean): string[] {
+  if (loading || !usage) return ['Checking linked projects…'];
+
+  const projectCount = (n: number) => `${n} project${n === 1 ? '' : 's'}`;
+  const lines: string[] = [];
+  if (usage.projects_assigned > 0) {
+    lines.push(
+      `${projectCount(usage.projects_assigned)} still ${usage.projects_assigned === 1 ? 'lists' : 'list'} this user as Sales — ${usage.projects_assigned === 1 ? 'it will show' : 'they will show'} “(deleted user)” until reassigned.`,
+    );
+  }
+  if (usage.projects_pic > 0) {
+    lines.push(
+      `${projectCount(usage.projects_pic)} still ${usage.projects_pic === 1 ? 'lists' : 'list'} this user as PIC — ${usage.projects_pic === 1 ? 'it will show' : 'they will show'} “(deleted user)” until reassigned.`,
+    );
+  }
+  if (usage.issue_assignments > 0) {
+    lines.push(`${usage.issue_assignments} logged issue(s) are still assigned to this user.`);
+  }
+  if (lines.length === 0) {
+    lines.push('No project or issue references this user.');
+  }
+  lines.push('Their sessions, notifications, dashboard views and preferences are removed; project data is kept.');
+  return lines;
+}
+
 function UsersPanel({ me }: { me: PublicUser | null }) {
   const { data: users, isLoading, isError, error } = useUsers();
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
   const { showToast } = useToast();
 
   const [name, setName] = useState('');
@@ -68,6 +102,11 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<Role>('STAFF');
   const [addNotice, setAddNotice] = useState<string | null>(null);
+
+  // The row queued for permanent deletion (drives the confirm modal + usage query).
+  const [deleting, setDeleting] = useState<PublicUser | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const usage = useUserUsage(deleting?.id ?? null);
 
   const resetAdd = () => {
     setName('');
@@ -105,6 +144,18 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
       // showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setDeleteError(null);
+    try {
+      await deleteUser.mutateAsync(deleting.id);
+      setDeleting(null);
+      showToast('User permanently deleted.', 'success');
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete the user.');
     }
   };
 
@@ -157,14 +208,31 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
                     </span>
                   </td>
                   <td className="py-1.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleActive(u)}
-                      disabled={isSelf || updateUser.isPending}
-                      className={u.is_active ? btnDanger : btnGhost}
-                    >
-                      {u.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleActive(u)}
+                        disabled={isSelf || updateUser.isPending}
+                        className={u.is_active ? btnDanger : btnGhost}
+                      >
+                        {u.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      {/* Permanent delete is only offered after deactivation —
+                          the server enforces the same rule with a 409. */}
+                      {!u.is_active && !isSelf && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleting(u);
+                          }}
+                          disabled={deleteUser.isPending}
+                          className={btnDangerGhost}
+                        >
+                          Delete permanently
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -228,6 +296,22 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
         </button>
         {addNotice && <span className="text-xs text-danger">{addNotice}</span>}
       </form>
+
+      {deleting && (
+        <PermanentDeleteConfirmModal
+          entityLabel="user"
+          name={deleting.name}
+          impacts={userImpactLines(usage.data, usage.isLoading)}
+          error={deleteError}
+          busy={deleteUser.isPending}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => {
+            if (deleteUser.isPending) return;
+            setDeleting(null);
+            setDeleteError(null);
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -442,15 +526,34 @@ function VendorsPanel() {
 /* Market Segments                                                            */
 /* -------------------------------------------------------------------------- */
 
+// Projects store the segment as plain text, so deleting the lookup row never
+// mutates them — the count is shown so the admin knows what keeps the label.
+function segmentImpactLines(usage: MarketSegmentUsage | undefined, loading: boolean): string[] {
+  if (loading || !usage) return ['Checking linked projects…'];
+  if (usage.projects > 0) {
+    const verb = usage.projects === 1 ? 'carries' : 'carry';
+    const noun = usage.projects === 1 ? 'project' : 'projects';
+    return [
+      `${usage.projects} ${noun} still ${verb} this label. They keep the text, but it disappears from the segment list.`,
+    ];
+  }
+  return ['No projects currently use this label.'];
+}
+
 function MarketSegmentsPanel() {
   const { data: segments, isLoading, isError, error } = useMarketSegments();
   const createSegment = useCreateMarketSegment();
   const updateSegment = useUpdateMarketSegment();
+  const deleteSegment = useDeleteMarketSegment();
   const { showToast } = useToast();
 
   const [label, setLabel] = useState('');
   const [sortOrder, setSortOrder] = useState('0');
   const [addNotice, setAddNotice] = useState<string | null>(null);
+
+  const [deleting, setDeleting] = useState<{ id: string; label: string } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const usage = useMarketSegmentUsage(deleting?.id ?? null);
 
   const resetAdd = () => {
     setLabel('');
@@ -475,6 +578,18 @@ function MarketSegmentsPanel() {
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
       // showToast(err instanceof Error ? err.message : 'Update failed.', 'error');
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setDeleteError(null);
+    try {
+      await deleteSegment.mutateAsync(deleting.id);
+      setDeleting(null);
+      showToast('Market segment permanently deleted.', 'success');
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete the segment.');
     }
   };
 
@@ -508,14 +623,31 @@ function MarketSegmentsPanel() {
                   </span>
                 </td>
                 <td className="py-1.5">
-                  <button
-                    type="button"
-                    onClick={() => toggleActive(s.id, s.is_active)}
-                    disabled={updateSegment.isPending}
-                    className={s.is_active ? btnDanger : btnGhost}
-                  >
-                    {s.is_active ? 'Deactivate' : 'Reactivate'}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleActive(s.id, s.is_active)}
+                      disabled={updateSegment.isPending}
+                      className={s.is_active ? btnDanger : btnGhost}
+                    >
+                      {s.is_active ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                    {/* Permanent delete is only offered after deactivation —
+                        the server enforces the same rule with a 409. */}
+                    {!s.is_active && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleting({ id: s.id, label: s.label });
+                        }}
+                        disabled={deleteSegment.isPending}
+                        className={btnDangerGhost}
+                      >
+                        Delete permanently
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -550,6 +682,22 @@ function MarketSegmentsPanel() {
         </button>
         {addNotice && <span className="text-xs text-danger">{addNotice}</span>}
       </form>
+
+      {deleting && (
+        <PermanentDeleteConfirmModal
+          entityLabel="market segment"
+          name={deleting.label}
+          impacts={segmentImpactLines(usage.data, usage.isLoading)}
+          error={deleteError}
+          busy={deleteSegment.isPending}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => {
+            if (deleteSegment.isPending) return;
+            setDeleting(null);
+            setDeleteError(null);
+          }}
+        />
+      )}
     </section>
   );
 }

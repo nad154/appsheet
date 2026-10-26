@@ -67,11 +67,11 @@ interface ProjectTableProps {
 
 // Leaf-header tints, keyed by the parent column-group id from columns.tsx:
 // headers under the Customer group render light green, under Vendor light
-// purple (lighter than the group bands). The sticky Project Info group keeps
-// its neutral gray.
+// purple (lighter than the group bands). Project Info group uses accent color.
 const LEAF_HEADER_TINT: Record<string, string> = {
   customer: 'bg-emerald-50 text-emerald-700',
   vendor: 'bg-indigo-50 text-indigo-700',
+  project_info: 'bg-accent text-white',
 };
 
 const Z = {
@@ -164,6 +164,11 @@ function EditableCell({
         aria-label={`Edit ${field}`}
       >
         <option value="">–</option>
+        {/* A stale id (user permanently deleted) would otherwise render as no
+            selection — show it explicitly so the admin knows to reassign. */}
+        {draft !== '' && !(users ?? []).some((u) => u.id === draft) && (
+          <option value={draft}>(deleted user)</option>
+        )}
         {(users ?? []).map((u) => (
           <option key={u.id} value={u.id}>
             {u.name}
@@ -481,7 +486,7 @@ export function ProjectTable({
                       role="columnheader"
                       onClick={isSortable ? () => handleSortClick(columnId) : undefined}
                       aria-sort={isActiveSort ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      className={`border-b border-r border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-canvas text-ink-muted'}`}
+                      className={`border-b border-r border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-accent text-white'}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',

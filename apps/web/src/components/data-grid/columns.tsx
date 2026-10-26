@@ -204,8 +204,16 @@ function picColumn(size = 140): ColumnDef<DisplayRow> {
     meta: { editable: true, editType: 'user' } as ColumnMeta,
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
+      const { pic_id } = row.original.project;
       const name = projectCell(row.original, 'pic_name') as string | null | undefined;
-      if (!name) return <span className="text-ink-muted/50">—</span>;
+      if (!name) {
+        // The PIC user was permanently deleted: the id stays on the project, so
+        // flag it (like "(deleted customer)") for the admin to reassign.
+        if (pic_id) {
+          return <span className="block truncate text-sm italic text-ink-muted">(deleted user)</span>;
+        }
+        return <span className="text-ink-muted/50">—</span>;
+      }
       return <span className="block truncate text-sm text-ink">{name}</span>;
     },
   };
@@ -222,8 +230,16 @@ function salesColumn(size = 140): ColumnDef<DisplayRow> {
     meta: { editable: true, editType: 'user', adminOnly: true } as ColumnMeta,
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
+      const { staff_assigned_id } = row.original.project;
       const name = projectCell(row.original, 'staff_assigned_name') as string | null | undefined;
-      if (!name) return <span className="text-ink-muted/50">—</span>;
+      if (!name) {
+        // The assigned user was permanently deleted: the id stays on the
+        // project, so flag it for the admin to reassign.
+        if (staff_assigned_id) {
+          return <span className="block truncate text-sm italic text-ink-muted">(deleted user)</span>;
+        }
+        return <span className="text-ink-muted/50">—</span>;
+      }
       return <span className="block truncate text-sm text-ink">{name}</span>;
     },
   };
@@ -562,13 +578,14 @@ function IssuesCell({
   const text = row.project.issues;
   const issueDate = row.project.latest_issue_date;
   const assignee = row.project.latest_issue_assignee;
+  const assigneeId = row.project.latest_issue_assignee_id;
 
   const content = text ? (
     <span className="flex min-w-0 flex-col leading-snug">
       <span className="block truncate text-sm text-ink" title={text}>{text}</span>
       <span className="block truncate text-[11px] text-ink-muted">
         {issueDate ? formatIssueDate(issueDate) : '—'}
-        {assignee ? ` · ${assignee}` : ''}
+        {assignee ? ` · ${assignee}` : assigneeId ? ' · (deleted user)' : ''}
       </span>
     </span>
   ) : (

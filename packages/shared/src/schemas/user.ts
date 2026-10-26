@@ -33,5 +33,16 @@ export const userUpdateSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
+// Impact of permanently deleting a user, shown in the Settings confirmation
+// modal before the delete. Project assignments are intentionally left in place
+// (the id keeps pointing at the removed user) so the grid can flag those rows
+// as "(deleted user)" until a SUPER_ADMIN reassigns them.
+export const userUsageSchema = z.object({
+  projects_assigned: z.number().int().nonnegative(),
+  projects_pic: z.number().int().nonnegative(),
+  issue_assignments: z.number().int().nonnegative(),
+});
+
 export type UserCreate = z.infer<typeof userCreateSchema>;
 export type UserUpdate = z.infer<typeof userUpdateSchema>;
+export type UserUsage = z.infer<typeof userUsageSchema>;

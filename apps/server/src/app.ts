@@ -5,7 +5,7 @@ import { projectsRouter } from './modules/projects/routes.js';
 import { projectUpdatesRouter } from './modules/project-updates/routes.js';
 import { issuesRouter } from './modules/issues/routes.js';
 import { settingsRouter } from './modules/settings/routes.js';
-import { driveRouter } from './modules/drive/routes.js';
+// Removed: driveRouter import (moved to UNUSED_DRIVE.md)
 import { notificationsRouter } from './modules/notifications/routes.js';
 import { dashboardRouter } from './modules/dashboard/routes.js';
 import { customersRouter } from './modules/customers/routes.js';
@@ -39,7 +39,7 @@ export function createApp() {
   app.use('/api/customers', customersRouter);
   app.use('/api/vendors', vendorsRouter);
   app.use('/api/settings', settingsRouter);
-  app.use('/api/drive', driveRouter);
+  // Removed: /api/drive routes (moved to UNUSED_DRIVE.md)
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/me/preferences', preferencesRouter);

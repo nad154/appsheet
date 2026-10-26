@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { canManageDriveFolder, canManageSettings } from '../lib/rbac';
+// Removed: canManageDriveFolder import (moved to UNUSED_DRIVE.md)
+import { canManageSettings } from '../lib/rbac';
 import { NotificationBell } from './NotificationBell';
 import { Button } from './ui/Button';
 import type { Role } from '@tracker/shared';
@@ -57,7 +58,7 @@ export function AppLayout() {
               <NavItem to="/grid" label="Grid" />
               <NavItem to="/dashboard" label="Dashboard" />
               {canManageSettings(user?.role) && <NavItem to="/settings" label="Settings" />}
-              {canManageDriveFolder(user?.role) && <NavItem to="/drive-browser" label="Drive Browser" />}
+              {/* Removed: Drive Browser nav item / canManageDriveFolder (moved to UNUSED_DRIVE.md) */}
             </nav>
           </div>
 

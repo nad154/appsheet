@@ -556,7 +556,8 @@ export async function previewProjectImport(body: unknown): Promise<ImportPreview
  * Re-validate from this request, then write everything in one explicit
  * transaction under the write mutex. Snapshots are exported AFTER the mutex
  * block (exportSnapshots takes it itself). Imported projects get
- * drive_folder_id = NULL — admins link Drive folders afterwards (plan §6).
+ * drive_folder_id = NULL - the column is retained as a stale field now that
+ * Drive folder linking has been removed.
  */
 export async function commitProjectImport(
   _user: AuthUser,

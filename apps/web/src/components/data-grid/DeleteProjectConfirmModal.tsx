@@ -55,10 +55,8 @@ export function DeleteProjectConfirmModal({
           “<span className="font-medium text-ink">{projectName}</span>” will be permanently deleted, together with its{' '}
           <span className="font-medium text-ink">{linesLabel}</span>, its update history and its logged issues.
         </p>
-        <p className="mt-2 text-sm text-ink-muted">
-          The linked Google Drive folder is <span className="font-medium text-ink">not</span> deleted. This action
-          cannot be undone.
-        </p>
+        {/* Removed: linked Google Drive folder note (see UNUSED_DRIVE.md) */}
+        <p className="mt-2 text-sm text-ink-muted">This action cannot be undone.</p>
         {error && <p className="mt-3 text-sm text-danger">{error}</p>}
       </div>
     </Modal>

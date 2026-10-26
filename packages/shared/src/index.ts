@@ -5,7 +5,7 @@ export * from './schemas/project.js';
 export * from './schemas/projectUpdate.js';
 export * from './schemas/projectIssue.js';
 export * from './schemas/marketSegment.js';
-export * from './schemas/drive.js';
+// Removed: drive schemas export (moved to UNUSED_DRIVE.md)
 export * from './schemas/agingThresholds.js';
 export * from './schemas/dashboardView.js';
 export * from './schemas/gridPreferences.js';

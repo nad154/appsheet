@@ -5,7 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './app/login/LoginPage';
 import { GridPage } from './app/grid/GridPage';
 import { SettingsPage } from './app/settings/SettingsPage';
-import { DriveBrowserPage } from './app/drive-browser/DriveBrowserPage';
+// Removed: DriveBrowserPage (moved to UNUSED_DRIVE.md)
 import { DashboardPage } from './app/dashboard/DashboardPage';
 
 export default function App() {
@@ -31,14 +31,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/drive-browser"
-              element={
-                <ProtectedRoute roles={['SUPER_ADMIN']}>
-                  <DriveBrowserPage />
-                </ProtectedRoute>
-              }
-            />
+            {/* Removed: DriveBrowserPage route (moved to UNUSED_DRIVE.md) */}
             <Route path="/" element={<Navigate to="/grid" replace />} />
             <Route path="*" element={<Navigate to="/grid" replace />} />
           </Route>

@@ -7,7 +7,7 @@ interface PageHeaderProps {
 }
 
 // Page title row: title (and optional description) on the left, actions on the
-// right. Used by Grid, Dashboard, Settings and Drive Browser.
+// right. Used by Grid, Dashboard and Settings.
 export function PageHeader({ title, description, actions }: PageHeaderProps) {
   return (
     <div className="mb-4 flex items-center justify-between gap-3">

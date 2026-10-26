@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Project, ProjectStage, ProjectVendorLine } from '@tracker/shared';
 import { computeAging, computePriority } from '@tracker/shared';
 import type { AssignableUser } from '../../hooks/useProjects';
-import { useLinkFolder, useCreateFolder } from '../../hooks/useDriveActions';
+// Removed: useLinkFolder / useCreateFolder imports (moved to UNUSED_DRIVE.md)
 import { useAgingThresholds } from '../../hooks/useSettings';
 import { formatGridDate, formatGridNumber } from '../../lib/format';
 import {
@@ -12,7 +12,7 @@ import {
 } from '../../hooks/useProjectVendors';
 import { apiClient } from '../../lib/api-client';
 import { EntityCombobox, type EntityOption } from '../EntityCombobox';
-import { useToast } from '../Toast';
+// Removed: useToast import (only used by the removed Drive folder handlers)
 import {
   FIELD_LABELS,
   FIELD_SELECT_OPTIONS,
@@ -435,86 +435,8 @@ function FieldInput({
   );
 }
 
-// Mirrors driveService.extractFolderId for display state only — shows the newly
-// linked folder in the modal without a refetch. The server remains the single
-// authority for the actual link.
-function folderIdFromInput(input: string): string {
-  const match = input.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-  const raw = match ? match[1] : input.trim();
-  const qIdx = raw.indexOf('?');
-  return qIdx === -1 ? raw : raw.slice(0, qIdx);
-}
-
-function FolderBadges({
-  project,
-  isAdmin,
-  driveFolderId,
-  linkInput,
-  busy,
-  onLinkInput,
-  onLinkFolder,
-  onCreateFolder,
-}: {
-  project: Project;
-  isAdmin: boolean;
-  driveFolderId: string | null;
-  linkInput: string;
-  busy: 'link' | 'create' | null;
-  onLinkInput: (value: string) => void;
-  onLinkFolder: () => void;
-  onCreateFolder: () => void;
-}) {
-  const folderName = project.folder_name;
-  return (
-    <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-      <span className="text-ink-muted">
-        Folder:{' '}
-        {driveFolderId ? (
-          <a
-            href={`https://drive.google.com/drive/folders/${driveFolderId}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-accent underline"
-          >
-            {folderName || 'open Drive'}
-          </a>
-        ) : (
-          folderName || '—'
-        )}
-      </span>
-      {isAdmin && (
-        <>
-          <span className="flex items-center gap-1">
-            <input
-              type="text"
-              value={linkInput}
-              onChange={(e) => onLinkInput(e.target.value)}
-              placeholder="Drive folder URL or ID"
-              aria-label="Drive folder URL or ID"
-              className="w-48 rounded border border-border px-2 py-0.5 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
-            />
-            <button
-              type="button"
-              onClick={onLinkFolder}
-              disabled={busy !== null || !linkInput.trim()}
-              className="rounded-md border border-border bg-surface px-2 py-0.5 text-accent hover:bg-accent-soft disabled:opacity-50"
-            >
-              {busy === 'link' ? 'Linking…' : 'Link existing folder'}
-            </button>
-          </span>
-          <button
-            type="button"
-            onClick={onCreateFolder}
-            disabled={busy !== null}
-            className="rounded-md bg-accent px-2 py-0.5 font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-          >
-            {busy === 'create' ? 'Creating…' : 'Create folder'}
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
+// Removed: folderIdFromInput (moved to UNUSED_DRIVE.md)
+// Removed: FolderBadges (moved to UNUSED_DRIVE.md)
 
 const PRIORITY_STYLES: Record<'low' | 'medium' | 'high', string> = {
   low: 'border-success/30 bg-success-soft text-success',
@@ -540,9 +462,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
   // the Save button's disabled state below. SUPER_ADMIN edits never see it.
   const [updateProgress, setUpdateProgress] = useState('');
 
-  const [driveFolderId, setDriveFolderId] = useState<string | null>(project.drive_folder_id ?? null);
-  const [linkInput, setLinkInput] = useState('');
-  const [busy, setBusy] = useState<'link' | 'create' | null>(null);
+  // Removed: driveFolderId / linkInput / busy state (see UNUSED_DRIVE.md)
 
   // Vendor lines: a working copy of the project's lines plus any newly added
   // blank ones. Existing lines track their original values for diffing; lines
@@ -557,14 +477,12 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
   );
   const [removedLineIds, setRemovedLineIds] = useState<string[]>([]);
 
-  const linkFolder = useLinkFolder();
-  const createFolder = useCreateFolder();
+  // Removed: linkFolder / createFolder hooks (moved to UNUSED_DRIVE.md)
   const addVendorLine = useAddVendorLine(project.id);
   const updateVendorLine = useUpdateVendorLine(project.id);
   const removeVendorLine = useRemoveVendorLine(project.id);
   const thresholds = useAgingThresholds();
   const agingThresholds = thresholds.data ?? { low_max_days: 0, medium_max_days: 0 };
-  const { showToast } = useToast();
 
   const setField = (key: string, value: string) => setDraft((d) => ({ ...d, [key]: value }));
 
@@ -580,34 +498,8 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
     setLines((ls) => ls.filter((l) => l.key !== keyId));
   };
 
-  const handleLinkFolder = async () => {
-    if (busy || !linkInput.trim()) return;
-    setBusy('link');
-    try {
-      await linkFolder.mutateAsync({ projectId: project.id, folderInput: linkInput.trim() });
-      setDriveFolderId(folderIdFromInput(linkInput.trim()));
-      setLinkInput('');
-      showToast('Folder linked.', 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Could not link folder.', 'error');
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const handleCreateFolder = async () => {
-    if (busy) return;
-    setBusy('create');
-    try {
-      const result = await createFolder.mutateAsync({ projectId: project.id });
-      setDriveFolderId(result.folderId);
-      showToast('Folder created.', 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Could not create folder.', 'error');
-    } finally {
-      setBusy(null);
-    }
-  };
+  // Removed: handleLinkFolder (moved to UNUSED_DRIVE.md)
+  // Removed: handleCreateFolder (moved to UNUSED_DRIVE.md)
 
   const sections = SECTION_ORDER.filter((s) => s !== 'Vendor lines').map((section) => ({
     section,
@@ -767,16 +659,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
 
   const renderBody = (): ReactNode => (
     <div className="px-5 py-4">
-      <FolderBadges
-        project={project}
-        isAdmin={isAdmin}
-        driveFolderId={driveFolderId}
-        linkInput={linkInput}
-        busy={busy}
-        onLinkInput={setLinkInput}
-        onLinkFolder={handleLinkFolder}
-        onCreateFolder={handleCreateFolder}
-      />
+      {/* Removed: FolderBadges render (moved to UNUSED_DRIVE.md) */}
       {sections.map(({ section, fields }) => (
         <fieldset
           key={section}

@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import { scrollGridTo } from './helpers';
 
 // Deleting a project is a SUPER_ADMIN-only hard delete: the project plus its
-// vendor lines, update history and logged issues all go away, and the linked
-// Drive folder stays. The UI entry point is the Delete button in the Edit
-// Project modal, guarded by a confirmation modal.
+// vendor lines, update history and logged issues all go away. The UI entry
+// point is the Delete button in the Edit Project modal, guarded by a
+// confirmation modal.
 //
 // Fixtures go through the admin API on a dedicated project assigned to the
 // seeded staff user, so this spec never touches shared project rows and

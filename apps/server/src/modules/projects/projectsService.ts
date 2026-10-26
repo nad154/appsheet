@@ -3,8 +3,7 @@ import { resolveAgingThresholds } from '../settings/agingThresholdsCache.js';
 import type { AuthUser } from '../../middleware/requireAuth.js';
 import { exportSnapshots } from '../../db/export.js';
 import { uuid } from '../../lib/uuid.js';
-import { createProjectFolder } from '../drive/driveService.js';
-import { isGoogleConfigured } from '../google/auth.js';
+// Removed: createProjectFolder / isGoogleConfigured imports (moved to UNUSED_DRIVE.md)
 import { recordProjectUpdate, getLatestUpdateInfo } from '../project-updates/projectUpdatesService.js';
 import { getLatestIssueMeta } from '../issues/issuesService.js';
 import {
@@ -406,13 +405,9 @@ export async function createProject(user: AuthUser, rawPayload: unknown): Promis
 
   const id = uuid();
   await runWrite(async (ex) => {
-    // Create the 1:1 Drive folder (when Drive is configured) before inserting,
-    // so a Drive failure rolls back the whole write — no orphaned project.
-    let driveFolderId: string | null = stored.drive_folder_id ?? null;
-    if (isGoogleConfigured() && !driveFolderId) {
-      driveFolderId = await createProjectFolder(stored.project_name);
-    }
-    const values = buildInsertValues(id, { ...stored, drive_folder_id: driveFolderId });
+    // Removed: createProjectFolder auto-link (moved to UNUSED_DRIVE.md).
+    // drive_folder_id remains a stale column and is inserted as provided.
+    const values = buildInsertValues(id, stored);
     await ex(insertProjectSql(), values);
 
     for (const [i, line] of embeddedVendors.entries()) {

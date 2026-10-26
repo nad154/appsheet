@@ -3,7 +3,7 @@ import 'dotenv/config';
 import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { migrate } from './db/migrate.js';
-import { isGoogleConfigured, resolveRootFolderId } from './modules/google/auth.js';
+// Removed: isGoogleConfigured / resolveRootFolderId imports (moved to UNUSED_DRIVE.md)
 import { startAgingCron } from './jobs/agingCron.js';
 import { closeDb } from './db/connection.js';
 
@@ -12,19 +12,7 @@ let server: Server;
 async function bootstrap(): Promise<void> {
   await migrate();
 
-  if (isGoogleConfigured()) {
-    try {
-      await resolveRootFolderId();
-      // eslint-disable-next-line no-console
-      console.log('Google Drive ready (root folder resolved).');
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Google Drive init failed:', err instanceof Error ? err.message : err);
-    }
-  } else {
-    // eslint-disable-next-line no-console
-    console.warn('Google Drive not configured — skipping init. Set GOOGLE_APPLICATION_CREDENTIALS to enable.');
-  }
+  // Removed: Drive root folder boot init (isGoogleConfigured / resolveRootFolderId) — see UNUSED_DRIVE.md
 
   const port = Number(process.env.PORT ?? 3000);
 

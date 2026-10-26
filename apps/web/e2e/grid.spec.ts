@@ -19,9 +19,10 @@ test('admin sees all projects and role-aware nav', async ({ page }) => {
   await expect(page.getByText('Staff Project B', { exact: true })).toBeVisible();
 
   // Role-aware nav: the Approvals link is gone (updates apply immediately);
-  // SUPER_ADMIN keeps Settings + Drive Browser, and the role badge is shown.
+  // SUPER_ADMIN keeps Settings, and the role badge is shown.
   await expect(page.getByRole('link', { name: 'Approvals' })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Drive Browser' })).toBeVisible();
+  // Removed: Drive Browser nav item (moved to UNUSED_DRIVE.md)
+  await expect(page.getByRole('link', { name: 'Drive Browser' })).toHaveCount(0);
   await expect(page.getByTestId('user-role-badge')).toHaveText('(SUPER_ADMIN)');
 });
 

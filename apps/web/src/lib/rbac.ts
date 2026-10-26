@@ -10,6 +10,4 @@ export function canManageSettings(role: Role | undefined): boolean {
   return role === 'SUPER_ADMIN';
 }
 
-export function canManageDriveFolder(role: Role | undefined): boolean {
-  return role === 'SUPER_ADMIN';
-}
+// Removed: canManageDriveFolder (moved to UNUSED_DRIVE.md)

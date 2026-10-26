@@ -12,7 +12,7 @@ import { EditProjectModal } from './EditProjectModal';
 import { UpdateHistoryModal } from './UpdateHistoryModal';
 import { IssuesModal } from './IssuesModal';
 import { StageConfirmModal } from './StageConfirmModal';
-import { LinkDriveModal } from './LinkDriveModal';
+// Removed: LinkDriveModal import (moved to UNUSED_DRIVE.md)
 import type { AssignableUser } from '../../hooks/useProjects';
 import type { ToastVariant } from '../Toast';
 import { PencilIcon } from '../ui/icons';
@@ -267,7 +267,7 @@ export function ProjectTable({
   const [historyRow, setHistoryRow] = useState<Project | null>(null);
   const [issuesRow, setIssuesRow] = useState<Project | null>(null);
   const [stageConfirmRow, setStageConfirmRow] = useState<Project | null>(null);
-  const [linkDriveRow, setLinkDriveRow] = useState<Project | null>(null);
+  // Removed: linkDriveRow state (see UNUSED_DRIVE.md)
   const [flashActive, setFlashActive] = useState(false);
   // Project id of the row under the pointer. CSS :hover can't tint the whole
   // project — every vendor line is its own row <div> and sticky cells are
@@ -284,7 +284,6 @@ export function ProjectTable({
         onOpenHistory: setHistoryRow,
         onOpenIssues: setIssuesRow,
         onRequestFinish: setStageConfirmRow,
-        onLinkDrive: setLinkDriveRow,
       }),
     [isAdmin],
   );
@@ -725,13 +724,7 @@ export function ProjectTable({
 
       <UpdateHistoryModal project={historyRow} onClose={() => setHistoryRow(null)} />
       <IssuesModal project={issuesRow} users={users ?? []} onClose={() => setIssuesRow(null)} />
-      {linkDriveRow && (
-        <LinkDriveModal
-          project={linkDriveRow}
-          onClose={() => setLinkDriveRow(null)}
-          onNotice={onNotice}
-        />
-      )}
+      {/* Removed: LinkDriveModal render (moved to UNUSED_DRIVE.md) */}
       {stageConfirmRow && (
         <StageConfirmModal
           projectName={stageConfirmRow.project_name}

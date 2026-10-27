@@ -90,6 +90,23 @@ function userImpactLines(usage: UserUsage | undefined, loading: boolean): string
   return lines;
 }
 
+function generateRandomPassword(length = 12): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const array = new Uint32Array(length);
+    crypto.getRandomValues(array);
+    for (let i = 0; i < length; i++) {
+      result += chars[array[i] % chars.length];
+    }
+    return result;
+  }
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
 function UsersPanel({ me }: { me: PublicUser | null }) {
   const { data: users, isLoading, isError, error } = useUsers();
   const createUser = useCreateUser();
@@ -114,6 +131,37 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
     setPassword('');
     setRole('STAFF');
     setAddNotice(null);
+  };
+
+  const handleGeneratePassword = () => {
+    setPassword(generateRandomPassword(12));
+    setAddNotice(null);
+  };
+
+  const handleCopyCredentials = async () => {
+    if (!email.trim() || !password) {
+      setAddNotice('Enter email and password to copy credentials.');
+      return;
+    }
+    const text = `email: ${email.trim()} password: ${password}`;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      showToast('Credentials copied to clipboard.', 'success');
+      setAddNotice(null);
+    } catch (err) {
+      setAddNotice(err instanceof Error ? err.message : 'Could not copy credentials.');
+    }
   };
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -268,7 +316,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
         <label className="flex flex-col gap-0.5">
           <span className="text-[11px] text-ink-muted">Password</span>
           <input
-            type="password"
+            type="text"
             required
             minLength={8}
             value={password}
@@ -277,6 +325,17 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
             placeholder="min 8 characters"
           />
         </label>
+        <button type="button" onClick={handleGeneratePassword} className={btnGhost}>
+          Generate random password
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleCopyCredentials()}
+          disabled={!email.trim() || !password}
+          className={btnGhost}
+        >
+          Copy credentials
+        </button>
         <label className="flex flex-col gap-0.5">
           <span className="text-[11px] text-ink-muted">Role</span>
           <select
@@ -294,7 +353,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
         <button type="submit" disabled={createUser.isPending} className={btnPrimary}>
           {createUser.isPending ? 'Creating…' : 'Add user'}
         </button>
-        {addNotice && <span className="text-xs text-danger">{addNotice}</span>}
+        {addNotice && <span className="text-xs text-ink-muted">{addNotice}</span>}
       </form>
 
       {deleting && (

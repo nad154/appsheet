@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx src/server.ts",
+    "dev": "tsx scripts/dev.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "start:safe": "node scripts/start-safe.js",

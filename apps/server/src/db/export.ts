@@ -1,5 +1,4 @@
-import { runWrite, runRead, PARQUET_DIR } from './connection.js';
-import type { QueryResult } from './connection.js';
+import { runWrite, PARQUET_DIR } from './connection.js';
 import path from 'node:path';
 
 const parquetPath = (file: string) => path.join(PARQUET_DIR, file).replace(/\\/g, '/');
@@ -20,6 +19,12 @@ type ExportableTable =
  *
  * users.parquet is exported from v_users_public — a view that EXCLUDES
  * password_hash — never from the raw users table.
+ *
+ * NOTE: never add a helper here that reads a snapshot with read_parquet().
+ * On Windows DuckDB keeps the parquet file handle open after a read until GC,
+ * and COPY ... TO cannot acquire/delete a file that is still open — the next
+ * export of that table then fails with "Failed to delete file". Reads live
+ * outside the server process (or not at all).
  */
 export async function exportSnapshots(tables: ExportableTable[]): Promise<void> {
   const copyStatements: Record<ExportableTable, string> = {
@@ -39,11 +44,4 @@ export async function exportSnapshots(tables: ExportableTable[]): Promise<void> 
       await exec(stmt);
     });
   }
-}
-
-export async function readSnapshot<T extends QueryResult>(
-  file: 'projects.parquet' | 'project_updates.parquet' | 'project_issues.parquet' | 'users.parquet' | 'customers.parquet' | 'vendors.parquet' | 'project_vendors.parquet',
-): Promise<T[]> {
-  const p = parquetPath(file);
-  return runRead<T>(`SELECT * FROM read_parquet('${p}')`);
 }

@@ -86,6 +86,24 @@ export async function runRead<T extends QueryResult>(sql: string, params: unknow
   return execute<T>(sql, params);
 }
 
+/**
+ * Force DuckDB to fold the WAL into app.duckdb and truncate it.
+ *
+ * Migrations run ALTER TABLE, and DuckDB 1.4.x cannot replay a WAL that
+ * contains ALTER TABLE entries — reopening the DB then fails with
+ * "INTERNAL Error: Failure while replaying WAL file: Calling
+ * DatabaseManager::GetDefaultDatabase with no default database set" (and on
+ * Windows the native binding dies with 0xC0000005). Checkpointing right after
+ * migrations guarantees a kill later in the process life can only leave plain
+ * DML in the WAL, which replays fine.
+ */
+export async function checkpoint(): Promise<void> {
+  await ready;
+  await writeMutex.runExclusive(async () => {
+    await execStatement('CHECKPOINT');
+  });
+}
+
 // Checkpoint and close database safely
 let closing = false;
 

@@ -274,6 +274,8 @@ Prefer the simple single-process architecture described above.
 - `drive_folder_id` is stored per project at creation time — don't resolve Drive folders by name lookup at read time (fragile if folders get renamed).
 - The dev-only mock role switcher (`/api/auth/dev-switch-role`) must be disabled/unreachable outside development.
 - A failed digest send must be caught/logged, not allowed to crash the cron job; it should just retry the next day.
+- **Never `read_parquet` a snapshot the server will later re-`COPY`.** DuckDB keeps the parquet file handle open after a read (released only on GC/process exit), and `COPY … TO` deletes the target before writing — so the next export fails with `Failed to delete file … being used by another process`. Snapshot reads belong outside the server process (`db/export.ts` must stay write-only; the boot-time legacy import was retired for this reason).
+- **Migrations must end with `checkpoint()`** (already the case in `migrate()`). DuckDB 1.4.x cannot replay a WAL containing `ALTER TABLE` (`GetDefaultDatabase with no default database set`) and the native binding aborts with `0xC0000005` on Windows, so an un-checkpointed ALTER makes the DB unopenable on every later boot. `scripts/wal-guard.js` probes the WAL in a child process and quarantines it as `app.duckdb.wal.crashed-<ts>` only when it is genuinely un-replayable; `dev` and `start:safe` both go through it.
 
 ## Decision Escalation
 

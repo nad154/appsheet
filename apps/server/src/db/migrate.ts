@@ -1,8 +1,6 @@
-import { runWrite, runRead, PARQUET_DIR } from './connection.js';
+import { runWrite, runRead, checkpoint } from './connection.js';
 import { exportSnapshots } from './export.js';
 import { DEFAULT_AGING_LOW_MAX_DAYS, DEFAULT_AGING_MEDIUM_MAX_DAYS } from '@tracker/shared';
-import fs from 'node:fs';
-import path from 'node:path';
 import { uuid } from '../lib/uuid.js';
 
 // Schema DDL. All ids are app-generated UUID strings (DuckDB has no native
@@ -171,9 +169,13 @@ CREATE OR REPLACE VIEW v_users_public AS
 
 /**
  * Idempotent schema bootstrap. Safe to run on every startup: CREATE TABLE IF
- * NOT EXISTS is a no-op once the tables exist. Also imports legacy parquet
- * snapshots into the corresponding tables on first boot, when a table is
- * empty and a matching .parquet file exists in apps/server/data/parquet.
+ * NOT EXISTS is a no-op once the tables exist.
+ *
+ * Ends with a CHECKPOINT so the WAL is truncated before the app starts serving.
+ * That matters because DuckDB 1.4.x cannot replay a WAL containing ALTER TABLE
+ * entries ("GetDefaultDatabase with no default database set") — if the process
+ * died during a migration that added/dropped a column, every later boot would
+ * crash on WAL replay.
  */
 export async function migrate(): Promise<void> {
   await runWrite(async (exec) => {
@@ -185,10 +187,10 @@ export async function migrate(): Promise<void> {
   await widenMoneyColumns();
   await dropPendingEdits();
   await seedAgingThresholds();
-  await importLegacySnapshots();
   await dropUploadedDocColumns();
   await migrateCustomersAndVendors();
   await migrateProjectIssues();
+  await checkpoint();
 }
 
 /**
@@ -252,10 +254,8 @@ async function widenMoneyColumns(): Promise<void> {
 /**
  * The uploaded-document feature was removed entirely. Drop the two now-unused
  * projects columns (data loss of the stored drive references is intended).
- * Runs AFTER importLegacySnapshots so a fresh boot importing a legacy parquet
- * that still contains these columns matches the table shape; the additive
- * migration above then gets cleaned up here. Safe on every startup — no-op
- * once the columns are gone.
+ * Safe on every startup — no-op once the columns are gone. Legacy databases
+ * that still carry the columns get them dropped here; nothing re-adds them.
  */
 async function dropUploadedDocColumns(): Promise<void> {
   let altered = false;
@@ -280,8 +280,6 @@ async function migrateColumns(): Promise<void> {
     { table: 'projects', column: 'customer_id', type: 'VARCHAR' },
     { table: 'projects', column: 'pic_id', type: 'VARCHAR' },
     { table: 'projects', column: 'issues', type: 'VARCHAR' },
-    { table: 'projects', column: 'uploaded_doc_id', type: 'VARCHAR' },
-    { table: 'projects', column: 'uploaded_doc_name', type: 'VARCHAR' },
   ];
 
   // PIC used to be a free-text string. Migrate it to pic_id (a user UUID) by
@@ -350,30 +348,6 @@ async function seedAgingThresholds(): Promise<void> {
          VALUES ('default', ?, ?, current_timestamp)`,
         [DEFAULT_AGING_LOW_MAX_DAYS, DEFAULT_AGING_MEDIUM_MAX_DAYS],
       );
-    });
-  }
-}
-
-async function importLegacySnapshots(): Promise<void> {
-  const mapping: Record<string, { table: string; transform?: string }> = {
-    'projects.parquet': { table: 'projects' },
-    'project_updates.parquet': { table: 'project_updates' },
-    'project_issues.parquet': { table: 'project_issues' },
-    // users.parquet is exported from v_users_public which EXCLUDES password_hash.
-    // Never import it — users must be created by the seed script with proper hashes.
-  };
-
-  for (const [file, { table, transform }] of Object.entries(mapping)) {
-    const filePath = path.join(PARQUET_DIR, file);
-    if (!fs.existsSync(filePath)) continue;
-    const [{ count }] = await runRead<{ count: number }>(
-      `SELECT count(*) AS count FROM ${table}`,
-    );
-    if (count !== 0) continue;
-
-    // Only import on first boot when the table is empty.
-    await runWrite(async (exec) => {
-      await exec(`INSERT INTO ${table} SELECT * FROM read_parquet('${filePath.replace(/\\/g, '/')}')`);
     });
   }
 }
@@ -487,9 +461,8 @@ async function migrateCustomersAndVendors(): Promise<void> {
 
 /**
  * One-time backfill: seed project_issues from the legacy projects.issues
- * column so pre-feature issue text is preserved in history. Runs AFTER
- * importLegacySnapshots (so a legacy projects.parquet is loaded first) and
- * after migrateCustomersAndVendors. Idempotent — a project only gets a row
+ * column so pre-feature issue text is preserved in history. Runs after
+ * migrateCustomersAndVendors. Idempotent — a project only gets a row
  * when it has a non-empty issues value AND no project_issues row yet. The
  * projects.issues column stays as the always-synced "latest issue text",
  * written by the issues module.

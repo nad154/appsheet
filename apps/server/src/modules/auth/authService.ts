@@ -8,6 +8,7 @@ import {
   signAccessToken,
 } from './tokens.js';
 import type { Role, PublicUser } from '@tracker/shared';
+import type { ChangeOwnPasswordInput } from '@tracker/shared';
 
 interface UserRow {
   id: string;
@@ -81,19 +82,26 @@ export async function authenticate(email: string, password: string): Promise<Aut
   return issueSession(user);
 }
 
-async function issueSession(user: UserRow): Promise<AuthResult> {
+async function insertSession(
+  ex: (sql: string, params?: unknown[]) => Promise<unknown[]>,
+  userId: string,
+): Promise<string> {
   const refreshToken = generateRefreshToken();
   const refreshTokenHash = hashRefreshToken(refreshToken);
   const expiresAt = new Date(Date.now() + authConfig.refreshTtlMs).toISOString();
   const sessionId = uuid();
 
-  await runWrite(async (ex) => {
-    await ex(
-      `INSERT INTO sessions (id, user_id, refresh_token_hash, expires_at, revoked)
-       VALUES (?, ?, ?, ?, false)`,
-      [sessionId, user.id, refreshTokenHash, expiresAt],
-    );
-  });
+  await ex(
+    `INSERT INTO sessions (id, user_id, refresh_token_hash, expires_at, revoked)
+     VALUES (?, ?, ?, ?, false)`,
+    [sessionId, userId, refreshTokenHash, expiresAt],
+  );
+
+  return refreshToken;
+}
+
+async function issueSession(user: UserRow): Promise<AuthResult> {
+  const refreshToken = await runWrite((ex) => insertSession(ex, user.id));
 
   const accessToken = signAccessToken({
     sub: user.id,
@@ -143,4 +151,42 @@ export async function revokeAllSessionsForUser(userId: string): Promise<void> {
   await runWrite(async (ex) => {
     await ex(`UPDATE sessions SET revoked = true WHERE user_id = ?`, [userId]);
   });
+}
+
+export async function changeOwnPassword(
+  userId: string,
+  payload: ChangeOwnPasswordInput,
+): Promise<AuthResult> {
+  const user = await findUserById(userId);
+  if (!user || !user.is_active) {
+    throw new AuthError('Account unavailable', 400);
+  }
+
+  let ok: boolean;
+  try {
+    ok = await argon2.verify(user.password_hash, payload.current_password);
+  } catch {
+    throw new AuthError('Current password is incorrect', 400);
+  }
+  if (!ok) {
+    throw new AuthError('Current password is incorrect', 400);
+  }
+
+  const newHash = await argon2.hash(payload.new_password);
+
+  const refreshToken = await runWrite(async (ex) => {
+    await ex(`UPDATE users SET password_hash = ? WHERE id = ?`, [newHash, user.id]);
+    await ex(`UPDATE sessions SET revoked = true WHERE user_id = ?`, [user.id]);
+    const token = await insertSession(ex, user.id);
+    return token;
+  });
+
+  const accessToken = signAccessToken({
+    sub: user.id,
+    role: user.role,
+    email: user.email,
+    name: user.name,
+  });
+
+  return { accessToken, refreshToken, user: toPublicUser(user) };
 }

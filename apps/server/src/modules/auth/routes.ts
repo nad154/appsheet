@@ -7,11 +7,12 @@ import {
   revokeSession,
   AuthError,
   findUserById,
+  changeOwnPassword,
 } from './authService.js';
 import { signAccessToken } from './tokens.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { rateLimit } from '../../middleware/rateLimit.js';
-import { ROLES } from '@tracker/shared';
+import { ROLES, changeOwnPasswordSchema } from '@tracker/shared';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -99,6 +100,34 @@ authRouter.get('/me', requireAuth, async (req, res) => {
     created_at: user.created_at,
   });
 });
+
+authRouter.post(
+  '/change-password',
+  requireAuth,
+  rateLimit({
+    windowMs: 15 * 60_000,
+    max: 5,
+    keyFn: (req) => (req.user ? `pwd:${req.user.id}` : undefined),
+  }),
+  async (req, res) => {
+    const parsed = changeOwnPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid input', details: parsed.error.flatten() });
+      return;
+    }
+    try {
+      const result = await changeOwnPassword(req.user!.id, parsed.data);
+      res.json(result);
+    } catch (err) {
+      if (err instanceof AuthError) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      }
+      console.error('Change password error', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
 
 // Dev-only convenience for testing both roles without a second login. Must be
 // unreachable outside development.

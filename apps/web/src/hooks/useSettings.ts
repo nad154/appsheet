@@ -130,6 +130,15 @@ export function useDeleteUser() {
   });
 }
 
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: (input: { id: string; admin_password: string; new_password: string; confirm_password: string }) => {
+      const { id, ...body } = input;
+      return apiClient.post<{ ok: boolean }>(`/api/settings/users/${id}/password`, body);
+    },
+  });
+}
+
 export function useAgingThresholds() {
   const query = useQuery({
     queryKey: ['settings', 'aging-thresholds'],

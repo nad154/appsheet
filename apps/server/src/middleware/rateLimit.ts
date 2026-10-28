@@ -10,7 +10,15 @@ interface Bucket {
  * small LAN app (e.g., blast-hardening the login endpoint). Not distributed —
  * fine for a single-process deployment.
  */
-export function rateLimit({ windowMs, max }: { windowMs: number; max: number }) {
+export function rateLimit({
+  windowMs,
+  max,
+  keyFn,
+}: {
+  windowMs: number;
+  max: number;
+  keyFn?: (req: Request) => string | null | undefined;
+}) {
   const buckets = new Map<string, Bucket>();
 
   const sweep = () => {
@@ -21,7 +29,8 @@ export function rateLimit({ windowMs, max }: { windowMs: number; max: number }) 
   };
 
   return (req: Request, res: Response, next: NextFunction): void => {
-    const key = req.ip ?? 'unknown';
+    const keyFromFn = keyFn?.(req);
+    const key = keyFromFn || req.ip || 'unknown';
 
     sweep();
     const now = Date.now();

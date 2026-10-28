@@ -57,6 +57,7 @@ export function AppLayout() {
             <nav className="flex h-14 items-stretch gap-5">
               <NavItem to="/grid" label="Grid" />
               <NavItem to="/dashboard" label="Dashboard" />
+              <NavItem to="/account" label="Account" />
               {canManageSettings(user?.role) && <NavItem to="/settings" label="Settings" />}
               {/* Removed: Drive Browser nav item / canManageDriveFolder (moved to UNUSED_DRIVE.md) */}
             </nav>

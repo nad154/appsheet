@@ -10,6 +10,7 @@ import {
   useUpdateUser,
   useUserUsage,
   useDeleteUser,
+  useResetUserPassword,
   useAgingThresholds,
   useUpdateAgingThresholds,
 } from '../../hooks/useSettings';
@@ -113,6 +114,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
   const deleteUser = useDeleteUser();
+  const resetUserPassword = useResetUserPassword();
   const { showToast } = useToast();
 
   const [name, setName] = useState('');
@@ -125,6 +127,12 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
   const [deleting, setDeleting] = useState<PublicUser | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const usage = useUserUsage(deleting?.id ?? null);
+
+  const [resetTarget, setResetTarget] = useState<PublicUser | null>(null);
+  const [resetAdminPassword, setResetAdminPassword] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const resetAdd = () => {
     setName('');
@@ -140,10 +148,6 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
   };
 
   const handleCopyCredentials = async () => {
-    if (!email.trim() || !password) {
-      setAddNotice('Enter email and password to copy credentials.');
-      return;
-    }
     const text = `email: ${email.trim()} password: ${password}`;
     try {
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
@@ -208,6 +212,49 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
     }
   };
 
+  const openResetModal = (u: PublicUser) => {
+    setResetTarget(u);
+    setResetAdminPassword('');
+    setResetNewPassword('');
+    setResetConfirmPassword('');
+    setResetError(null);
+  };
+
+  const closeResetModal = () => {
+    if (resetUserPassword.isPending) return;
+    setResetTarget(null);
+    setResetAdminPassword('');
+    setResetNewPassword('');
+    setResetConfirmPassword('');
+    setResetError(null);
+  };
+
+  const submitReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTarget) return;
+    setResetError(null);
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetError('Passwords do not match');
+      return;
+    }
+    if (resetNewPassword.length < 8 || resetNewPassword.length > 128) {
+      setResetError('Password must be 8-128 characters');
+      return;
+    }
+    try {
+      await resetUserPassword.mutateAsync({
+        id: resetTarget.id,
+        admin_password: resetAdminPassword,
+        new_password: resetNewPassword,
+        confirm_password: resetConfirmPassword,
+      });
+      showToast('Password reset for user.', 'success');
+      closeResetModal();
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Could not reset password.');
+    }
+  };
+
   return (
     <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">Users</h2>
@@ -258,6 +305,15 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
                   </td>
                   <td className="py-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
+                      {u.role === 'STAFF' && !isSelf && (
+                        <button
+                          type="button"
+                          onClick={() => openResetModal(u)}
+                          className={btnGhost}
+                        >
+                          Reset password
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => toggleActive(u)}
@@ -332,10 +388,10 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
         <button
           type="button"
           onClick={() => void handleCopyCredentials()}
-          disabled={!email.trim() || !password}
-          className={btnGhost}
+          className={`${btnGhost}`} 
         >
-          <Copy size={16} />
+          <Copy size={16} 
+          className="group-disabled:opacity-10 group-enabled:opacity-80"/>
         </button>
         <label className="flex flex-col gap-0.5">
           <span className="text-[11px] text-ink-muted">Role</span>
@@ -371,6 +427,65 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
             setDeleteError(null);
           }}
         />
+      )}
+
+      {resetTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg">
+            <h3 className="mb-1 text-sm font-semibold text-ink">Reset password for {resetTarget.name}</h3>
+            <p className="mb-3 text-xs text-ink-muted">
+              The user will be signed out on all devices. Tell them the new password directly.
+            </p>
+            <form onSubmit={submitReset} className="flex flex-col gap-2">
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[11px] text-ink-muted">Your password</span>
+                <input
+                  type="password"
+                  required
+                  value={resetAdminPassword}
+                  onChange={(e) => setResetAdminPassword(e.target.value)}
+                  className={inputCls}
+                  autoComplete="current-password"
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[11px] text-ink-muted">New password</span>
+                <input
+                  type="password"
+                  required
+                  value={resetNewPassword}
+                  onChange={(e) => setResetNewPassword(e.target.value)}
+                  className={inputCls}
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={128}
+                />
+              </label>
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[11px] text-ink-muted">Confirm new password</span>
+                <input
+                  type="password"
+                  required
+                  value={resetConfirmPassword}
+                  onChange={(e) => setResetConfirmPassword(e.target.value)}
+                  className={inputCls}
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={128}
+                />
+              </label>
+              {resetError && <span className="text-xs text-danger">{resetError}</span>}
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" onClick={closeResetModal} className={btnGhost} disabled={resetUserPassword.isPending}>
+                  Cancel
+                </button>
+                <button type="submit" className={btnPrimary} disabled={resetUserPassword.isPending}>
+                  {resetUserPassword.isPending ? 'Resetting...' : 'Reset password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </section>
   );

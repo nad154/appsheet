@@ -14,6 +14,7 @@ export * from './schemas/vendor.js';
 export * from './schemas/projectVendor.js';
 export * from './schemas/import.js';
 export * from './schemas/importMapping.js';
+export * from './schemas/password.js';
 export * from './lib/aging.js';
 export * from './lib/packing.js';
 export * from './lib/importFields.js';

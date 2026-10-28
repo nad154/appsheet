@@ -25,6 +25,7 @@ import type {
   UserCreate,
   UserUpdate,
   UserUsage,
+  AdminResetPasswordInput,
 } from '@tracker/shared';
 
 export class SettingsError extends Error {
@@ -243,6 +244,20 @@ export async function updateUser(id: string, rawPayload: unknown, caller: AuthUs
       }
     }
 
+    if (
+      user.role === 'SUPER_ADMIN' &&
+      user.is_active &&
+      ((payload.role && payload.role !== 'SUPER_ADMIN') || payload.is_active === false)
+    ) {
+      const [row] = await ex<{ count: number | bigint }>(
+        `SELECT count(*) AS count FROM users WHERE role = 'SUPER_ADMIN' AND is_active = true AND id != ?`,
+        [id],
+      );
+      if (Number(row?.count ?? 0) === 0) {
+        throw new SettingsError('At least one active SUPER_ADMIN is required', 400);
+      }
+    }
+
     const sets: string[] = [];
     const values: unknown[] = [];
     if (payload.name !== undefined) {
@@ -324,8 +339,8 @@ export async function deleteUser(id: string, caller: AuthUser): Promise<void> {
   }
 
   await runWrite(async (ex) => {
-    const existing = await ex<{ id: string; is_active: boolean }>(
-      `SELECT id, is_active FROM users WHERE id = ?`,
+    const existing = await ex<{ id: string; is_active: boolean; role: string }>(
+      `SELECT id, is_active, role FROM users WHERE id = ?`,
       [id],
     );
     if (existing.length === 0) {
@@ -333,6 +348,16 @@ export async function deleteUser(id: string, caller: AuthUser): Promise<void> {
     }
     if (existing[0].is_active) {
       throw new SettingsError('Deactivate the user first, then delete them permanently', 409);
+    }
+
+    if (existing[0].role === 'SUPER_ADMIN') {
+      const [row] = await ex<{ count: number | bigint }>(
+        `SELECT count(*) AS count FROM users WHERE role = 'SUPER_ADMIN' AND is_active = true AND id != ?`,
+        [id],
+      );
+      if (Number(row?.count ?? 0) === 0) {
+        throw new SettingsError('At least one active SUPER_ADMIN is required', 400);
+      }
     }
 
     await ex(`DELETE FROM sessions WHERE user_id = ?`, [id]);
@@ -345,6 +370,53 @@ export async function deleteUser(id: string, caller: AuthUser): Promise<void> {
   // users.parquet is exported from v_users_public (never the raw table, so no
   // password_hash can leak into the snapshot).
   await exportSnapshots(['users']);
+}
+
+export async function adminResetPassword(
+  caller: AuthUser,
+  targetId: string,
+  payload: AdminResetPasswordInput,
+): Promise<void> {
+  const callerRow = await runRead<{ id: string; role: string; is_active: boolean; password_hash: string }>(
+    `SELECT id, role, is_active, password_hash FROM users WHERE id = ?`,
+    [caller.id],
+  );
+  const callerFull = callerRow[0];
+  if (!callerFull || !callerFull.is_active || callerFull.role !== 'SUPER_ADMIN') {
+    throw new SettingsError('Forbidden', 403);
+  }
+
+  let okAdmin: boolean;
+  try {
+    okAdmin = await argon2.verify(callerFull.password_hash, payload.admin_password);
+  } catch {
+    throw new SettingsError('Your password is incorrect', 400);
+  }
+  if (!okAdmin) {
+    throw new SettingsError('Your password is incorrect', 400);
+  }
+
+  const targetRow = await runRead<{ id: string; role: string }>(
+    `SELECT id, role FROM users WHERE id = ?`,
+    [targetId],
+  );
+  const target = targetRow[0];
+  if (!target) {
+    throw new SettingsError('User not found', 404);
+  }
+  if (target.role !== 'STAFF') {
+    throw new SettingsError('Only STAFF accounts can be reset this way', 400);
+  }
+  if (target.id === caller.id) {
+    throw new SettingsError('Use the self-service change password flow', 400);
+  }
+
+  const newHash = await argon2.hash(payload.new_password);
+
+  await runWrite(async (ex) => {
+    await ex(`UPDATE users SET password_hash = ? WHERE id = ?`, [newHash, target.id]);
+    await ex(`UPDATE sessions SET revoked = true WHERE user_id = ?`, [target.id]);
+  });
 }
 
 // ---------------------------------------------------------------------------

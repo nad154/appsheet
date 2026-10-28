@@ -10,6 +10,7 @@
     "start": "node dist/server.js",
     "start:safe": "node scripts/start-safe.js",
     "seed": "tsx src/seed.ts",
+    "reset-password": "tsx src/resetPassword.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

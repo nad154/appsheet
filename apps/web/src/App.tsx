@@ -7,6 +7,7 @@ import { GridPage } from './app/grid/GridPage';
 import { SettingsPage } from './app/settings/SettingsPage';
 // Removed: DriveBrowserPage (moved to UNUSED_DRIVE.md)
 import { DashboardPage } from './app/dashboard/DashboardPage';
+import { AccountPage } from './app/account/AccountPage';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           >
 <Route path="/grid" element={<GridPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/account" element={<AccountPage />} />
             <Route
               path="/settings"
               element={

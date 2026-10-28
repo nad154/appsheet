@@ -3,6 +3,8 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { requireRole } from '../../middleware/requireRole.js';
+import { rateLimit } from '../../middleware/rateLimit.js';
+import { adminResetPasswordSchema } from '@tracker/shared';
 import {
   listMarketSegments,
   createMarketSegment,
@@ -16,6 +18,7 @@ import {
   deleteUser,
   getAgingThresholds,
   updateAgingThresholds,
+  adminResetPassword,
   SettingsError,
 } from './settingsService.js';
 
@@ -121,6 +124,29 @@ settingsRouter.delete('/users/:id', async (req, res) => {
     handleError(err, res);
   }
 });
+
+settingsRouter.post(
+  '/users/:id/password',
+  rateLimit({
+    windowMs: 15 * 60_000,
+    max: 5,
+    keyFn: (req) => (req.user ? `pwd:${req.user.id}` : undefined),
+  }),
+  async (req, res) => {
+    const { id } = idParam.parse(req.params);
+    const parsed = adminResetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid input', details: parsed.error.flatten() });
+      return;
+    }
+    try {
+      await adminResetPassword(req.user!, id, parsed.data);
+      res.json({ ok: true });
+    } catch (err) {
+      handleError(err, res);
+    }
+  },
+);
 
 // Aging thresholds
 settingsRouter.get('/aging-thresholds', async (_req, res) => {

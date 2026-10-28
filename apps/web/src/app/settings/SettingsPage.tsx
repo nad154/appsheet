@@ -32,6 +32,7 @@ import { useToast } from '../../components/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { PermanentDeleteConfirmModal } from '../../components/settings/PermanentDeleteConfirmModal';
 // import { useToast } from '../../components/Toast'
+import { Copy } from 'react-bootstrap-icons';
 
 const btn =
   'rounded border px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-40';
@@ -334,7 +335,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
           disabled={!email.trim() || !password}
           className={btnGhost}
         >
-          Copy credentials
+          <Copy size={16} />
         </button>
         <label className="flex flex-col gap-0.5">
           <span className="text-[11px] text-ink-muted">Role</span>

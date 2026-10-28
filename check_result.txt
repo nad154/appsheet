@@ -1,1 +1,0 @@
-[{"table_name":"project_vendors","column_name":"vendor_price","data_type":"BIGINT"},{"table_name":"project_vendors","column_name":"vendor_revenue","data_type":"BIGINT"},{"table_name":"projects","column_name":"customer_price","data_type":"BIGINT"}]

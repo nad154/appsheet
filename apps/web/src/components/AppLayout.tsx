@@ -49,9 +49,7 @@ export function AppLayout() {
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-xs font-bold text-white">
-                PT
-              </span>
+              <img src="/asset/logo.png" alt="Logo" className="h-7 w-7" />
               <span className="text-sm font-semibold tracking-tight text-ink">Project Tracker</span>
             </div>
             <nav className="flex h-14 items-stretch gap-5">

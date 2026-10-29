@@ -94,9 +94,11 @@ async function cellBg(cell) {
 }
 
 // Column geometry (display order, SUPER_ADMIN): the three defaults sit at
-// indexes 0..2, Sales at 3; the Customer group starts at index 7 (customer_name)
-// with market_segment right behind it at 8. Defaults total 48+160+300 = 508px.
-const IDX = { number: 0, folder: 1, project: 2, sales: 3, customer: 7, marketSegment: 8 };
+// indexes 0..2, Sales at 3, the remaining Project Info leaves at 4..6 and the
+// single Update Progress column at 7; the Customer group starts at index 8
+// (customer_name) with market_segment right behind it at 9. Defaults total
+// 48+160+300 = 508px.
+const IDX = { number: 0, folder: 1, project: 2, sales: 3, customer: 8, marketSegment: 9 };
 
 test('default sticky set pins #, Folder and Project and leaves Sales flowing', async ({ page }) => {
   await login(page, ADMIN.email, ADMIN.password);

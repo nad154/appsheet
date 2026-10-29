@@ -87,7 +87,7 @@ export function GridPage() {
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
   const [stageFinishConfirm, setStageFinishConfirm] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<any>(emptyForm);
   const [customerId, setCustomerId] = useState('');
   const [vendorDrafts, setVendorDrafts] = useState<VendorLineDraft[]>([]);
 
@@ -195,10 +195,10 @@ export function GridPage() {
     setPage(1);
   };
 
-  const setField = (key: keyof typeof emptyForm, value: string) => setForm((f) => ({ ...f, [key]: value }));
+  const setField = (key: keyof typeof emptyForm, value: string) => setForm((f:any) => ({ ...f, [key]: value }));
 
   const handleConfirmStageFinish = () => {
-    setForm((f) => ({ ...f, current_stage: 'finish' }));
+    setForm((f:any) => ({ ...f, current_stage: 'finish' }));
     setStageFinishConfirm(false);
   };
 

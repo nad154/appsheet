@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { packIntoPages } from '@tracker/shared';
 import { computeAging, computePriority } from '@tracker/shared';
@@ -29,7 +29,14 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Select, controlClass } from '../../components/ui/Input';
-import { FIELD_LABELS } from '../../lib/projectFields';
+import {
+  FIELD_LABELS,
+  FIELD_SELECT_OPTIONS,
+  FIELD_TYPES,
+  NUMBER_FIELDS,
+  SECTION_OF,
+  SECTION_ORDER,
+} from '../../lib/projectFields';
 
 const emptyForm = {
   project_name: '',
@@ -40,7 +47,14 @@ const emptyForm = {
   current_stage: 'on_progress',
   staff_assigned_id: '',
   pic_id: '',
+  date_customer_received_doc1: '',
+  date_customer_received_doc2: '',
+  doc2_number_id: '',
+  customer_start_contract: '',
+  customer_end_contract: '',
 };
+
+const ADD_EDITABLE_FIELDS = Object.keys(FIELD_TYPES).filter((k) => k !== 'customer_id' && k !== 'issues');
 
 export function GridPage() {
   const { user } = useAuth();
@@ -196,6 +210,142 @@ export function GridPage() {
     return res.id;
   };
 
+  // Local copies of date/price inputs for the add form (same UX as edit modal)
+  function sanitizeNumeric(input: string): string {
+    const cleaned = input.replace(/[^0-9.]/g, '');
+    return cleaned.replace(/(\..*)\./g, '$1');
+  }
+
+  function PriceFieldAdd({
+    value,
+    onChange,
+    ariaLabel,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    ariaLabel?: string;
+  }) {
+    const [focused, setFocused] = useState(false);
+    const [editing, setEditing] = useState('');
+
+    const handleFocus = () => {
+      setEditing(value);
+      setFocused(true);
+    };
+
+    const handleBlur = () => {
+      setFocused(false);
+      onChange(sanitizeNumeric(editing));
+    };
+
+    const display = focused ? editing : value ? `Rp ${Number(value).toLocaleString('id-ID')}` : '';
+
+    return (
+      <input
+        type="text"
+        inputMode="numeric"
+        value={display}
+        placeholder="Rp —"
+        aria-label={ariaLabel}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onChange={(e) => setEditing(sanitizeNumeric(e.target.value))}
+        className={controlClass}
+      />
+    );
+  }
+
+  function DateFieldAdd({
+    value,
+    onChange,
+    ariaLabel,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    ariaLabel?: string;
+  }) {
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const openPicker = () => {
+      const el = inputRef.current;
+      if (!el) return;
+      try {
+        el.focus({ preventScroll: true });
+      } catch {
+        el.focus();
+      }
+      if (typeof el.showPicker === 'function') {
+        try {
+          el.showPicker();
+          return;
+        } catch {
+          // fall through
+        }
+      }
+      el.click();
+    };
+
+    const display = value
+      ? new Date(`${value}T00:00:00`).toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })
+      : '';
+
+    return (
+      <div className="relative flex w-full items-center">
+        <button
+          type="button"
+          onClick={openPicker}
+          title={display || 'Pick a date'}
+          className={`flex w-full items-center justify-between gap-2 rounded border border-border px-2 py-1 text-left text-sm ${controlClass} ${
+            display ? 'text-ink' : 'text-ink-muted'
+          }`}
+        >
+          <span className="flex-1">{display || '—'}</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-3.5 w-3.5 text-ink-muted"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        </button>
+        {value && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange('');
+            }}
+            aria-label="Clear date"
+            title="Clear date"
+            className="absolute right-8 rounded p-1 text-xs text-ink-muted hover:bg-canvas hover:text-ink"
+          >
+            ✕
+          </button>
+        )}
+        <input
+          ref={inputRef}
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={ariaLabel}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        />
+      </div>
+    );
+  }
+
   const loadVendors = async (q: string): Promise<EntityOption[]> =>
     apiClient.get<EntityOption[]>(`/api/vendors${q ? `?q=${encodeURIComponent(q)}` : ''}`);
 
@@ -231,13 +381,18 @@ export function GridPage() {
             VENDOR_LINE_FIELDS.map((f) => [f.key, normalizeVendorField(f.key, String(d[f.key] ?? ''))]),
           ),
         }));
-      const payload = {
+      const payload: Record<string, unknown> = {
         project_name: form.project_name.trim(),
         folder_name: form.folder_name.trim() || null,
         customer_id: customerId || null,
         market_segment: form.market_segment.trim() || null,
-        customer_price: toNumber(form.customer_price),
         service_or_goods: (form.service_or_goods || null) as 'service' | 'goods' | null,
+        date_customer_received_doc1: form.date_customer_received_doc1 || null,
+        date_customer_received_doc2: form.date_customer_received_doc2 || null,
+        doc2_number_id: form.doc2_number_id.trim() || null,
+        customer_price: toNumber(form.customer_price),
+        customer_start_contract: form.customer_start_contract || null,
+        customer_end_contract: form.customer_end_contract || null,
         current_stage: form.current_stage as 'on_progress' | 'finish',
         ...(isAdmin ? { pic_id: form.pic_id || null } : {}),
         ...(isAdmin ? { staff_assigned_id: form.staff_assigned_id || null } : {}),
@@ -328,87 +483,175 @@ export function GridPage() {
 
       {showAddForm && (
         <Card title="New project" className="mb-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <label className={fieldLabel}>
-              {FIELD_LABELS.project_name} *
-              <input value={form.project_name} onChange={(e) => setField('project_name', e.target.value)} className={controlClass} />
-            </label>
-            <label className={fieldLabel}>
-              {FIELD_LABELS.folder_name}
-              <input value={form.folder_name} onChange={(e) => setField('folder_name', e.target.value)} className={controlClass} />
-            </label>
-            <label className={`${fieldLabel} md:col-span-2`}>
+          <fieldset className="mb-4 rounded border-2 border-border bg-canvas/60 p-3">
+            <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              Project info
+            </legend>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <label className={fieldLabel}>
+                {FIELD_LABELS.project_name} *
+                <input value={form.project_name} onChange={(e) => setField('project_name', e.target.value)} className={controlClass} />
+              </label>
+              <label className={fieldLabel}>
+                {FIELD_LABELS.folder_name}
+                <input value={form.folder_name} onChange={(e) => setField('folder_name', e.target.value)} className={controlClass} />
+              </label>
+              {ADD_EDITABLE_FIELDS.filter((k) => (SECTION_OF[k] ?? 'Other') === 'Project info')
+                .filter((k) => (k !== 'staff_assigned_id' || isAdmin) && (k !== 'pic_id' || isAdmin) && (k !== 'current_stage' || isAdmin))
+                .map((key) => {
+                  const editType = FIELD_TYPES[key] ?? 'text';
+                  if (editType === 'date') {
+                    return (
+                      <label key={key} className={fieldLabel}>
+                        {FIELD_LABELS[key] ?? key}
+                        <DateFieldAdd value={form[key] ?? ''} onChange={(v) => setField(key as keyof typeof emptyForm, v)} ariaLabel={FIELD_LABELS[key] ?? key} />
+                      </label>
+                    );
+                  }
+                  if (editType === 'number') {
+                    return (
+                      <label key={key} className={fieldLabel}>
+                        {FIELD_LABELS[key] ?? key}
+                        <PriceFieldAdd value={form[key] ?? ''} onChange={(v) => setField(key as keyof typeof emptyForm, v)} ariaLabel={FIELD_LABELS[key] ?? key} />
+                      </label>
+                    );
+                  }
+                  if (editType === 'select') {
+                    if (key === 'current_stage') {
+                      return (
+                        <label key={key} className={fieldLabel}>
+                          {FIELD_LABELS[key] ?? key}
+                          <Select
+                            value={form.current_stage}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (next === 'finish') setStageFinishConfirm(true);
+                              else setField('current_stage', next);
+                            }}
+                            className="py-1"
+                          >
+                            <option value="on_progress">{STAGE_LABEL.on_progress}</option>
+                            <option value="finish">{STAGE_LABEL.finish}</option>
+                          </Select>
+                        </label>
+                      );
+                    }
+                    return (
+                      <label key={key} className={fieldLabel}>
+                        {FIELD_LABELS[key] ?? key}
+                        <Select value={form[key] ?? ''} onChange={(e) => setField(key as keyof typeof emptyForm, e.target.value)} className="py-1">
+                          <option value="">–</option>
+                          {(FIELD_SELECT_OPTIONS[key] ?? []).map((o) => (
+                            <option key={o} value={o}>
+                              {o}
+                            </option>
+                          ))}
+                        </Select>
+                      </label>
+                    );
+                  }
+                  if (editType === 'user') {
+                    const options = key === 'pic_id' ? staffUsers : users;
+                    return (
+                      <label key={key} className={fieldLabel}>
+                        {FIELD_LABELS[key] ?? key}
+                        <Select value={form[key] ?? ''} onChange={(e) => setField(key as keyof typeof emptyForm, e.target.value)} className="py-1">
+                          <option value="">–</option>
+                          {options.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </label>
+                    );
+                  }
+                  if (editType === 'textarea') {
+                    return (
+                      <label key={key} className={`${fieldLabel} md:col-span-2`}>
+                        {FIELD_LABELS[key] ?? key}
+                        <textarea rows={3} value={form[key] ?? ''} onChange={(e) => setField(key as keyof typeof emptyForm, e.target.value)} className={`${controlClass} resize-y`} />
+                      </label>
+                    );
+                  }
+                  return (
+                    <label key={key} className={fieldLabel}>
+                      {FIELD_LABELS[key] ?? key}
+                      <input value={form[key] ?? ''} onChange={(e) => setField(key as keyof typeof emptyForm, e.target.value)} className={controlClass} />
+                    </label>
+                  );
+                })}
+            </div>
+          </fieldset>
+
+          <fieldset className="mb-4 rounded border-2 border-border bg-canvas/60 p-3 [&_input:not([type='date'])]:bg-white [&_select]:bg-white [&_textarea]:bg-white">
+            <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">
               Customer
-              <EntityCombobox
-                value={customerId}
-                valueLabel={null}
-                onSelect={setCustomerId}
-                loadOptions={loadCustomers}
-                onCreate={createCustomer}
-                placeholder="Search or add customer"
-                ariaLabel="Customer"
-              />
-            </label>
-            <label className={fieldLabel}>
-              {FIELD_LABELS.market_segment}
-              <input value={form.market_segment} onChange={(e) => setField('market_segment', e.target.value)} className={controlClass} />
-            </label>
-            <label className={fieldLabel}>
-              {FIELD_LABELS.customer_price}
-              <input type="number" value={form.customer_price} onChange={(e) => setField('customer_price', e.target.value)} className={controlClass} />
-            </label>
-            <label className={fieldLabel}>
-              {FIELD_LABELS.service_or_goods}
-              <Select value={form.service_or_goods} onChange={(e) => setField('service_or_goods', e.target.value)} className="py-1">
-                <option value="">–</option>
-                <option value="service">service</option>
-                <option value="goods">goods</option>
-              </Select>
-            </label>
-            {isAdmin && (
+            </legend>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <label className={fieldLabel}>
-                {FIELD_LABELS.current_stage}
-                <Select
-                  value={form.current_stage}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    if (next === 'finish') setStageFinishConfirm(true);
-                    else setField('current_stage', next);
-                  }}
-                  className="py-1"
-                >
-                  <option value="on_progress">{STAGE_LABEL.on_progress}</option>
-                  <option value="finish">{STAGE_LABEL.finish}</option>
-                </Select>
+                {FIELD_LABELS.customer_id ?? 'Customer'}
+                <EntityCombobox
+                  value={customerId}
+                  valueLabel={null}
+                  onSelect={setCustomerId}
+                  loadOptions={loadCustomers}
+                  onCreate={createCustomer}
+                  placeholder="Search or add customer"
+                  ariaLabel="Customer"
+                />
               </label>
-            )}
-            {isAdmin && (
-              <label className={fieldLabel}>
-                {FIELD_LABELS.staff_assigned_id}
-                <Select value={form.staff_assigned_id} onChange={(e) => setField('staff_assigned_id', e.target.value)} className="py-1">
-                  <option value="">–</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            )}
-            {isAdmin && (
-              <label className={fieldLabel}>
-                {FIELD_LABELS.pic_id}
-                <Select value={form.pic_id} onChange={(e) => setField('pic_id', e.target.value)} className="py-1">
-                  <option value="">–</option>
-                  {staffUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-            )}
-          </div>
+              {ADD_EDITABLE_FIELDS.filter((k) => (SECTION_OF[k] ?? 'Other') === 'Customer').map((key) => {
+                const editType = FIELD_TYPES[key] ?? 'text';
+                if (editType === 'date') {
+                  return (
+                    <label key={key} className={fieldLabel}>
+                      {FIELD_LABELS[key] ?? key}
+                      <DateFieldAdd value={form[key] ?? ''} onChange={(v) => setField(key as keyof typeof emptyForm, v)} ariaLabel={FIELD_LABELS[key] ?? key} />
+                    </label>
+                  );
+                }
+                if (editType === 'number') {
+                  return (
+                    <label key={key} className={fieldLabel}>
+                      {FIELD_LABELS[key] ?? key}
+                      <PriceFieldAdd value={form[key] ?? ''} onChange={(v) => setField(key as keyof typeof emptyForm, v)} ariaLabel={FIELD_LABELS[key] ?? key} />
+                    </label>
+                  );
+                }
+                if (editType === 'select') {
+                  return (
+                    <label key={key} className={fieldLabel}>
+                      {FIELD_LABELS[key] ?? key}
+                      <Select value={form[key] ?? ''} onChange={(e) => setField(key as keyof typeof emptyForm, e.target.value)} className="py-1">
+                        <option value="">–</option>
+                        {(FIELD_SELECT_OPTIONS[key] ?? []).map((o) => (
+                          <option key={o} value={o}>
+                            {o}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                  );
+                }
+                if (editType === 'textarea') {
+                  return (
+                    <label key={key} className={`${fieldLabel} md:col-span-2`}>
+                      {FIELD_LABELS[key] ?? key}
+                      <textarea rows={3} value={form[key] ?? ''} onChange={(e) => setField(key as keyof typeof emptyForm, e.target.value)} className={`${controlClass} resize-y`} />
+                    </label>
+                  );
+                }
+                return (
+                  <label key={key} className={fieldLabel}>
+                    {FIELD_LABELS[key] ?? key}
+                    <input value={form[key] ?? ''} onChange={(e) => setField(key as keyof typeof emptyForm, e.target.value)} className={controlClass} />
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
 
           <fieldset className="mt-4">
             <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">

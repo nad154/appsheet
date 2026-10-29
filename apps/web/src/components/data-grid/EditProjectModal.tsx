@@ -259,8 +259,7 @@ function sanitizeNumeric(input: string): string {
 }
 
 // Date fields show the long grid format ("15 September 2026"); clicking the
-// field opens the native date picker via a hidden input, and ✕ clears it. The
-// draft stays YYYY-MM-DD.
+// field opens the native date picker, and ✕ clears it. The draft stays YYYY-MM-DD.
 function DateField({
   value,
   onChange,
@@ -276,6 +275,11 @@ function DateField({
   const openPicker = () => {
     const el = inputRef.current;
     if (!el) return;
+    try {
+      el.focus({ preventScroll: true });
+    } catch {
+      el.focus();
+    }
     if (typeof el.showPicker === 'function') {
       try {
         el.showPicker();
@@ -285,11 +289,13 @@ function DateField({
       }
     }
     el.click();
-    el.focus();
   };
 
   return (
-    <div data-date-field className="mt-1 flex w-full items-center rounded border border-border px-2 py-1">
+    <div
+      data-date-field
+      className="relative mt-1 flex w-full items-center rounded border border-border px-2 py-1"
+    >
       <button
         type="button"
         onClick={openPicker}
@@ -318,10 +324,13 @@ function DateField({
       {value && (
         <button
           type="button"
-          onClick={() => onChange('')}
+          onClick={(e) => {
+            e.stopPropagation();
+            onChange('');
+          }}
           aria-label="Clear date"
           title="Clear date"
-          className="ml-1 rounded p-1 text-xs text-ink-muted hover:bg-canvas hover:text-ink"
+          className="relative z-10 ml-1 rounded p-1 text-xs text-ink-muted hover:bg-canvas hover:text-ink"
         >
           ✕
         </button>
@@ -332,8 +341,7 @@ function DateField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={ariaLabel}
-        className="sr-only"
-        tabIndex={-1}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
       />
     </div>
   );

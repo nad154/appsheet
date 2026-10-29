@@ -67,7 +67,7 @@ export function GridPage() {
   const [sortBy, setSortBy] = useState<string | undefined>(undefined);
   const [sortDir, setSortDir] = useState<SortDir | undefined>(undefined);
   const [yearFilter, setYearFilter] = useState<number | undefined>(undefined);
-  const [stageFilter, setStageFilter] = useState<ProjectStage | undefined>('on_progress');
+  const [stageFilter, setStageFilter] = useState<ProjectStage | undefined>(undefined);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImportCsv, setShowImportCsv] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);

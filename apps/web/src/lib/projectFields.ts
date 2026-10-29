@@ -3,7 +3,7 @@ import { GOODS_OR_SERVICE, PROJECT_STAGES } from '@tracker/shared';
 // Widget kind per editable project field. Shared by the row-edit modal (which
 // renders every field of a row) and mirrored by ProjectTable.tsx's inline
 // EditableCell primitives.
-export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user' | 'entity';
+export type EditType = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'user' | 'users' | 'entity';
 
 // Human labels for project fields, used by both the update-history view and the
 // row-edit modal, so the two never disagree on how a field is named.
@@ -39,7 +39,7 @@ export const FIELD_LABELS: Record<string, string> = {
   vendor_start_contract: 'Start Contract Date',
   vendor_end_contract: 'End Contract Date',
   current_stage: 'Status',
-  pic_id: 'Responsible PIC',
+  pic_ids: 'Responsible PIC',
   issues: 'Action',
 };
 
@@ -51,7 +51,7 @@ export const SECTION_OF: Record<string, string> = {
   staff_assigned_id: 'Project info',
   drive_folder_id: 'Project info',
   current_stage: 'Project info',
-  pic_id: 'Project info',
+  pic_ids: 'Project info',
   issues: 'Project info',
   customer_id: 'Customer',
   customer_name: 'Customer',
@@ -82,7 +82,7 @@ export const FIELD_TYPES: Record<string, EditType> = {
   project_name: 'text',
   staff_assigned_id: 'user',
   current_stage: 'select',
-  pic_id: 'user',
+  pic_ids: 'users',
   customer_id: 'entity',
   market_segment: 'text',
   service_or_goods: 'select',

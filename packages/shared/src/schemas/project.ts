@@ -27,11 +27,18 @@ export const projectSchema = z.object({
   customer_end_contract: z.string().nullable().optional(),
   current_stage: z.enum(PROJECT_STAGES).default('on_progress'),
 
-  // PIC / Issues. pic_id is always an active STAFF user (or null/unassigned);
-  // being the PIC grants the staff member visibility/edits on the project, and
-  // only SUPER_ADMIN may change it.
-  pic_id: z.string().uuid().nullable().optional(),
-  pic_name: z.string().nullable().optional(),
+  // Responsible PICs (0..20). Every entry is an active STAFF or SUPER_ADMIN
+  // user; holding a PIC row grants that user visibility/edits on the project,
+  // and only SUPER_ADMIN may change the set. `name` is joined from users at
+  // query time and is null once the user is permanently deleted (dangling row).
+  pics: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().nullable(),
+      }),
+    )
+    .optional(),
   issues: z.string().nullable().optional(),
 
   // Derived by the server from Aging + current thresholds — never stored and
@@ -51,14 +58,20 @@ export const projectSchema = z.object({
   update_progress: z.string().nullable().optional(),
   has_unread_update: z.boolean().optional(),
 
-  // Latest logged issue's date + assignee, derived from project_issues at
-  // query time — never submitted by the client. The latest issue TEXT lives on
-  // projects.issues itself (denormalized, kept in sync by the add-issue write).
+  // Latest logged issue's date + assignees, derived from project_issues /
+  // project_issue_assignees at query time — never submitted by the client. The
+  // latest issue TEXT lives on projects.issues itself (denormalized, kept in
+  // sync by the add-issue write). An assignee's `name` is null once the user is
+  // permanently deleted, so the grid can flag it instead of rendering a blank.
   latest_issue_date: z.string().nullable().optional(),
-  latest_issue_assignee: z.string().nullable().optional(),
-  // Retained even after the assignee is permanently deleted, so the grid can
-  // flag the issue as "(deleted user)" instead of rendering a silent blank.
-  latest_issue_assignee_id: z.string().nullable().optional(),
+  latest_issue_assignees: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string().nullable(),
+      }),
+    )
+    .optional(),
 
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
@@ -70,18 +83,17 @@ export type Project = z.infer<typeof projectSchema>;
 // timestamps are managed by the server. priority, customer_name (joined) and
 // the embedded vendors array are deliberately excluded — priority is always
 // derived server-side, and vendor lines are managed via dedicated endpoints.
-export const projectCreateSchema = projectSchema.omit({
+export const projectWriteSchema = projectSchema.omit({
   id: true,
   created_at: true,
   updated_at: true,
   staff_assigned_name: true,
-  pic_name: true,
+  pics: true,
   priority: true,
   update_progress: true,
   has_unread_update: true,
   latest_issue_date: true,
-  latest_issue_assignee: true,
-  latest_issue_assignee_id: true,
+  latest_issue_assignees: true,
   customer_name: true,
   vendors: true,
   // issues is SUPER_ADMIN-only and only ever written through the add-issue
@@ -89,9 +101,18 @@ export const projectCreateSchema = projectSchema.omit({
   issues: true,
 });
 
-export const projectUpdateSchema = projectCreateSchema.partial().extend({
+// Responsible PIC ids are a full replacement set on update and the initial set
+// on create. SUPER_ADMIN-only — the server rejects a STAFF payload carrying any.
+// Kept out of projectWriteSchema so create can default to [] while update stays
+// absent when the caller did not touch PICs (an omitted key must not wipe them).
+export const projectCreateSchema = projectWriteSchema.extend({
+  pic_ids: z.array(z.string().uuid()).max(20, 'At most 20 PICs per project').default([]),
+});
+
+export const projectUpdateSchema = projectWriteSchema.partial().extend({
   /** SUPER_ADMIN may set a custom creation date; server enforces role. */
   created_at: z.string().optional(),
+  pic_ids: z.array(z.string().uuid()).max(20, 'At most 20 PICs per project').optional(),
 });
 
 export type ProjectCreate = z.infer<typeof projectCreateSchema>;

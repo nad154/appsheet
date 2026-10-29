@@ -33,13 +33,20 @@ async function resolvePriority(row: ProjectVendorRow): Promise<ProjectVendorLine
 
 async function findProjectOr404(
   projectId: string,
-): Promise<{ staff_assigned_id: string | null; pic_id: string | null }> {
-  const rows = await runRead<{ staff_assigned_id: string | null; pic_id: string | null }>(
-    `SELECT staff_assigned_id, pic_id FROM projects WHERE id = ?`,
+): Promise<{ staff_assigned_id: string | null; pic_ids: string[] }> {
+  const rows = await runRead<{ staff_assigned_id: string | null }>(
+    `SELECT staff_assigned_id FROM projects WHERE id = ?`,
     [projectId],
   );
   if (rows.length === 0) throw new ProjectVendorError('Project not found', 404);
-  return rows[0];
+  const picRows = await runRead<{ user_id: string }>(
+    `SELECT user_id FROM project_pics WHERE project_id = ?`,
+    [projectId],
+  );
+  return {
+    staff_assigned_id: rows[0]!.staff_assigned_id,
+    pic_ids: picRows.map((r) => r.user_id),
+  };
 }
 
 async function findLineOr404(lineId: string): Promise<{ id: string; project_id: string; vendor_id: string }> {
@@ -56,10 +63,10 @@ async function findLineOr404(lineId: string): Promise<{ id: string; project_id: 
 // Mirrors assertStaffOwnership's rule for project-level edits.
 function assertLineOwnership(
   user: AuthUser,
-  project: { staff_assigned_id: string | null; pic_id: string | null },
+  project: { staff_assigned_id: string | null; pic_ids: string[] },
 ): void {
   if (user.role !== 'STAFF') return;
-  if (project.staff_assigned_id !== user.id && project.pic_id !== user.id) {
+  if (project.staff_assigned_id !== user.id && !project.pic_ids.includes(user.id)) {
     throw new ProjectVendorError('Cannot edit vendor lines on a project you are not assigned to', 403);
   }
 }

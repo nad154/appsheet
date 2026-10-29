@@ -29,16 +29,22 @@ async function req(method: string, path: string, token: string | null, body?: un
   return { status: res.status, json };
 }
 
-async function login(email: string, password: string): Promise<string | null> {
+async function login(
+  email: string,
+  password: string,
+): Promise<{ token: string | null; user: { id?: string; name?: string } | null }> {
   const r = await req('POST', '/api/auth/login', null, { email, password });
   check(`login ${email}`, r.status === 200, r.json);
-  const tok = (r.json as any)?.access_token ?? (r.json as any)?.accessToken ?? null;
-  return tok;
+  const json = r.json as any;
+  const tok = json?.access_token ?? json?.accessToken ?? null;
+  return { token: tok, user: json?.user ?? null };
 }
 
 async function main(): Promise<void> {
-  const admin = await login('admin@example.com', 'admin12345');
-  const staff = await login('staff1@example.com', 'staff12345');
+  const adminLogin = await login('admin@example.com', 'admin12345');
+  const staffLogin = await login('staff1@example.com', 'staff12345');
+  const admin = adminLogin.token;
+  const staff = staffLogin.token;
   if (!admin || !staff) throw new Error('login failed');
 
   // -- admin list --
@@ -59,8 +65,12 @@ async function main(): Promise<void> {
   // -- staff list (RBAC filter) --
   const usersList = await req('GET', '/api/projects/users', admin);
   const usersArr: any[] = (usersList.json as any) ?? [];
-  const staffUser = usersArr.find((u) => u.role === 'STAFF');
-  const adminUser = usersArr.find((u) => u.role === 'SUPER_ADMIN');
+  // Match the logged-in accounts by id: the dev DB may hold other STAFF users,
+  // and `find(role === 'STAFF')` would pick a different person than the token.
+  const staffUser =
+    usersArr.find((u) => u.id === staffLogin.user?.id) ?? usersArr.find((u) => u.role === 'STAFF');
+  const adminUser =
+    usersArr.find((u) => u.id === adminLogin.user?.id) ?? usersArr.find((u) => u.role === 'SUPER_ADMIN');
   check('assignable users expose role', !!staffUser && !!adminUser, usersArr);
 
   const staffList = await req('GET', '/api/projects?page=1&page_size=50', staff);
@@ -69,7 +79,7 @@ async function main(): Promise<void> {
   const staffSub = staff
     ? (JSON.parse(Buffer.from(staff.split('.')[1], 'base64').toString()) as any).sub
     : null;
-  check('staff list restricted to sales-or-pic assignment', staffRows.length > 0 && !!staffSub && staffRows.every((r) => r.staff_assigned_id === staffSub || r.pic_id === staffSub));
+  check('staff list restricted to sales-or-pic assignment', staffRows.length > 0 && !!staffSub && staffRows.every((r) => r.staff_assigned_id === staffSub || (r.pics ?? []).some((p: any) => p.id === staffSub)));
 
   // -- create artifacts: customer, vendor, project --
   const newCust = await req('POST', '/api/customers', admin, { name: 'Smoke Customer' });
@@ -129,17 +139,23 @@ async function main(): Promise<void> {
   const patchedRow = await req('GET', `/api/projects/${proj.id}`, admin);
   check('ADMIN PATCH applied', (patchedRow.json as any)?.current_stage === 'finish', patchedRow.json);
 
-  // -- PIC as a second ownership axis for STAFF --
-  // Sales = admin, Responsible PIC = staff: the PIC-only staff member must see
-  // AND edit the project, but must not be able to change the PIC assignment.
+  // -- PICs as a second ownership axis for STAFF (multi-user) --
+  // Sales = admin, Responsible PICs = staff + admin: the PIC staff member must
+  // see AND edit the project, but must not be able to change the PIC set. Any
+  // active user (STAFF or SUPER_ADMIN) may be a PIC.
   const picProj = await req('POST', '/api/projects', admin, {
     project_name: 'Smoke PIC Visibility',
     staff_assigned_id: adminUser?.id,
-    pic_id: staffUser?.id,
+    pic_ids: [staffUser?.id, adminUser?.id],
     current_stage: 'on_progress',
   });
-  check('POST project with STAFF pic 201', picProj.status === 201, picProj.json);
+  check('POST project with 2 PICs 201', picProj.status === 201, picProj.json);
   const picProjId: string = (picProj.json as any)?.id;
+
+  const picRow = (await req('GET', `/api/projects/${picProjId}`, admin)).json as any;
+  check('project echoes both PICs with names', Array.isArray(picRow?.pics) && picRow.pics.length === 2
+    && picRow.pics.some((p: any) => p.id === staffUser?.id && p.name === staffUser?.name)
+    && picRow.pics.some((p: any) => p.id === adminUser?.id && p.name === adminUser?.name), picRow?.pics);
 
   const staffPicList = await req('GET', '/api/projects?page=1&page_size=500', staff);
   const staffPicRows: any[] = (staffPicList.json as any)?.rows ?? [];
@@ -153,13 +169,25 @@ async function main(): Promise<void> {
   check('STAFF PIC can edit the project', picStaffPatch.status === 200, picStaffPatch.json);
 
   const picReassign = await req('PATCH', `/api/projects/${picProjId}`, staff, {
-    pic_id: null,
-    update_progress: 'trying to unassign PIC',
+    pic_ids: [],
+    update_progress: 'trying to unassign PICs',
   });
   check('STAFF cannot change PIC assignment', picReassign.status === 403, picReassign.json);
 
-  const invalidPic = await req('PATCH', `/api/projects/${picProjId}`, admin, { pic_id: adminUser?.id });
-  check('ADMIN cannot set a non-STAFF PIC', invalidPic.status === 400, invalidPic.json);
+  const unknownPic = await req('PATCH', `/api/projects/${picProjId}`, admin, {
+    pic_ids: ['00000000-0000-4000-8000-000000000000'],
+  });
+  check('ADMIN cannot assign a non-existent PIC (400)', unknownPic.status === 400, unknownPic.json);
+
+  const tooManyPics = await req('PATCH', `/api/projects/${picProjId}`, admin, {
+    pic_ids: Array.from({ length: 21 }, () => crypto.randomUUID()),
+  });
+  check('ADMIN cannot exceed 20 PICs (400)', tooManyPics.status === 400, tooManyPics.json);
+
+  // Give the main smoke project a PIC so the issue-assignee pool (Sales + PICs)
+  // is non-empty below.
+  const projPicPatch = await req('PATCH', `/api/projects/${proj.id}`, admin, { pic_ids: [staffUser?.id] });
+  check('ADMIN sets one PIC on smoke project', projPicPatch.status === 200, projPicPatch.json);
 
   // -- issues: SUPER_ADMIN-only add + history --
   const staffIssuesGet = await req('GET', `/api/projects/${proj.id}/issues`, staff);
@@ -171,8 +199,20 @@ async function main(): Promise<void> {
   const emptyHistory = await req('GET', `/api/projects/${proj.id}/issues`, admin);
   check('ADMIN GET issues 200 (empty)', emptyHistory.status === 200 && (emptyHistory.json as any)?.entries?.length === 0, emptyHistory.json);
 
-  const badAssignee = await req('POST', `/api/projects/${proj.id}/issues`, admin, { issue_text: 'x', assignee_id: adminUser?.id });
-  check('issue rejects non-STAFF assignee (400)', badAssignee.status === 400, badAssignee.json);
+  // Assignees are limited to the project's Sales + PICs, must be active, are
+  // de-duplicated and capped at 20. adminUser logged the issue but is NOT the
+  // project's Sales/PIC (staffUser is the PIC), so it is an outsider here.
+  const badAssignee = await req('POST', `/api/projects/${proj.id}/issues`, admin, {
+    issue_text: 'x',
+    assignee_ids: [adminUser?.id],
+  });
+  check('issue rejects an assignee outside Sales/PICs (400)', badAssignee.status === 400, badAssignee.json);
+
+  const tooManyAssignees = await req('POST', `/api/projects/${proj.id}/issues`, admin, {
+    issue_text: 'x',
+    assignee_ids: Array.from({ length: 21 }, () => crypto.randomUUID()),
+  });
+  check('issue rejects more than 20 assignees (400)', tooManyAssignees.status === 400, tooManyAssignees.json);
 
   const badDate = await req('POST', `/api/projects/${proj.id}/issues`, admin, { issue_text: 'x', issue_date: 'not-a-date' });
   check('issue rejects bad date (400)', badDate.status === 400, badDate.json);
@@ -180,26 +220,33 @@ async function main(): Promise<void> {
   const missingText = await req('POST', `/api/projects/${proj.id}/issues`, admin, {});
   check('issue requires issue_text (400)', missingText.status === 400, missingText.json);
 
+  // Duplicate ids collapse to one assignee. send_email with MAIL_DRIVER=off must
+  // be a harmless no-op: the issue still commits and returns 201.
   const addIssue = await req('POST', `/api/projects/${proj.id}/issues`, admin, {
     issue_text: 'Smoke issue',
     issue_date: today,
-    assignee_id: staffUser?.id,
+    assignee_ids: [staffUser?.id, staffUser?.id],
+    send_email: true,
   });
-  check('ADMIN POST issues 201', addIssue.status === 201, addIssue.json);
+  check('ADMIN POST issues 201 (send_email no-op with MAIL_DRIVER=off)', addIssue.status === 201, addIssue.json);
 
   const history = await req('GET', `/api/projects/${proj.id}/issues`, admin);
   const entries: any[] = (history.json as any)?.entries ?? [];
   check('issue appears in history', history.status === 200 && entries.length === 1 && entries[0]?.issue_text === 'Smoke issue', entries);
-  check('issue carries assignee + date', entries[0]?.assignee_name === staffUser?.name && entries[0]?.issue_date === today, entries[0]);
+  check('issue carries de-duplicated assignee + date', entries[0]?.assignees?.length === 1
+    && entries[0].assignees[0].id === staffUser?.id
+    && entries[0].assignees[0].name === staffUser?.name
+    && entries[0]?.issue_date === today, entries[0]);
 
-  // Second issue with no assignee (default None); the grid should surface the
+  // Second issue with no assignee (default none); the grid should surface the
   // LATEST text, with the older text only available in admin history.
   const addIssue2 = await req('POST', `/api/projects/${proj.id}/issues`, admin, { issue_text: 'Second issue' });
   check('ADMIN POST issues (no assignee) 201', addIssue2.status === 201, addIssue2.json);
 
   const listAfter = await req('GET', '/api/projects?page=1&page_size=500', admin);
   const listed = (listAfter.json as any)?.rows?.find((r: any) => r.id === proj.id);
-  check('grid row exposes latest issue text + meta', listed?.issues === 'Second issue' && !!listed?.latest_issue_date && listed?.latest_issue_assignee === null, listed);
+  check('grid row exposes latest issue text + meta', listed?.issues === 'Second issue' && !!listed?.latest_issue_date
+    && Array.isArray(listed?.latest_issue_assignees) && listed.latest_issue_assignees.length === 0, listed);
 
   const history2 = await req('GET', `/api/projects/${proj.id}/issues`, admin);
   check('history keeps all past issues (2 newest-first)', (history2.json as any)?.entries?.[0]?.issue_text === 'Second issue' && (history2.json as any)?.entries?.[1]?.issue_text === 'Smoke issue', history2.json);
@@ -212,13 +259,29 @@ async function main(): Promise<void> {
   const drill = await req('GET', `/api/dashboard/chart-data?column=vendor_type&selected_id=${vendorId}`, admin);
   check('drill-down vendor_type&selected_id 200', drill.status === 200, drill.json);
 
+  // PIC grouping is count-only (a multi-PIC project would double count money).
+  const picChart = await req('GET', '/api/dashboard/chart-data?column=pic_id&metric=count', admin);
+  check('chart-data column=pic_id&metric=count 200', picChart.status === 200, picChart.json);
+  const picMoney = await req('GET', '/api/dashboard/chart-data?column=pic_id&metric=customer_price', admin);
+  check('PIC grouping rejects customer_price (400)', picMoney.status === 400, picMoney.json);
+  const picName = encodeURIComponent(staffUser?.name ?? '');
+  const picDrill = await req('GET', `/api/dashboard/drill-down?column=pic_id&value=${picName}`, admin);
+  check('PIC drill-down matches on PIC name', picDrill.status === 200
+    && ((picDrill.json as any)?.projects ?? []).some((p: any) => p.id === proj.id), picDrill.json);
+
   // -- delete artifacts + usageCount notice --
+  const usageBefore = (await req('GET', `/api/settings/users/${staffUser.id}/usage`, admin)).json as any;
   const custDel = await req('DELETE', `/api/customers/${custId}`, admin);
   check('DELETE customer returns usageCount', custDel.status === 200 && typeof (custDel.json as any)?.usageCount === 'number', custDel.json);
   const vendDel = await req('DELETE', `/api/vendors/${vendorId}`, admin);
   check('DELETE vendor returns usageCount', vendDel.status === 200 && typeof (vendDel.json as any)?.usageCount === 'number', vendDel.json);
   const projDel = await req('DELETE', `/api/projects/${proj.id}`, admin);
   check('DELETE project 200', [200, 204].includes(projDel.status), projDel.json);
+  const usageAfter = (await req('GET', `/api/settings/users/${staffUser.id}/usage`, admin)).json as any;
+  check('project delete removed its PIC rows + issue assignee rows',
+    usageAfter?.projects_pic === (usageBefore?.projects_pic ?? 0) - 1
+    && usageAfter?.issue_assignments === (usageBefore?.issue_assignments ?? 0) - 1,
+    { usageBefore, usageAfter });
   const goneList = await req('GET', '/api/projects?page=1&page_size=500', admin);
   const goneRows: any[] = (goneList.json as any)?.rows ?? [];
   check('project really deleted', !goneRows.some((r) => r.id === proj.id) && goneList.status === 200, goneRows);
@@ -446,6 +509,11 @@ async function main(): Promise<void> {
   for (const p of (await listProjectsAll()).filter((r: any) => String(r.project_name).startsWith('Smoke Import'))) {
     const d = await req('DELETE', `/api/projects/${p.id}`, admin);
     check(`cleanup project ${p.project_name}`, [200, 204].includes(d.status), d.json);
+  }
+  // PIC smoke projects (and leftovers from earlier runs) carry PIC rows, so
+  // removing them keeps the per-user usage counts stable across runs.
+  for (const p of (await listProjectsAll()).filter((r: any) => String(r.project_name).startsWith('Smoke PIC Visibility'))) {
+    await req('DELETE', `/api/projects/${p.id}`, admin);
   }
   for (const c of (((await req('GET', '/api/customers', admin)).json as any[]) ?? []).filter((c: any) => c.name.startsWith('Smoke Import'))) {
     await req('DELETE', `/api/customers/${c.id}`, admin);

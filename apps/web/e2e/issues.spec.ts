@@ -48,9 +48,17 @@ test('SUPER_ADMIN adds issues with date/assignee and sees the full history', asy
   }
   const users = await (await page.request.get('/api/settings/users', { headers })).json();
   const staff = users.find((u) => u.role === 'STAFF' && u.email === STAFF_EMAIL);
+  const adminUser = users.find((u) => u.role === 'SUPER_ADMIN');
+  // Sales = staff, PIC = admin: the issue-assignee pool (Sales + PICs) then has
+  // exactly two people, so multi-select can be exercised.
   const created = await page.request.post('/api/projects', {
     headers,
-    data: { project_name: PROJECT_NAME, staff_assigned_id: staff.id, current_stage: 'on_progress' },
+    data: {
+      project_name: PROJECT_NAME,
+      staff_assigned_id: staff.id,
+      pic_ids: [adminUser.id],
+      current_stage: 'on_progress',
+    },
   });
   expect(created.ok()).toBeTruthy();
 
@@ -70,6 +78,15 @@ test('SUPER_ADMIN adds issues with date/assignee and sees the full history', asy
   const bText = `E2E Issues B ${Date.now()}`;
   await dialog.getByLabel('Issue text').fill(bText);
   await dialog.getByLabel('Issue date').fill('2026-08-01');
+
+  // Assignees are limited to this project's Sales + PICs (staff + admin), and
+  // the email toggle is disabled + off while nobody is selected.
+  const assigneeGroup = dialog.getByRole('group', { name: 'Issue assignees' });
+  await expect(assigneeGroup.getByRole('checkbox')).toHaveCount(2);
+  const emailToggle = dialog.getByRole('checkbox', { name: 'Send email to assignees' });
+  await expect(emailToggle).toBeDisabled();
+  await expect(emailToggle).not.toBeChecked();
+
   await dialog.getByRole('button', { name: 'Add issue' }).click();
 
   // The new entry shows immediately, with the explicit date and no assignee.
@@ -77,14 +94,19 @@ test('SUPER_ADMIN adds issues with date/assignee and sees the full history', asy
   await expect(dialog.getByText('1 Aug 2026', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Assigned to: —', { exact: true })).toBeVisible();
 
-  // Second issue: default date (today) + assign to the staff user.
+  // Second issue: default date (today) + assign to BOTH people. The email
+  // toggle becomes available and defaults to on.
   const aText = `E2E Issues A ${Date.now()}`;
   await dialog.getByLabel('Issue text').fill(aText);
-  await dialog.getByLabel('Assign to staff').selectOption({ label: staff.name });
+  await assigneeGroup.getByRole('checkbox', { name: /Staff One/ }).check();
+  await assigneeGroup.getByRole('checkbox', { name: /Admin/ }).check();
+  await expect(emailToggle).toBeEnabled();
+  await expect(emailToggle).toBeChecked();
   await dialog.getByRole('button', { name: 'Add issue' }).click();
 
   await expect(dialog.getByText(aText, { exact: true })).toBeVisible();
-  await expect(dialog.getByText('Assigned to: ' + staff.name, { exact: true })).toBeVisible();
+  // Server returns assignees name-sorted, so "Admin, Staff One".
+  await expect(dialog.getByText('Assigned to: Admin, Staff One', { exact: true })).toBeVisible();
 
   // Full history is kept — both entries, newest first (A on top).
   await expect(dialog.getByText(bText, { exact: true })).toBeVisible();
@@ -94,7 +116,7 @@ test('SUPER_ADMIN adds issues with date/assignee and sees the full history', asy
   await dialog.getByRole('button', { name: 'Close' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(projectRow.getByText(aText, { exact: true })).toBeVisible();
-  await expect(projectRow.getByText(new RegExp('· ' + staff.name))).toBeVisible();
+  await expect(projectRow.getByText(new RegExp('· Admin, Staff One'))).toBeVisible();
   await expect(projectRow.getByText(bText, { exact: true })).toHaveCount(0);
 
   // Reopen: the history is still complete after a fresh fetch.
@@ -112,9 +134,9 @@ test('STAFF sees only the latest issue and cannot click into history', async ({ 
   await expect(page.getByText(PROJECT_NAME, { exact: true })).toBeVisible();
   const projectRow = row(page, PROJECT_NAME);
 
-  // Only the most recent issue (A, with its assignee) is shown in the cell.
+  // Only the most recent issue (A, with its assignees) is shown in the cell.
   await expect(projectRow.getByText(new RegExp('E2E Issues A \\d+'))).toBeVisible();
-  await expect(projectRow.getByText(new RegExp('· Staff One'))).toBeVisible();
+  await expect(projectRow.getByText(new RegExp('· Admin, Staff One'))).toBeVisible();
   await expect(projectRow.getByText(new RegExp('E2E Issues B \\d+'))).toHaveCount(0);
 
   // STAFF sees a plain read-only cell — no clickable View issues button.

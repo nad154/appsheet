@@ -163,18 +163,24 @@ test('vendor lines can be added and removed in the edit modal', async ({ page })
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/Vendor lines \(2\)/)).toBeVisible();
 
+  // Vendors are not cleaned up by name in this spec, so the in-modal "add new
+  // vendor" name must be unique per run: clicking Add for a name that already
+  // exists leaves the dropdown open on a 409 and Playwright retries the
+  // detaching button forever.
+  const newVendor = `0 E2E Beta Vendor Three ${Date.now()}`;
+
   // Add a third blank line and fill in vendor + sent date.
   await dialog.getByRole('button', { name: '+ Add vendor' }).click();
   const line3 = dialog.getByText('Vendor 3', { exact: true }).locator('xpath=ancestor::div[contains(@class,"border-gray-200")]');
-  await dialog.getByLabel('Vendor 3').fill('0 E2E Beta Vendor Three');
-  await dialog.getByRole('button', { name: 'Add "0 E2E Beta Vendor Three"' }).click();
-  await line3.getByRole('textbox', { name: 'Tanggal Kirim FPT' }).fill(thirtyDaysAgo());
+  await dialog.getByLabel('Vendor 3').fill(newVendor);
+  await dialog.getByRole('button', { name: `Add "${newVendor}"` }).click();
+  await line3.getByRole('textbox', { name: 'FPT Sent Date' }).fill(thirtyDaysAgo());
   await dialog.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Saved.', { exact: true })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
   // The new line shows up in the grid as a third display row.
-  await expect(page.getByText('0 E2E Beta Vendor Three', { exact: true })).toBeVisible();
+  await expect(page.getByText(newVendor, { exact: true })).toBeVisible();
 
   // Reopen: three lines now; removing line 3 reverts to two.
   await name.hover();
@@ -187,7 +193,7 @@ test('vendor lines can be added and removed in the edit modal', async ({ page })
   await dialog2.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Saved.', { exact: true })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByText('0 E2E Beta Vendor Three', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(newVendor, { exact: true })).toHaveCount(0);
 
   await api.deleteProjects(['0 E2E MV Beta']);
 });

@@ -23,8 +23,12 @@ export function useProjectIssues(projectId: string | null) {
 export function useAddIssue(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { issue_text: string; issue_date?: string; assignee_id?: string | null }) =>
-      apiClient.post<{ id: string }>(`/api/projects/${projectId}/issues`, input),
+    mutationFn: (input: {
+      issue_text: string;
+      issue_date?: string;
+      assignee_ids: string[];
+      send_email: boolean;
+    }) => apiClient.post<{ id: string }>(`/api/projects/${projectId}/issues`, input),
     onSuccess: () => {
       // Adding an issue syncs projects.issues + the history — refresh the grid
       // and re-open history so the new entry shows immediately.

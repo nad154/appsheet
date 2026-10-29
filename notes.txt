@@ -1,0 +1,96 @@
+# Project Tracker — follow-up notes
+
+Operational notes that did not belong in code. Not a spec; keep short.
+
+## 1. SMTP go-live checklist (IT / Microsoft 365)
+
+Issue emails are sent from a no-reply Microsoft mailbox over SMTP. The code is
+safe with no credentials (`MAIL_DRIVER=off`), so the app works before this is
+done.
+
+1. Create/choose the sender mailbox, e.g. `no-reply@yourcompany.com`.
+2. Enable **SMTP AUTH** for that mailbox (Microsoft 365 disables it by default;
+   this is per-mailbox, in the M365 admin center → Mailboxes → Email apps).
+   If the tenant blocks SMTP AUTH entirely, use an internal SMTP relay instead
+   (leave `SMTP_USER`/`SMTP_PASSWORD` empty; the mailer skips auth when no user
+   is set).
+3. Allow outbound TCP **587** (STARTTLS) from the server machine.
+4. Put these in `apps/server/.env` (git-ignored, never commit):
+
+   ```
+   MAIL_DRIVER=smtp
+   SMTP_HOST=smtp.office365.com
+   SMTP_PORT=587
+   SMTP_SECURE=false
+   SMTP_USER=no-reply@yourcompany.com
+   SMTP_PASSWORD=<mailbox or app password>
+   MAIL_FROM=no-reply@yourcompany.com
+   MAIL_FROM_NAME=Project Tracker
+   APP_BASE_URL=http://<lan-host>:5173      # optional; adds the /grid link
+   ```
+
+   Port 465 + `SMTP_SECURE=true` also works if IT prefers implicit TLS.
+5. Smoke-test without sending: set `MAIL_DRIVER=log`, log an issue with
+   assignees, and check the server console prints `[mail:log] ...`.
+6. Switch to `MAIL_DRIVER=smtp`, log one more issue, confirm delivery and the
+   no-reply footer.
+
+Notes:
+- Domain-wide delegation (the old Gmail requirement) is **not** needed.
+- Missing `SMTP_HOST`/`MAIL_FROM` with `MAIL_DRIVER=smtp` logs a warning and
+  degrades to `off`; it never blocks server start.
+- Delivery failures are logged as
+  `issue-email failed issue=<id> to=<email> reason=<msg>` and are not retried.
+  The issue itself is always saved.
+
+## 2. AGENTS.md refresh (follow-up)
+
+`AGENTS.md` still describes the pre-multi-PIC design. When convenient, update:
+
+- Data model: add `project_pics` and `project_issue_assignees`; note
+  `projects.pic_id` and `project_issues.assignee_id` are deprecated/unused.
+- Parquet exports: `project_pics.parquet` + `project_issue_assignees.parquet`
+  are exported; `projects.parquet` / `project_issues.parquet` intentionally
+  keep their old shape and are stale for those columns.
+- PIC rules: SUPER_ADMIN-only writes, cap 20, active STAFF or SUPER_ADMIN,
+  STAFF visibility via Sales **or** PIC.
+- Issue assignees: project's Sales + PICs only, active users, cap 20.
+- New mail module (`apps/server/src/modules/mail/`) and env vars
+  (`MAIL_DRIVER`, `SMTP_*`, `MAIL_FROM*`, `APP_BASE_URL`); remove the old
+  Google/Gmail digest env references if they remain.
+- Dashboard PIC grouping is count-only.
+
+## 3. Deprecated columns to drop in a later migration
+
+Kept for now so old files/readers don't break (no ALTER in this change):
+
+- `projects.pic_id` (legacy single PIC; superseded by `project_pics`).
+- `project_issues.assignee_id` (legacy single assignee; superseded by
+  `project_issue_assignees`).
+
+Drop them only together with a full re-export of `projects.parquet` /
+`project_issues.parquet` (remember: that export must not race an in-process
+`read_parquet`).
+
+## 4. Future work — email failure feedback
+
+Today failures are log-only by design. If admins need to know, add a
+non-blocking result (e.g. a toast "2 of 3 emails sent" or a row in
+`notifications`) and a manual resend. Do not put mail sending inside the write
+mutex — it already runs after commit, per recipient, in isolation.
+
+## 5. Dev database caution
+
+`apps/server/_rbac_setup.ts` is a destructive fixture reset: it deletes **all**
+projects, project vendors, PIC/assignee rows, customers and vendors, plus the
+`staff1@example.com` user, then re-creates the e2e fixtures. Never run it
+against a database whose data you care about — copy `app.duckdb` first.
+
+E2E specs sign in as `admin@example.com` / `admin12345` and
+`staff1@example.com` / `staff12345`. If the admin password was changed in the
+UI, reset it before running Playwright (the dev seed only creates the account
+when it is missing):
+
+```
+npm run reset-password -w @tracker/server -- admin@example.com
+```

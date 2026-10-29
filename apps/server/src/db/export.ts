@@ -10,7 +10,9 @@ type ExportableTable =
   | 'users'
   | 'customers'
   | 'vendors'
-  | 'project_vendors';
+  | 'project_vendors'
+  | 'project_pics'
+  | 'project_issue_assignees';
 
 /**
  * Re-export the parquet snapshot(s) for the given tables. Must be called
@@ -35,6 +37,8 @@ export async function exportSnapshots(tables: ExportableTable[]): Promise<void> 
     customers: `COPY customers TO '${parquetPath('customers.parquet')}' (FORMAT PARQUET)`,
     vendors: `COPY vendors TO '${parquetPath('vendors.parquet')}' (FORMAT PARQUET)`,
     project_vendors: `COPY project_vendors TO '${parquetPath('project_vendors.parquet')}' (FORMAT PARQUET)`,
+    project_pics: `COPY project_pics TO '${parquetPath('project_pics.parquet')}' (FORMAT PARQUET)`,
+    project_issue_assignees: `COPY project_issue_assignees TO '${parquetPath('project_issue_assignees.parquet')}' (FORMAT PARQUET)`,
   };
 
   for (const table of tables) {

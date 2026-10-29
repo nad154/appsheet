@@ -16,7 +16,7 @@ export default defineConfig({
       url: 'http://localhost:3000/api/health',
       reuseExistingServer: false,
       timeout: 30000,
-      env: { LOGIN_RATE_LIMIT_MAX: '100' },
+      env: { LOGIN_RATE_LIMIT_MAX: '100', MAIL_DRIVER: 'off' },
     },
     {
       command: 'npm run dev:web',

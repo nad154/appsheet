@@ -108,6 +108,26 @@ CREATE TABLE IF NOT EXISTS project_issues (
   created_at TIMESTAMP NOT NULL DEFAULT current_timestamp
 );
 
+-- Responsible PICs: one row per (project, user). Replaces the single
+-- projects.pic_id column, which is kept (unused) for legacy readers. A dangling
+-- row is allowed once the user is permanently deleted — the join resolves the
+-- name to NULL and the UI shows "(deleted user)".
+CREATE TABLE IF NOT EXISTS project_pics (
+  project_id VARCHAR NOT NULL,        -- FK dropped, project convention
+  user_id VARCHAR NOT NULL,           -- FK dropped
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  PRIMARY KEY (project_id, user_id)
+);
+
+-- Issue assignees: one row per (issue, user). Replaces project_issues.assignee_id,
+-- which is kept (unused) for legacy rows. Dangling rows survive user deletion.
+CREATE TABLE IF NOT EXISTS project_issue_assignees (
+  issue_id VARCHAR NOT NULL,          -- FK dropped, project convention
+  user_id VARCHAR NOT NULL,           -- FK dropped
+  created_at TIMESTAMP NOT NULL DEFAULT current_timestamp,
+  PRIMARY KEY (issue_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id VARCHAR PRIMARY KEY,
   user_id VARCHAR NOT NULL,           -- FK dropped
@@ -184,12 +204,15 @@ export async function migrate(): Promise<void> {
 
   await migrateColumns();
   await migrateDashboardViewColumns();
+  await normalizePicDashboardViews();
   await widenMoneyColumns();
   await dropPendingEdits();
   await seedAgingThresholds();
   await dropUploadedDocColumns();
   await migrateCustomersAndVendors();
   await migrateProjectIssues();
+  await migratePics();
+  await migrateIssueAssignees();
   await checkpoint();
 }
 
@@ -491,6 +514,74 @@ async function migrateProjectIssues(): Promise<void> {
     }
   });
   await exportSnapshots(['project_issues']);
+}
+
+/**
+ * One-time backfill: copy the legacy single projects.pic_id into project_pics.
+ * Runs after migrateColumns (which guarantees the column exists on legacy DBs).
+ * Idempotent — a project is only seeded when it has no project_pics rows yet, so
+ * a set edited after the refactor is never overwritten. projects.pic_id is left
+ * in place (unused) for legacy parquet readers.
+ */
+async function migratePics(): Promise<void> {
+  const [row] = await runRead<{ n: number | bigint }>(
+    `SELECT count(*) AS n FROM projects p
+     WHERE p.pic_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM project_pics pp WHERE pp.project_id = p.id)`,
+  );
+  if (!row || Number(row.n) === 0) return;
+
+  await runWrite(async (exec) => {
+    await exec(
+      `INSERT INTO project_pics (project_id, user_id)
+       SELECT p.id, p.pic_id FROM projects p
+       WHERE p.pic_id IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM project_pics pp WHERE pp.project_id = p.id)`,
+    );
+  });
+  await exportSnapshots(['project_pics']);
+}
+
+/**
+ * One-time backfill: copy project_issues.assignee_id into
+ * project_issue_assignees. Runs after migrateProjectIssues. Idempotent — an
+ * issue is only seeded when it has no assignee rows yet. Deliberately ignores
+ * is_active: a historical assignment must not disappear just because the user
+ * was deactivated later. project_issues.assignee_id stays (unused) for legacy
+ * parquet readers.
+ */
+async function migrateIssueAssignees(): Promise<void> {
+  const [row] = await runRead<{ n: number | bigint }>(
+    `SELECT count(*) AS n FROM project_issues i
+     WHERE i.assignee_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM project_issue_assignees a WHERE a.issue_id = i.id)`,
+  );
+  if (!row || Number(row.n) === 0) return;
+
+  await runWrite(async (exec) => {
+    await exec(
+      `INSERT INTO project_issue_assignees (issue_id, user_id)
+       SELECT i.id, i.assignee_id FROM project_issues i
+       WHERE i.assignee_id IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM project_issue_assignees a WHERE a.issue_id = i.id)`,
+    );
+  });
+  await exportSnapshots(['project_issue_assignees']);
+}
+
+/**
+ * PIC grouping is Count-only: a project with N PICs would otherwise be counted
+ * N times by every value metric. Normalise any view created before that rule
+ * (metric != count) to count. dashboard_views is operational/config data —
+ * never exported to parquet. Idempotent.
+ */
+async function normalizePicDashboardViews(): Promise<void> {
+  await runWrite(async (exec) => {
+    await exec(
+      `UPDATE dashboard_views SET metric_key = 'count'
+       WHERE column_key = 'pic_id' AND metric_key IS NOT NULL AND metric_key <> 'count'`,
+    );
+  });
 }
 
 export async function tableExists(name: string): Promise<boolean> {

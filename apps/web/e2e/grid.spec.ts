@@ -8,6 +8,24 @@ async function login(page, email: string, password: string) {
   await page.getByRole('button', { name: /sign in/i }).click();
 }
 
+// The add-form tests create fixed-name projects that the staff-scoping test
+// later relies on. Delete leftovers from a previous run first so re-running the
+// suite without a reseed does not accumulate duplicate rows (which would break
+// the `getByText(name)` assertions below with a strict-mode violation).
+async function deleteProjectsByName(page, names: string[]) {
+  const token = await page.evaluate(() => localStorage.getItem('tracker.accessToken'));
+  const headers = { Authorization: `Bearer ${token}` };
+  const res = await page.request.get('/api/projects?page_size=500', { headers });
+  expect(res.ok()).toBeTruthy();
+  const rows = (await res.json()).rows as Array<{ id: string; project_name: string }>;
+  for (const row of rows) {
+    if (names.includes(row.project_name)) {
+      const del = await page.request.delete(`/api/projects/${row.id}`, { headers });
+      expect(del.ok()).toBeTruthy();
+    }
+  }
+}
+
 test('admin sees all projects and role-aware nav', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
 
@@ -38,12 +56,16 @@ test('admin can see PIC, Issues and Aging columns in the grid', async ({ page })
 test('admin can create a project with Sales and PIC via the add form', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
   await expect(page).toHaveURL(/\/grid/);
+  await deleteProjectsByName(page, ['E2E PIC Issues Project', 'E2E PIC Only Project']);
 
   await page.getByRole('button', { name: 'Add project' }).click();
 
   await page.getByLabel(/Project Name/).fill('E2E PIC Issues Project');
   await page.getByLabel(/Sales/).selectOption({ label: 'Staff One' });
-  await page.getByLabel(/PIC/).selectOption({ label: 'Staff One' });
+  await page
+    .getByRole('group', { name: 'Responsible PIC' })
+    .getByRole('checkbox', { name: 'Staff One' })
+    .check();
 
   // Issues is no longer part of the add form — it's logged exclusively through
   // the SUPER_ADMIN-only Issues modal (add endpoint), never via create/update.
@@ -59,13 +81,17 @@ test('admin can create a project with Sales and PIC via the add form', async ({ 
 test('admin can create a project with only a Responsible PIC', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
   await expect(page).toHaveURL(/\/grid/);
+  await deleteProjectsByName(page, ['E2E PIC Only Project']);
 
   await page.getByRole('button', { name: 'Add project' }).click();
 
   // Sales intentionally left unassigned — the PIC alone must grant the staff
   // member visibility on the project.
   await page.getByLabel(/Project Name/).fill('E2E PIC Only Project');
-  await page.getByLabel(/PIC/).selectOption({ label: 'Staff One' });
+  await page
+    .getByRole('group', { name: 'Responsible PIC' })
+    .getByRole('checkbox', { name: 'Staff One' })
+    .check();
   await page.getByRole('button', { name: 'Create' }).click();
 
   await expect(page.getByText('Project created.', { exact: true })).toBeVisible();

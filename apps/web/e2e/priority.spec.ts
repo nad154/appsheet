@@ -77,7 +77,7 @@ test('priority badge follows the aging thresholds configured by the admin', asyn
     await row.locator('button[title="Edit project"]').click();
     const dialog = page.getByRole('dialog', { name: 'Edit Staff Project A' });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole('textbox', { name: 'Tanggal Kirim FPT' }).fill(date);
+    await dialog.getByRole('textbox', { name: 'FPT Sent Date' }).fill(date);
     await dialog.getByRole('button', { name: 'Save changes' }).click();
     await expect(page.getByText('Saved.', { exact: true }).first()).toBeVisible();
   };
@@ -121,7 +121,7 @@ test('priority badge follows the aging thresholds configured by the admin', asyn
   } else {
     await dialog.getByRole('button', { name: 'E2E Priority Vendor', exact: true }).click();
   }
-  await line2.getByRole('textbox', { name: 'Tanggal Kirim FPT' }).fill(sentDate);
+  await line2.getByRole('textbox', { name: 'FPT Sent Date' }).fill(sentDate);
   await dialog.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Saved.', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);

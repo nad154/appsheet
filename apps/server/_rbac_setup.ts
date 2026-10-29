@@ -17,6 +17,9 @@ async function main(): Promise<void> {
     // Clear test data for deterministic assertions.
     await ex(`DELETE FROM project_vendors`);
     await ex(`DELETE FROM projects`);
+    await ex(`DELETE FROM project_pics`);
+    await ex(`DELETE FROM project_issue_assignees`);
+    await ex(`DELETE FROM project_issues`);
     await ex(`DELETE FROM project_updates`);
     await ex(`DELETE FROM sessions`);
     await ex(`DELETE FROM users WHERE email = ?`, [STAFF_EMAIL]);
@@ -66,7 +69,7 @@ async function main(): Promise<void> {
     }
   });
 
-  await exportSnapshots(['users', 'projects', 'customers', 'vendors', 'project_vendors']);
+  await exportSnapshots(['users', 'projects', 'customers', 'vendors', 'project_vendors', 'project_pics', 'project_issue_assignees']);
   console.log('Test data ready.');
 }
 

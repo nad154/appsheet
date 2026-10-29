@@ -6,6 +6,10 @@ import { ApiError } from '../../lib/api-client';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { controlClass } from '../ui/Input';
+import { peopleSummary } from './columns';
+
+// Same cap the API enforces (MAX_ISSUE_ASSIGNEES in @tracker/shared).
+const MAX_ASSIGNEES = 20;
 
 function todayIso(): string {
   const now = new Date();
@@ -28,6 +32,8 @@ function fmtDateTime(iso: string): string {
 }
 
 function IssueCard({ entry }: { entry: ProjectIssueEntry }) {
+  const assignees = entry.assignees ?? [];
+  const summary = assignees.length > 0 ? peopleSummary(assignees) : null;
   return (
     <div className="rounded border border-border p-3">
       <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -37,12 +43,16 @@ function IssueCard({ entry }: { entry: ProjectIssueEntry }) {
         </span>
       </div>
       <p className="text-sm text-ink">{entry.issue_text}</p>
-      <p className="mt-1 text-xs text-ink-muted">
-        Assigned to: {entry.assignee_name ?? (entry.assignee_id ? '(deleted user)' : '—')}
+      <p className="mt-1 text-xs text-ink-muted" title={summary?.full ?? undefined}>
+        Assigned to: {summary ? summary.display : '—'}
       </p>
     </div>
   );
 }
+
+// One row of the assignee checklist. The project's Sales + every PIC, de-duped.
+// A user who is both is tagged with both roles.
+type AssigneeCandidate = { id: string; name: string; isSales: boolean; isPic: boolean };
 
 export function IssuesModal({
   project,
@@ -53,16 +63,46 @@ export function IssuesModal({
   users: AssignableUser[];
   onClose: () => void;
 }) {
-  // Only STAFF can be attached to an issue.
-  const staff = useMemo(() => users.filter((u) => u.role === 'STAFF'), [users]);
+  // Only the project's Sales + PICs may be assigned, and only while active. The
+  // server enforces this independently — this list is just the UI affordance.
+  const candidates = useMemo<AssigneeCandidate[]>(() => {
+    if (!project) return [];
+    const byId = new Map<string, AssigneeCandidate>();
+    const ensure = (id: string, name: string | null | undefined): AssigneeCandidate => {
+      const existing = byId.get(id);
+      if (existing) return existing;
+      const created: AssigneeCandidate = { id, name: name ?? '(deleted user)', isSales: false, isPic: false };
+      byId.set(id, created);
+      return created;
+    };
+    if (project.staff_assigned_id) {
+      ensure(project.staff_assigned_id, project.staff_assigned_name).isSales = true;
+    }
+    for (const pic of project.pics ?? []) {
+      ensure(pic.id, pic.name).isPic = true;
+    }
+    // Deleted/inactive users are not assignable, so they never appear here.
+    const activeIds = new Set(users.map((u) => u.id));
+    return [...byId.values()].filter((c) => activeIds.has(c.id));
+  }, [project, users]);
+
   const [issueText, setIssueText] = useState('');
   const [issueDate, setIssueDate] = useState(todayIso());
-  const [assigneeId, setAssigneeId] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  // Email defaults ON so the common case ("notify the assignees") needs no extra
+  // click; it is forced off when nobody is selected.
+  const [sendEmail, setSendEmail] = useState(true);
   const [addError, setAddError] = useState<string | null>(null);
   const addIssue = useAddIssue(project?.id ?? '');
   const { data, isLoading, isError } = useProjectIssues(project?.id ?? null);
 
   if (!project) return null;
+
+  const emailEnabled = assigneeIds.length > 0;
+  const canAdd = !!issueText.trim() && !addIssue.isPending;
+
+  const toggleAssignee = (id: string) =>
+    setAssigneeIds((ids) => (ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id]));
 
   const handleAdd = async () => {
     const text = issueText.trim();
@@ -72,11 +112,13 @@ export function IssuesModal({
       await addIssue.mutateAsync({
         issue_text: text,
         issue_date: issueDate || undefined,
-        assignee_id: assigneeId || null,
+        assignee_ids: assigneeIds,
+        send_email: assigneeIds.length > 0 && sendEmail,
       });
       setIssueText('');
-      setAssigneeId('');
       setIssueDate(todayIso());
+      setAssigneeIds([]);
+      setSendEmail(true);
     } catch (err) {
       setAddError(err instanceof ApiError ? err.message : 'Could not add the issue.');
     }
@@ -116,25 +158,61 @@ export function IssuesModal({
                   aria-label="Issue date"
                 />
               </label>
-              <label className="flex flex-col gap-1 text-xs text-ink-muted">
-                Assign to staff
-                <select
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                  className={controlClass}
-                  aria-label="Assign to staff"
+              <div className="flex flex-col gap-1 text-xs text-ink-muted">
+                <span>
+                  Assignees{' '}
+                  <span className="text-[11px] text-ink-muted/80">
+                    ({assigneeIds.length}/{MAX_ASSIGNEES})
+                  </span>
+                </span>
+                <div
+                  className="max-h-40 overflow-y-auto rounded border border-border bg-white p-2"
+                  role="group"
+                  aria-label="Issue assignees"
                 >
-                  <option value="">–</option>
-                  {staff.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  {candidates.length === 0 && (
+                    <span className="text-sm text-ink-muted">No Sales or PIC assigned to this project.</span>
+                  )}
+                  {candidates.map((c) => {
+                    const atCap = !assigneeIds.includes(c.id) && assigneeIds.length >= MAX_ASSIGNEES;
+                    return (
+                      <label
+                        key={c.id}
+                        className={`flex items-center gap-2 text-sm ${atCap ? 'text-ink-muted/60' : 'text-ink'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={assigneeIds.includes(c.id)}
+                          disabled={atCap}
+                          onChange={() => toggleAssignee(c.id)}
+                        />
+                        <span>{c.name}</span>
+                        <span className="text-[11px] text-ink-muted">
+                          {c.isSales ? 'Sales' : ''}
+                          {c.isSales && c.isPic ? ' · ' : ''}
+                          {c.isPic ? 'PIC' : ''}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
+            <label
+              className={`flex items-center gap-2 text-sm ${emailEnabled ? 'text-ink' : 'text-ink-muted/60'}`}
+              title={emailEnabled ? undefined : 'Select at least one assignee to send an email'}
+            >
+              <input
+                type="checkbox"
+                checked={emailEnabled && sendEmail}
+                disabled={!emailEnabled}
+                onChange={(e) => setSendEmail(e.target.checked)}
+                aria-label="Send email to assignees"
+              />
+              Send email to assignees
+            </label>
             {addError && <p className="text-sm text-danger">{addError}</p>}
-            <Button onClick={handleAdd} disabled={!issueText.trim() || addIssue.isPending}>
+            <Button onClick={handleAdd} disabled={!canAdd}>
               {addIssue.isPending ? 'Adding…' : 'Add issue'}
             </Button>
           </div>

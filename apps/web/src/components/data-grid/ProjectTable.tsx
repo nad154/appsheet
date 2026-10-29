@@ -150,9 +150,9 @@ function EditableCell({
   }
 
   if (editType === 'user') {
-    // PIC must be an active STAFF account (or unassigned); Sales keeps the full
-    // active-user list.
-    const options = field === 'pic_id' ? (users ?? []).filter((u) => u.role === 'STAFF') : (users ?? []);
+    // Inline user editing is only used by the Sales column; PICs are a
+    // multi-user set edited in the row-edit modal.
+    const options = users ?? [];
     return (
       <select
         autoFocus

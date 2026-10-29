@@ -26,9 +26,10 @@ interface ProjectRow extends Project {
 // column names into SQL directly — only these keys are allowed.
 //
 // The Sales and PIC columns sort by their JOINed display names: the grid sends
-// `pic_name` and `staff_assigned_id` as sort keys, and they order by
-// `pic_user.name` / `u.name` (the display names), never by the stored user
-// UUID. customer_name joins through customers.c.name.
+// `pic_name` and `staff_assigned_id` as sort keys, and they order by the user
+// name (never by the stored user UUID). A project may now hold several PICs, so
+// ordering uses the alphabetically-first PIC name (NULL when none) rather than
+// a single joined row. customer_name joins through customers.c.name.
 //
 // Vendor-line fields and derived Aging/Priority are NOT sortable — they have
 // no single value per project (planning_customers_vendors Phase 5 decision).
@@ -40,8 +41,8 @@ const SORTABLE_COLUMNS: Record<string, string> = {
   current_stage: 'p.current_stage',
   updated_at: 'p.updated_at',
   created_at: 'p.created_at',
-  pic_name: 'pic_user.name',
-  pic_id: 'pic_user.name',
+  pic_name: `(SELECT MIN(su.name) FROM project_pics sp JOIN users su ON su.id = sp.user_id WHERE sp.project_id = p.id)`,
+  pic_id: `(SELECT MIN(su.name) FROM project_pics sp JOIN users su ON su.id = sp.user_id WHERE sp.project_id = p.id)`,
   staff_assigned_id: 'u.name',
 };
 
@@ -67,12 +68,17 @@ export interface ProjectListQuery {
  * STAFF user is allowed to see.
  *
  * A STAFF user sees a project when they are either its assigned Sales
- * (`staff_assigned_id`) or its Responsible PIC (`pic_id`). Both ids are matched
- * server-side against the authenticated user — never a client-supplied filter.
+ * (`staff_assigned_id`) or one of its Responsible PICs (a project_pics row).
+ * Both checks run server-side against the authenticated user — never a
+ * client-supplied filter.
  */
 export function scopeClause(user: AuthUser): { whereClause: string; params: unknown[] } {
   if (user.role === 'STAFF') {
-    return { whereClause: 'WHERE (p.staff_assigned_id = ? OR p.pic_id = ?)', params: [user.id, user.id] };
+    return {
+      whereClause:
+        'WHERE (p.staff_assigned_id = ? OR EXISTS (SELECT 1 FROM project_pics pp WHERE pp.project_id = p.id AND pp.user_id = ?))',
+      params: [user.id, user.id],
+    };
   }
   return { whereClause: '', params: [] };
 }
@@ -92,6 +98,34 @@ export async function listProjectYears(user: AuthUser): Promise<number[]> {
     params,
   );
   return rows.map((r) => Number(r.year));
+}
+
+/**
+ * Batched PIC load for a set of project ids (one query per page, the vendor-line
+ * pattern). A dangling user id (permanently deleted user) is preserved with a
+ * null name so the UI can flag it. Ordered by name, then id for stability.
+ */
+export async function loadProjectPics(
+  projectIds: string[],
+): Promise<Map<string, { id: string; name: string | null }[]>> {
+  const byProject = new Map<string, { id: string; name: string | null }[]>();
+  if (projectIds.length === 0) return byProject;
+
+  const idIn = projectIds.map(() => '?').join(', ');
+  const rows = await runRead<{ project_id: string; id: string; name: string | null }>(
+    `SELECT pp.project_id, pp.user_id AS id, u.name
+     FROM project_pics pp
+     LEFT JOIN users u ON u.id = pp.user_id
+     WHERE pp.project_id IN (${idIn})
+     ORDER BY pp.project_id ASC, u.name ASC NULLS LAST, pp.user_id ASC`,
+    projectIds,
+  );
+  for (const row of rows) {
+    const list = byProject.get(row.project_id) ?? [];
+    list.push({ id: row.id, name: row.name });
+    byProject.set(row.project_id, list);
+  }
+  return byProject;
 }
 
 /**
@@ -144,7 +178,6 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
             (SELECT COUNT(*) FROM project_vendors pv WHERE pv.project_id = p.id) AS line_count
      FROM projects p
      LEFT JOIN users u ON u.id = p.staff_assigned_id
-     LEFT JOIN users pic_user ON pic_user.id = p.pic_id
      LEFT JOIN customers c ON c.id = p.customer_id
      ${whereClause}
      ORDER BY ${sortExpr} ${sortDir}${nullsLast}`,
@@ -170,10 +203,9 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
 
   const idIn = pageIds.map(() => '?').join(', ');
   const rowRows = await runRead<ProjectRow>(
-    `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name, c.name AS customer_name
+    `SELECT p.*, u.name AS staff_assigned_name, c.name AS customer_name
      FROM projects p
      LEFT JOIN users u ON u.id = p.staff_assigned_id
-     LEFT JOIN users pic_user ON pic_user.id = p.pic_id
      LEFT JOIN customers c ON c.id = p.customer_id
      WHERE p.id IN (${idIn})`,
     pageIds,
@@ -205,17 +237,18 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
 
   // Latest update-progress note + unread flag for the ids on this page.
   const updateInfo = await getLatestUpdateInfo(orderedRows.map((r) => r.id));
-  // Latest logged issue's date + assignee for the ids on this page (the issue
+  // Latest logged issue's date + assignees for the ids on this page (the issue
   // TEXT itself is the denormalized projects.issues column).
   const issueMeta = await getLatestIssueMeta(orderedRows.map((r) => r.id));
+  const picsByProject = await loadProjectPics(orderedRows.map((r) => r.id));
   const rows: Project[] = orderedRows.map((r) => ({
     ...r,
     vendors: vendorsByProject.get(r.id) ?? [],
+    pics: picsByProject.get(r.id) ?? [],
     update_progress: updateInfo.get(r.id)?.update_progress ?? null,
     has_unread_update: updateInfo.get(r.id)?.has_unread_update ?? false,
     latest_issue_date: issueMeta.get(r.id)?.issue_date ?? null,
-    latest_issue_assignee: issueMeta.get(r.id)?.assignee_name ?? null,
-    latest_issue_assignee_id: issueMeta.get(r.id)?.assignee_id ?? null,
+    latest_issue_assignees: issueMeta.get(r.id)?.assignees ?? [],
   }));
 
   return { rows, total, total_pages, total_lines, page, page_size: pageSize };
@@ -223,8 +256,8 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
 
 // Active users available for assignment (Sales, Responsible PIC, issue
 // assignee). The settings users endpoints are SUPER_ADMIN-only; the grid needs
-// this for both roles. role is included so the frontend can offer a STAFF-only
-// list (PIC must be an active STAFF user, as must issue assignees).
+// this for both roles. role is included so the frontend can tag users: any
+// active user (STAFF or SUPER_ADMIN) may be a PIC or an issue assignee.
 export async function listAssignableUsers(): Promise<{ id: string; name: string; role: string }[]> {
   return runRead<{ id: string; name: string; role: string }>(
     `SELECT id, name, role FROM users WHERE is_active = true ORDER BY name ASC`,
@@ -245,17 +278,20 @@ export class ProjectWriteError extends Error {
  */
 export async function getProject(user: AuthUser, projectId: string): Promise<Project> {
   const rows = await runRead<ProjectRow>(
-    `SELECT p.*, u.name AS staff_assigned_name, pic_user.name AS pic_name, c.name AS customer_name
+    `SELECT p.*, u.name AS staff_assigned_name, c.name AS customer_name
      FROM projects p
      LEFT JOIN users u ON u.id = p.staff_assigned_id
-     LEFT JOIN users pic_user ON pic_user.id = p.pic_id
      LEFT JOIN customers c ON c.id = p.customer_id
      WHERE p.id = ?`,
     [projectId],
   );
   const row = rows[0];
   if (!row) throw new ProjectWriteError('Project not found', 404);
-  if (user.role === 'STAFF' && row.staff_assigned_id !== user.id && row.pic_id !== user.id) {
+
+  const picsByProject = await loadProjectPics([projectId]);
+  const pics = picsByProject.get(projectId) ?? [];
+  const isPic = pics.some((p) => p.id === user.id);
+  if (user.role === 'STAFF' && row.staff_assigned_id !== user.id && !isPic) {
     throw new ProjectWriteError('Cannot view a project you are not assigned to', 403);
   }
 
@@ -278,45 +314,54 @@ export async function getProject(user: AuthUser, projectId: string): Promise<Pro
   return {
     ...row,
     vendors,
+    pics,
     update_progress: updateInfo.get(projectId)?.update_progress ?? null,
     has_unread_update: updateInfo.get(projectId)?.has_unread_update ?? false,
     latest_issue_date: issueMeta.get(projectId)?.issue_date ?? null,
-    latest_issue_assignee: issueMeta.get(projectId)?.assignee_name ?? null,
-    latest_issue_assignee_id: issueMeta.get(projectId)?.assignee_id ?? null,
+    latest_issue_assignees: issueMeta.get(projectId)?.assignees ?? [],
   };
 }
 
 /**
- * The Responsible PIC must be an active STAFF account, or unassigned (null).
- * Being PIC grants row visibility (scopeClause) and edit rights, so it can
- * never point at an admin/deactivated user or a free-text name.
+ * Validate a proposed PIC set: de-duplicated, at most 20, and every id must be
+ * an active STAFF or SUPER_ADMIN user. Returns the de-duplicated id list in
+ * caller order. A PIC is a visibility grant, so it can never point at a
+ * deactivated/deleted user or a free-text name.
  */
-async function assertValidPic(picId: string | null | undefined): Promise<void> {
-  if (!picId) return;
-  const rows = await runRead<{ role: string; is_active: boolean }>(
-    `SELECT role, is_active FROM users WHERE id = ?`,
-    [picId],
-  );
-  const target = rows[0];
-  if (!target || !target.is_active || target.role !== 'STAFF') {
-    throw new ProjectWriteError('Responsible PIC must be an active STAFF user, or unassigned', 400);
+export async function assertValidPics(picIds: string[]): Promise<string[]> {
+  const unique = [...new Set(picIds)];
+  if (unique.length > 20) {
+    throw new ProjectWriteError('At most 20 PICs per project', 400);
   }
+  if (unique.length === 0) return unique;
+
+  const inClause = unique.map(() => '?').join(', ');
+  const rows = await runRead<{ id: string }>(
+    `SELECT id FROM users WHERE is_active = true AND role IN ('STAFF','SUPER_ADMIN') AND id IN (${inClause})`,
+    unique,
+  );
+  const valid = new Set(rows.map((r) => r.id));
+  const invalid = unique.filter((id) => !valid.has(id));
+  if (invalid.length > 0) {
+    throw new ProjectWriteError('Every Responsible PIC must be an active user', 400);
+  }
+  return unique;
 }
 
 /**
- * STAFF may own a project as either its Sales or its Responsible PIC, and may
- * never hand a project (Sales assignment) to another staff member. PIC
+ * STAFF may own a project as either its Sales or one of its Responsible PICs,
+ * and may never hand a project (Sales assignment) to another staff member. PIC
  * assignment is enforced separately: it is SUPER_ADMIN-only because it grants
  * visibility.
  */
 export function assertStaffOwnership(
   user: AuthUser,
-  existing: { staff_assigned_id?: string | null; pic_id?: string | null } | null,
+  existing: { staff_assigned_id?: string | null; pics?: { id: string }[] | null } | null,
   payload: { staff_assigned_id?: string | null },
 ): void {
   if (user.role !== 'STAFF') return;
-  const ownsProject =
-    !existing || existing.staff_assigned_id === user.id || existing.pic_id === user.id;
+  const isPic = existing?.pics?.some((p) => p.id === user.id) ?? false;
+  const ownsProject = !existing || existing.staff_assigned_id === user.id || isPic;
   if (!ownsProject) {
     throw new ProjectWriteError('Cannot edit a project you are not assigned to', 403);
   }
@@ -325,16 +370,18 @@ export function assertStaffOwnership(
   }
 }
 
-async function fetchProject(id: string): Promise<ProjectRow | null> {
+async function fetchProject(id: string): Promise<(ProjectRow & { pics: { id: string; name: string | null }[] }) | null> {
   const rows = await runRead<ProjectRow>(
-    `SELECT p.*, pic_user.name AS pic_name, c.name AS customer_name
+    `SELECT p.*, c.name AS customer_name
      FROM projects p
-     LEFT JOIN users pic_user ON pic_user.id = p.pic_id
      LEFT JOIN customers c ON c.id = p.customer_id
      WHERE p.id = ?`,
     [id],
   );
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  const pics = (await loadProjectPics([id])).get(id) ?? [];
+  return { ...row, pics };
 }
 
 // Columns insertable on a project row. Vendor-line fields no longer live here
@@ -354,7 +401,6 @@ const PROJECT_COLUMNS: (keyof ProjectCreate)[] = [
   'customer_start_contract',
   'customer_end_contract',
   'current_stage',
-  'pic_id',
 ];
 
 // Exported for the CSV import service so import and create can't diverge on
@@ -426,19 +472,19 @@ export async function createProject(user: AuthUser, rawPayload: unknown): Promis
   const stored: ProjectCreate = { ...payload };
   if (user.role === 'STAFF') {
     // PIC assignment grants row visibility, so it is SUPER_ADMIN-only. A STAFF
-    // creation may only leave the PIC unassigned.
-    if (stored.pic_id) {
-      throw new ProjectWriteError('Only SUPER_ADMIN can assign the responsible PIC', 403);
+    // creation may only leave the PIC set empty.
+    if (stored.pic_ids.length > 0) {
+      throw new ProjectWriteError('Only SUPER_ADMIN can assign responsible PICs', 403);
     }
-    stored.pic_id = null;
+    stored.pic_ids = [];
     stored.staff_assigned_id = user.id;
     // Only SUPER_ADMIN may set the stage — STAFF-created projects always start
     // on_progress (a project can never be reopened once finished).
     stored.current_stage = 'on_progress';
   }
 
-  // PIC must be an active STAFF account (or unassigned).
-  await assertValidPic(stored.pic_id);
+  // Every PIC must be an active STAFF/SUPER_ADMIN user.
+  const picIds = await assertValidPics(stored.pic_ids);
 
   const embeddedVendors =
     rawPayload && typeof rawPayload === 'object' && 'vendors' in (rawPayload as Record<string, unknown>)
@@ -452,6 +498,10 @@ export async function createProject(user: AuthUser, rawPayload: unknown): Promis
     const values = buildInsertValues(id, stored);
     await ex(insertProjectSql(), values);
 
+    for (const picId of picIds) {
+      await ex(`INSERT INTO project_pics (project_id, user_id) VALUES (?, ?)`, [id, picId]);
+    }
+
     for (const [i, line] of embeddedVendors.entries()) {
       const lineId = uuid();
       await ex(
@@ -460,7 +510,7 @@ export async function createProject(user: AuthUser, rawPayload: unknown): Promis
       );
     }
   });
-  await exportSnapshots(['projects', 'project_vendors']);
+  await exportSnapshots(['projects', 'project_vendors', 'project_pics']);
   return { id };
 }
 
@@ -482,12 +532,13 @@ export async function updateProject(
   assertStaffOwnership(user, project, payload);
 
   // PIC assignment is SUPER_ADMIN-only (it grants row visibility) and must
-  // always target an active STAFF account or be cleared.
-  if (payload.pic_id !== undefined) {
+  // always target active users. `pic_ids` is a full replacement set.
+  let picIds: string[] | undefined;
+  if (payload.pic_ids !== undefined) {
     if (user.role !== 'SUPER_ADMIN') {
-      throw new ProjectWriteError('Only SUPER_ADMIN can change the responsible PIC', 403);
+      throw new ProjectWriteError('Only SUPER_ADMIN can change the responsible PICs', 403);
     }
-    await assertValidPic(payload.pic_id);
+    picIds = await assertValidPics(payload.pic_ids);
   }
 
   if (payload.created_at !== undefined && user.role !== 'SUPER_ADMIN') {
@@ -504,16 +555,21 @@ export async function updateProject(
     throw new ProjectWriteError('A finished project cannot be reopened', 400);
   }
 
-  const sets = Object.keys(payload)
-    .filter((k) => payload[k as keyof ProjectUpdate] !== undefined)
+  // pic_ids is not a projects column — peel it off before building the SET list
+  // (and before the STAFF change-history diff).
+  const fields = { ...payload };
+  delete fields.pic_ids;
+
+  const sets = Object.keys(fields)
+    .filter((k) => fields[k as keyof ProjectUpdate] !== undefined)
     .map((k) => `${k} = ?`);
   sets.push('updated_at = current_timestamp');
 
-  if (sets.length === 1) {
+  if (sets.length === 1 && picIds === undefined) {
     throw new ProjectWriteError('No changes to apply', 400);
   }
 
-  const values = Object.entries(payload)
+  const values = Object.entries(fields)
     .filter(([, v]) => v !== undefined)
     .map(([, v]) => v);
 
@@ -524,11 +580,21 @@ export async function updateProject(
   }
 
   await runWrite(async (ex) => {
+    // sets always contains updated_at, so this also bumps the row's timestamp
+    // when only the PIC set changed.
     await ex(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`, [...values, projectId]);
+
+    if (picIds !== undefined) {
+      await ex(`DELETE FROM project_pics WHERE project_id = ?`, [projectId]);
+      for (const picId of picIds) {
+        await ex(`INSERT INTO project_pics (project_id, user_id) VALUES (?, ?)`, [projectId, picId]);
+      }
+    }
+
     if (isStaff) {
       const changes: Record<string, { old: unknown; new: unknown }> = {};
-      for (const field of Object.keys(payload)) {
-        const value = payload[field as keyof ProjectUpdate];
+      for (const field of Object.keys(fields)) {
+        const value = fields[field as keyof ProjectUpdate];
         if (value !== undefined) {
           changes[field] = { old: (project as Record<string, unknown>)[field] ?? null, new: value };
         }
@@ -541,7 +607,7 @@ export async function updateProject(
       });
     }
   });
-  await exportSnapshots(['projects']);
+  await exportSnapshots(picIds !== undefined ? ['projects', 'project_pics'] : ['projects']);
 }
 
 /** Delete a project. SUPER_ADMIN only. Its vendor lines, updates and issues go with it. */
@@ -552,11 +618,24 @@ export async function deleteProject(user: AuthUser, projectId: string): Promise<
   await runWrite(async (ex) => {
     await ex(`DELETE FROM project_vendors WHERE project_id = ?`, [projectId]);
     await ex(`DELETE FROM project_updates WHERE project_id = ?`, [projectId]);
+    await ex(
+      `DELETE FROM project_issue_assignees
+       WHERE issue_id IN (SELECT id FROM project_issues WHERE project_id = ?)`,
+      [projectId],
+    );
     await ex(`DELETE FROM project_issues WHERE project_id = ?`, [projectId]);
+    await ex(`DELETE FROM project_pics WHERE project_id = ?`, [projectId]);
     // Aging-alert notifications carry the project_id, so they'd outlive the
     // project as orphans pointing at a row that no longer exists.
     await ex(`DELETE FROM notifications WHERE project_id = ?`, [projectId]);
     await ex(`DELETE FROM projects WHERE id = ?`, [projectId]);
   });
-  await exportSnapshots(['projects', 'project_vendors', 'project_updates', 'project_issues']);
+  await exportSnapshots([
+    'projects',
+    'project_vendors',
+    'project_updates',
+    'project_issues',
+    'project_pics',
+    'project_issue_assignees',
+  ]);
 }

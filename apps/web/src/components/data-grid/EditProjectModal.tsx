@@ -134,6 +134,8 @@ export function blankLineDraft(index: number): VendorLineDraft {
 function toDraft(project: Project): Record<string, string> {
   const draft: Record<string, string> = {};
   for (const key of EDITABLE_FIELDS) {
+    // Multi-user PICs are held in their own string[] state, not a text draft.
+    if (key === 'pic_ids') continue;
     const raw = (project as unknown as Record<string, unknown>)[key];
     let value = raw === null || raw === undefined ? '' : String(raw);
     // <input type="date"> requires YYYY-MM-DD.
@@ -385,9 +387,8 @@ function FieldInput({
   }
 
   if (editType === 'user') {
-    // PIC must be an active STAFF account (or unassigned); Sales keeps the full
-    // active-user list.
-    const options = field === 'pic_id' ? users.filter((u) => u.role === 'STAFF') : users;
+    // Sales keeps the full active-user list. (PICs use the multi-select below.)
+    const options = users;
     return (
       <label className="flex flex-col">
         {label}
@@ -447,6 +448,58 @@ function FieldInput({
   );
 }
 
+// Multi-user PIC picker: a scrollable checkbox list of active users plus any
+// dangling (permanently deleted) PIC already attached, so the admin can see and
+// drop it. Mirrors the server rules (max 20, active users only).
+function PicMultiSelect({
+  value,
+  users,
+  existing,
+  onChange,
+}: {
+  value: string[];
+  users: AssignableUser[];
+  existing: { id: string; name: string | null }[];
+  onChange: (next: string[]) => void;
+}) {
+  const knownIds = new Set(users.map((u) => u.id));
+  // Existing PIC rows whose user is gone (null name) or inactive (not in the
+  // assignable list) still need a checkbox so they can be removed.
+  const dangling = existing.filter((p) => !knownIds.has(p.id));
+
+  const toggle = (id: string) => {
+    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+  };
+
+  return (
+    <div className="flex flex-col md:col-span-2">
+      <span className="text-xs text-ink-muted">{FIELD_LABELS.pic_ids ?? 'Responsible PIC'}</span>
+      <div
+        className="mt-1 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded border border-border bg-white p-2 sm:grid-cols-2"
+        role="group"
+        aria-label="Responsible PIC"
+      >
+        {dangling.map((p) => (
+          <label key={p.id} className="flex items-center gap-2 text-sm italic text-ink-muted">
+            <input type="checkbox" checked={value.includes(p.id)} onChange={() => toggle(p.id)} />
+            {p.name ?? '(deleted user)'}
+          </label>
+        ))}
+        {users.map((u) => (
+          <label key={u.id} className="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" checked={value.includes(u.id)} onChange={() => toggle(u.id)} />
+            {u.name}
+          </label>
+        ))}
+        {users.length === 0 && dangling.length === 0 && (
+          <span className="text-sm text-ink-muted">No active users.</span>
+        )}
+      </div>
+      <span className="mt-1 text-[11px] text-ink-muted">PICs get visibility and edit rights on this project.</span>
+    </div>
+  );
+}
+
 // Removed: folderIdFromInput (moved to UNUSED_DRIVE.md)
 // Removed: FolderBadges (moved to UNUSED_DRIVE.md)
 
@@ -458,6 +511,7 @@ const PRIORITY_STYLES: Record<'low' | 'medium' | 'high', string> = {
 
 export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onDelete, onNotice }: EditProjectModalProps) {
   const [draft, setDraft] = useState(() => toDraft(project));
+  const [picIds, setPicIds] = useState<string[]>(() => (project.pics ?? []).map((p) => p.id));
   const [customerId, setCustomerId] = useState(project.customer_id ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -520,7 +574,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
         (SECTION_OF[key] ?? 'Other') === section &&
         (key !== 'staff_assigned_id' || isAdmin) &&
         // PIC assignment is SUPER_ADMIN-only — it grants project visibility.
-        (key !== 'pic_id' || isAdmin) &&
+        (key !== 'pic_ids' || isAdmin) &&
         // Stage is SUPER_ADMIN-only — STAFF never sees a way to change it.
         (key !== 'current_stage' || isAdmin),
     ),
@@ -575,12 +629,21 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
     if (saving) return;
     const changes: Record<string, unknown> = {};
     for (const key of EDITABLE_FIELDS) {
+      if (key === 'pic_ids') continue; // handled separately (multi-user set)
       if (key === 'staff_assigned_id' && !isAdmin) continue;
-      if (key === 'pic_id' && !isAdmin) continue;
       if (key === 'current_stage' && !isAdmin) continue;
       const current = normalize(key, draft[key] ?? '');
       const original = (project as unknown as Record<string, unknown>)[key] ?? null;
       if (current !== original) changes[key] = current;
+    }
+    // PICs are a full replacement set; only send when the admin actually changed
+    // it (an omitted pic_ids must never wipe the project's PICs).
+    if (isAdmin) {
+      const originalPicIds = (project.pics ?? []).map((p) => p.id);
+      const same =
+        originalPicIds.length === picIds.length &&
+        originalPicIds.every((id) => picIds.includes(id));
+      if (!same) changes.pic_ids = picIds;
     }
     const currentCustomer = customerId || null;
     const originalCustomer = project.customer_id ?? null;
@@ -707,7 +770,15 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
               </label>
             )}
             {fields.map((key) =>
-              key === 'current_stage' ? (
+              key === 'pic_ids' ? (
+                <PicMultiSelect
+                  key={key}
+                  value={picIds}
+                  users={users}
+                  existing={project.pics ?? []}
+                  onChange={setPicIds}
+                />
+              ) : key === 'current_stage' ? (
                 <StageFieldInput
                   key={key}
                   value={draft[key] ?? ''}

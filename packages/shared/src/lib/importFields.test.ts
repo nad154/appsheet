@@ -9,6 +9,7 @@ import {
   IMPORT_MAX_INTEGER,
   importFieldLabel,
   importFieldsBySection,
+  splitPicList,
 } from './importFields.js';
 
 describe('IMPORT_FIELDS registry', () => {
@@ -80,5 +81,34 @@ describe('import constants', () => {
 
   it('caps numbers at the JS safe-integer limit', () => {
     expect(IMPORT_MAX_INTEGER).toBe(Number.MAX_SAFE_INTEGER);
+  });
+});
+
+describe('splitPicList', () => {
+  it('splits on semicolons and trims each entry', () => {
+    expect(splitPicList('admin@example.com; staff1@example.com')).toEqual([
+      'admin@example.com',
+      'staff1@example.com',
+    ]);
+    expect(splitPicList('  Ana ;Budi  ')).toEqual(['Ana', 'Budi']);
+  });
+
+  it('drops blank entries and handles a single PIC', () => {
+    expect(splitPicList('admin@example.com')).toEqual(['admin@example.com']);
+    expect(splitPicList(';;  ; admin@example.com ;;')).toEqual(['admin@example.com']);
+  });
+
+  it('de-duplicates case-insensitively, keeping the first spelling', () => {
+    expect(splitPicList('Admin@Example.com; admin@example.com ; ADMIN@example.com')).toEqual([
+      'Admin@Example.com',
+    ]);
+    expect(splitPicList('Ana; Budi; Ana')).toEqual(['Ana', 'Budi']);
+  });
+
+  it('returns an empty list for blank/non-string input', () => {
+    expect(splitPicList('')).toEqual([]);
+    expect(splitPicList('   ')).toEqual([]);
+    expect(splitPicList(null)).toEqual([]);
+    expect(splitPicList(undefined)).toEqual([]);
   });
 });

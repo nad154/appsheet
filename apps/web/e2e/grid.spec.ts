@@ -56,6 +56,23 @@ test('admin can create a project with Sales and PIC via the add form', async ({ 
   await expect(page.getByText('E2E PIC Issues Project', { exact: true })).toBeVisible();
 });
 
+test('admin can create a project with only a Responsible PIC', async ({ page }) => {
+  await login(page, 'admin@example.com', 'admin12345');
+  await expect(page).toHaveURL(/\/grid/);
+
+  await page.getByRole('button', { name: 'Add project' }).click();
+
+  // Sales intentionally left unassigned — the PIC alone must grant the staff
+  // member visibility on the project.
+  await page.getByLabel(/Project Name/).fill('E2E PIC Only Project');
+  await page.getByLabel(/PIC/).selectOption({ label: 'Staff One' });
+  await page.getByRole('button', { name: 'Create' }).click();
+
+  await expect(page.getByText('Project created.', { exact: true })).toBeVisible();
+  await scrollGridTo(page, 'E2E PIC Only Project');
+  await expect(page.getByText('E2E PIC Only Project', { exact: true })).toBeVisible();
+});
+
 test('admin can change the assigned Sales for an existing project inline', async ({ page }) => {
   await login(page, 'admin@example.com', 'admin12345');
   await expect(page).toHaveURL(/\/grid/);
@@ -96,6 +113,8 @@ test('staff sees only their assigned projects and no approvals nav', async ({ pa
   await expect(page).toHaveURL(/\/grid/);
   await expect(page.getByText('Staff Project A', { exact: true })).toBeVisible();
   await expect(page.getByText('Staff Project B', { exact: true })).toBeVisible();
+  // Projects where the staff member is only the Responsible PIC are visible too.
+  await expect(page.getByText('E2E PIC Only Project', { exact: true })).toBeVisible();
 
   // STAFF must NOT see projects assigned to the admin.
   await expect(page.getByText('Admin Project A', { exact: true })).toHaveCount(0);

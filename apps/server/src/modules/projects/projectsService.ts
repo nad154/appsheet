@@ -65,9 +65,15 @@ export interface ProjectListQuery {
  * RBAC row-scoping shared by the projects grid AND the dashboard aggregation
  * (dashboardService.getChartData), so the two can never diverge over what a
  * STAFF user is allowed to see.
+ *
+ * A STAFF user sees a project when they are either its assigned Sales
+ * (`staff_assigned_id`) or its Responsible PIC (`pic_id`). Both ids are matched
+ * server-side against the authenticated user — never a client-supplied filter.
  */
 export function scopeClause(user: AuthUser): { whereClause: string; params: unknown[] } {
-  if (user.role === 'STAFF') return { whereClause: 'WHERE p.staff_assigned_id = ?', params: [user.id] };
+  if (user.role === 'STAFF') {
+    return { whereClause: 'WHERE (p.staff_assigned_id = ? OR p.pic_id = ?)', params: [user.id, user.id] };
+  }
   return { whereClause: '', params: [] };
 }
 
@@ -89,9 +95,10 @@ export async function listProjectYears(user: AuthUser): Promise<number[]> {
 }
 
 /**
- * List projects with server-side RBAC filtering. STAFF only ever sees the
- * projects assigned to them — the WHERE clause is injected server-side from the
- * authenticated user, never from a client-supplied filter.
+ * List projects with server-side RBAC filtering. STAFF only ever sees projects
+ * where they are the assigned Sales or the Responsible PIC — the WHERE clause is
+ * injected server-side from the authenticated user, never from a client-supplied
+ * filter.
  *
  * Pagination uses the greedy pack from planning_customers_vendors §3.1: a
  * project's vendor lines always land together on one page, and page boundaries
@@ -214,9 +221,10 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   return { rows, total, total_pages, total_lines, page, page_size: pageSize };
 }
 
-// Active users that may be assigned as a project's PIC. The settings users
-// endpoints are SUPER_ADMIN-only; the grid needs this for both roles. role is
-// included so the frontend can offer a STAFF-only list (e.g. issue assignees).
+// Active users available for assignment (Sales, Responsible PIC, issue
+// assignee). The settings users endpoints are SUPER_ADMIN-only; the grid needs
+// this for both roles. role is included so the frontend can offer a STAFF-only
+// list (PIC must be an active STAFF user, as must issue assignees).
 export async function listAssignableUsers(): Promise<{ id: string; name: string; role: string }[]> {
   return runRead<{ id: string; name: string; role: string }>(
     `SELECT id, name, role FROM users WHERE is_active = true ORDER BY name ASC`,
@@ -233,7 +241,7 @@ export class ProjectWriteError extends Error {
 /**
  * Single project — same shape as one listProjects row (vendors, latest
  * update-progress + issue meta attached). RBAC-scoped: STAFF may only fetch
- * projects assigned to them.
+ * projects where they are the assigned Sales or the Responsible PIC.
  */
 export async function getProject(user: AuthUser, projectId: string): Promise<Project> {
   const rows = await runRead<ProjectRow>(
@@ -247,8 +255,8 @@ export async function getProject(user: AuthUser, projectId: string): Promise<Pro
   );
   const row = rows[0];
   if (!row) throw new ProjectWriteError('Project not found', 404);
-  if (user.role === 'STAFF' && row.staff_assigned_id !== user.id) {
-    throw new ProjectWriteError('Cannot view a project assigned to another staff member', 403);
+  if (user.role === 'STAFF' && row.staff_assigned_id !== user.id && row.pic_id !== user.id) {
+    throw new ProjectWriteError('Cannot view a project you are not assigned to', 403);
   }
 
   const vendorRows = await runRead<ProjectVendorLine>(
@@ -278,15 +286,39 @@ export async function getProject(user: AuthUser, projectId: string): Promise<Pro
   };
 }
 
-/** STAFF may only ever own/target their own projects, and can never reassign Sales. */
+/**
+ * The Responsible PIC must be an active STAFF account, or unassigned (null).
+ * Being PIC grants row visibility (scopeClause) and edit rights, so it can
+ * never point at an admin/deactivated user or a free-text name.
+ */
+async function assertValidPic(picId: string | null | undefined): Promise<void> {
+  if (!picId) return;
+  const rows = await runRead<{ role: string; is_active: boolean }>(
+    `SELECT role, is_active FROM users WHERE id = ?`,
+    [picId],
+  );
+  const target = rows[0];
+  if (!target || !target.is_active || target.role !== 'STAFF') {
+    throw new ProjectWriteError('Responsible PIC must be an active STAFF user, or unassigned', 400);
+  }
+}
+
+/**
+ * STAFF may own a project as either its Sales or its Responsible PIC, and may
+ * never hand a project (Sales assignment) to another staff member. PIC
+ * assignment is enforced separately: it is SUPER_ADMIN-only because it grants
+ * visibility.
+ */
 export function assertStaffOwnership(
   user: AuthUser,
-  existing: { staff_assigned_id?: string | null } | null,
+  existing: { staff_assigned_id?: string | null; pic_id?: string | null } | null,
   payload: { staff_assigned_id?: string | null },
 ): void {
   if (user.role !== 'STAFF') return;
-  if (existing && existing.staff_assigned_id !== user.id) {
-    throw new ProjectWriteError('Cannot edit a project assigned to another staff member', 403);
+  const ownsProject =
+    !existing || existing.staff_assigned_id === user.id || existing.pic_id === user.id;
+  if (!ownsProject) {
+    throw new ProjectWriteError('Cannot edit a project you are not assigned to', 403);
   }
   if (payload.staff_assigned_id && payload.staff_assigned_id !== user.id) {
     throw new ProjectWriteError('Cannot assign or reassign a project to another staff member', 403);
@@ -383,7 +415,8 @@ export function vendorLineValues(
 /**
  * Create a project. Runs for both roles — STAFF writes apply immediately, just
  * like SUPER_ADMIN. A STAFF caller can never assign the project to another
- * staff member (their id is defaulted in). An optional embedded `vendors`
+ * staff member (their id is defaulted in) or set the Responsible PIC (a
+ * visibility grant, so SUPER_ADMIN-only). An optional embedded `vendors`
  * array creates the vendor lines in the same transaction, so the "Add project"
  * form still works in a single submit.
  */
@@ -392,11 +425,20 @@ export async function createProject(user: AuthUser, rawPayload: unknown): Promis
   assertStaffOwnership(user, null, payload);
   const stored: ProjectCreate = { ...payload };
   if (user.role === 'STAFF') {
+    // PIC assignment grants row visibility, so it is SUPER_ADMIN-only. A STAFF
+    // creation may only leave the PIC unassigned.
+    if (stored.pic_id) {
+      throw new ProjectWriteError('Only SUPER_ADMIN can assign the responsible PIC', 403);
+    }
+    stored.pic_id = null;
     stored.staff_assigned_id = user.id;
     // Only SUPER_ADMIN may set the stage — STAFF-created projects always start
     // on_progress (a project can never be reopened once finished).
     stored.current_stage = 'on_progress';
   }
+
+  // PIC must be an active STAFF account (or unassigned).
+  await assertValidPic(stored.pic_id);
 
   const embeddedVendors =
     rawPayload && typeof rawPayload === 'object' && 'vendors' in (rawPayload as Record<string, unknown>)
@@ -438,6 +480,15 @@ export async function updateProject(
   if (!project) throw new ProjectWriteError('Project not found', 404);
 
   assertStaffOwnership(user, project, payload);
+
+  // PIC assignment is SUPER_ADMIN-only (it grants row visibility) and must
+  // always target an active STAFF account or be cleared.
+  if (payload.pic_id !== undefined) {
+    if (user.role !== 'SUPER_ADMIN') {
+      throw new ProjectWriteError('Only SUPER_ADMIN can change the responsible PIC', 403);
+    }
+    await assertValidPic(payload.pic_id);
+  }
 
   if (payload.created_at !== undefined && user.role !== 'SUPER_ADMIN') {
     throw new ProjectWriteError('Only SUPER_ADMIN can change created_at', 403);

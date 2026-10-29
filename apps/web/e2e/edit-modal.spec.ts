@@ -106,4 +106,6 @@ test('staff cannot reassign the Sales owner via the modal', async ({ page }) => 
 
   // The Sales (staff_assigned_id) field is admin-only in the modal.
   await expect(dialog.getByLabel('Sales Name')).toHaveCount(0);
+  // PIC assignment is admin-only too — it grants project visibility.
+  await expect(dialog.getByLabel('Responsible PIC')).toHaveCount(0);
 });

@@ -97,6 +97,8 @@ export function GridPage() {
   const assignable = useAssignableUsers();
   const years = useProjectYears();
   const users = assignable.data ?? [];
+  // Only active STAFF accounts may be assigned as PIC (or left unassigned).
+  const staffUsers = users.filter((u) => u.role === 'STAFF');
   const thresholds = useAgingThresholds();
   const agingThresholds = thresholds.data ?? { low_max_days: 0, medium_max_days: 0 };
 
@@ -237,7 +239,7 @@ export function GridPage() {
         customer_price: toNumber(form.customer_price),
         service_or_goods: (form.service_or_goods || null) as 'service' | 'goods' | null,
         current_stage: form.current_stage as 'on_progress' | 'finish',
-        pic_id: form.pic_id || null,
+        ...(isAdmin ? { pic_id: form.pic_id || null } : {}),
         ...(isAdmin ? { staff_assigned_id: form.staff_assigned_id || null } : {}),
         vendors,
       };
@@ -393,17 +395,19 @@ export function GridPage() {
                 </Select>
               </label>
             )}
-            <label className={fieldLabel}>
-              {FIELD_LABELS.pic_id}
-              <Select value={form.pic_id} onChange={(e) => setField('pic_id', e.target.value)} className="py-1">
-                <option value="">–</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
+            {isAdmin && (
+              <label className={fieldLabel}>
+                {FIELD_LABELS.pic_id}
+                <Select value={form.pic_id} onChange={(e) => setField('pic_id', e.target.value)} className="py-1">
+                  <option value="">–</option>
+                  {staffUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            )}
           </div>
 
           <fieldset className="mt-4">

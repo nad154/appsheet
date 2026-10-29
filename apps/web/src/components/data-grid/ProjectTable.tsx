@@ -150,6 +150,9 @@ function EditableCell({
   }
 
   if (editType === 'user') {
+    // PIC must be an active STAFF account (or unassigned); Sales keeps the full
+    // active-user list.
+    const options = field === 'pic_id' ? (users ?? []).filter((u) => u.role === 'STAFF') : (users ?? []);
     return (
       <select
         autoFocus
@@ -164,12 +167,13 @@ function EditableCell({
         aria-label={`Edit ${field}`}
       >
         <option value="">–</option>
-        {/* A stale id (user permanently deleted) would otherwise render as no
-            selection — show it explicitly so the admin knows to reassign. */}
-        {draft !== '' && !(users ?? []).some((u) => u.id === draft) && (
+        {/* A stale id (user permanently deleted or no longer eligible) would
+            otherwise render as no selection — show it explicitly so the admin
+            knows to reassign. */}
+        {draft !== '' && !options.some((u) => u.id === draft) && (
           <option value={draft}>(deleted user)</option>
         )}
-        {(users ?? []).map((u) => (
+        {options.map((u) => (
           <option key={u.id} value={u.id}>
             {u.name}
           </option>

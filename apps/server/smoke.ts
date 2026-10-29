@@ -69,7 +69,7 @@ async function main(): Promise<void> {
   const staffSub = staff
     ? (JSON.parse(Buffer.from(staff.split('.')[1], 'base64').toString()) as any).sub
     : null;
-  check('staff list restricted to assignment', staffRows.length > 0 && !!staffSub && staffRows.every((r) => r.staff_assigned_id === staffSub));
+  check('staff list restricted to sales-or-pic assignment', staffRows.length > 0 && !!staffSub && staffRows.every((r) => r.staff_assigned_id === staffSub || r.pic_id === staffSub));
 
   // -- create artifacts: customer, vendor, project --
   const newCust = await req('POST', '/api/customers', admin, { name: 'Smoke Customer' });
@@ -128,6 +128,38 @@ async function main(): Promise<void> {
   check('ADMIN PATCH project 200', adminPatch.status === 200, adminPatch.json);
   const patchedRow = await req('GET', `/api/projects/${proj.id}`, admin);
   check('ADMIN PATCH applied', (patchedRow.json as any)?.current_stage === 'finish', patchedRow.json);
+
+  // -- PIC as a second ownership axis for STAFF --
+  // Sales = admin, Responsible PIC = staff: the PIC-only staff member must see
+  // AND edit the project, but must not be able to change the PIC assignment.
+  const picProj = await req('POST', '/api/projects', admin, {
+    project_name: 'Smoke PIC Visibility',
+    staff_assigned_id: adminUser?.id,
+    pic_id: staffUser?.id,
+    current_stage: 'on_progress',
+  });
+  check('POST project with STAFF pic 201', picProj.status === 201, picProj.json);
+  const picProjId: string = (picProj.json as any)?.id;
+
+  const staffPicList = await req('GET', '/api/projects?page=1&page_size=500', staff);
+  const staffPicRows: any[] = (staffPicList.json as any)?.rows ?? [];
+  check('STAFF list includes PIC-only project', staffPicRows.some((r) => r.id === picProjId), staffPicList.json);
+  check('STAFF GET PIC-only project 200', (await req('GET', `/api/projects/${picProjId}`, staff)).status === 200);
+
+  const picStaffPatch = await req('PATCH', `/api/projects/${picProjId}`, staff, {
+    project_name: 'Smoke PIC Visibility (edited)',
+    update_progress: 'pic smoke note',
+  });
+  check('STAFF PIC can edit the project', picStaffPatch.status === 200, picStaffPatch.json);
+
+  const picReassign = await req('PATCH', `/api/projects/${picProjId}`, staff, {
+    pic_id: null,
+    update_progress: 'trying to unassign PIC',
+  });
+  check('STAFF cannot change PIC assignment', picReassign.status === 403, picReassign.json);
+
+  const invalidPic = await req('PATCH', `/api/projects/${picProjId}`, admin, { pic_id: adminUser?.id });
+  check('ADMIN cannot set a non-STAFF PIC', invalidPic.status === 400, invalidPic.json);
 
   // -- issues: SUPER_ADMIN-only add + history --
   const staffIssuesGet = await req('GET', `/api/projects/${proj.id}/issues`, staff);

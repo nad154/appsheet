@@ -377,17 +377,21 @@ function FieldInput({
   }
 
   if (editType === 'user') {
+    // PIC must be an active STAFF account (or unassigned); Sales keeps the full
+    // active-user list.
+    const options = field === 'pic_id' ? users.filter((u) => u.role === 'STAFF') : users;
     return (
       <label className="flex flex-col">
         {label}
         <select value={value} onChange={(e) => onChange(field, e.target.value)} className={cls}>
           <option value="">–</option>
-          {/* A stale id (user permanently deleted) would otherwise render as no
-              selection — show it explicitly so the admin knows to reassign. */}
-          {value !== '' && !users.some((u) => u.id === value) && (
+          {/* A stale id (user permanently deleted or no longer eligible) would
+              otherwise render as no selection — show it explicitly so the admin
+              knows to reassign. */}
+          {value !== '' && !options.some((u) => u.id === value) && (
             <option value={value}>(deleted user)</option>
           )}
-          {users.map((u) => (
+          {options.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
             </option>
@@ -507,6 +511,8 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
       (key) =>
         (SECTION_OF[key] ?? 'Other') === section &&
         (key !== 'staff_assigned_id' || isAdmin) &&
+        // PIC assignment is SUPER_ADMIN-only — it grants project visibility.
+        (key !== 'pic_id' || isAdmin) &&
         // Stage is SUPER_ADMIN-only — STAFF never sees a way to change it.
         (key !== 'current_stage' || isAdmin),
     ),
@@ -562,6 +568,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
     const changes: Record<string, unknown> = {};
     for (const key of EDITABLE_FIELDS) {
       if (key === 'staff_assigned_id' && !isAdmin) continue;
+      if (key === 'pic_id' && !isAdmin) continue;
       if (key === 'current_stage' && !isAdmin) continue;
       const current = normalize(key, draft[key] ?? '');
       const original = (project as unknown as Record<string, unknown>)[key] ?? null;

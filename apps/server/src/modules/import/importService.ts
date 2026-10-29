@@ -384,16 +384,26 @@ async function prepare(body: unknown): Promise<Prepared> {
   )) {
     segmentByLabel.set(norm(s.label), s);
   }
-  const activeUsers = await runRead<{ id: string; name: string; email: string }>(
-    `SELECT id, name, email FROM users WHERE is_active = true`,
+  const activeUsers = await runRead<{ id: string; name: string; email: string; role: string }>(
+    `SELECT id, name, email, role FROM users WHERE is_active = true`,
   );
   const userByEmail = new Map<string, { id: string }>();
   const usersByName = new Map<string, { id: string }[]>();
+  // PIC must resolve to an active STAFF account (Sales stays permissive), so it
+  // gets its own index — a PIC can never be an admin/deactivated user.
+  const staffByEmail = new Map<string, { id: string }>();
+  const staffByName = new Map<string, { id: string }[]>();
   for (const u of activeUsers) {
     userByEmail.set(norm(u.email), { id: u.id });
     const list = usersByName.get(norm(u.name)) ?? [];
     list.push({ id: u.id });
     usersByName.set(norm(u.name), list);
+    if (u.role === 'STAFF') {
+      staffByEmail.set(norm(u.email), { id: u.id });
+      const staffList = staffByName.get(norm(u.name)) ?? [];
+      staffList.push({ id: u.id });
+      staffByName.set(norm(u.name), staffList);
+    }
   }
 
   function getOrCreate<T extends { id: string }>(
@@ -412,15 +422,17 @@ async function prepare(body: unknown): Promise<Prepared> {
   }
 
   type UserLookup = { id: string } | { error: string };
-  function resolveUser(raw: string, label: string): UserLookup {
-    const byEmail = userByEmail.get(norm(raw));
+  function resolveUser(raw: string, label: string, staffOnly = false): UserLookup {
+    const byEmail = (staffOnly ? staffByEmail : userByEmail).get(norm(raw));
     if (byEmail) return byEmail;
-    const byName = usersByName.get(norm(raw)) ?? [];
+    const byName = (staffOnly ? staffByName : usersByName).get(norm(raw)) ?? [];
     if (byName.length === 1) return byName[0];
     if (byName.length > 1) {
       return { error: `${label} "${raw.trim()}" matches more than one active user` };
     }
-    return { error: `${label} "${raw.trim()}" was not found among active users` };
+    return {
+      error: `${label} "${raw.trim()}" was not found among active${staffOnly ? ' STAFF' : ''} users`,
+    };
   }
 
   // Step 6 — build and validate objects against the same schemas the Add
@@ -460,7 +472,7 @@ async function prepare(body: unknown): Promise<Prepared> {
 
     const picRaw = g.values.pic;
     if (isPresent(picRaw)) {
-      const found = resolveUser(String(picRaw), importFieldLabel('pic'));
+      const found = resolveUser(String(picRaw), importFieldLabel('pic'), true);
       if ('error' in found) {
         errors.push({
           row: g.valueRows.pic ?? g.firstRow,

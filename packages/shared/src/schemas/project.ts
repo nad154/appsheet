@@ -27,7 +27,9 @@ export const projectSchema = z.object({
   customer_end_contract: z.string().nullable().optional(),
   current_stage: z.enum(PROJECT_STAGES).default('on_progress'),
 
-  // PIC / Issues
+  // PIC / Issues. pic_id is always an active STAFF user (or null/unassigned);
+  // being the PIC grants the staff member visibility/edits on the project, and
+  // only SUPER_ADMIN may change it.
   pic_id: z.string().uuid().nullable().optional(),
   pic_name: z.string().nullable().optional(),
   issues: z.string().nullable().optional(),

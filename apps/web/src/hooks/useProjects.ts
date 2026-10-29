@@ -44,9 +44,10 @@ export function useProjects(params: ProjectQueryParams = {}) {
   };
 }
 
-// Active users eligible for PIC assignment (id + name + role). Available to any
-// authenticated role; the settings users list is SUPER_ADMIN-only. role lets
-// the frontend offer a STAFF-only list (e.g. issue assignees).
+// Active users available for assignment (Sales, Responsible PIC, issue
+// assignee). Available to any authenticated role; the settings users list is
+// SUPER_ADMIN-only. role lets the frontend offer a STAFF-only list (PIC and
+// issue assignees must be STAFF).
 export type AssignableUser = { id: string; name: string; role: string };
 
 export function useAssignableUsers() {

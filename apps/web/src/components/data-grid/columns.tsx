@@ -191,30 +191,47 @@ function customerColumn(size = 160): ColumnDef<DisplayRow> {
   };
 }
 
-// PIC is an assignable user (stores pic_id, a user UUID). The cell displays the
-// resolved pic_name from the server JOIN; inline editing opens a user dropdown.
-// accessorKey is pic_id (the persisted FK the editor commits), while the sort
-// key sent to the server maps through SORTABLE_COLUMNS['pic_id'] → the joined
-// user name.
-function picColumn(size = 140): ColumnDef<DisplayRow> {
+// Multi-user display: first 3 names, then "+N". The full list is surfaced via
+// the element's title so the grid stays compact when a project has many PICs or
+// an issue has many assignees.
+export function peopleSummary(people: { id: string; name: string | null }[]): {
+  display: string;
+  full: string;
+  hasDeleted: boolean;
+} {
+  const names = people.map((p) => p.name ?? '(deleted user)');
+  const shown = names.slice(0, 3).join(', ');
+  const extra = names.length - 3;
   return {
-    accessorKey: 'pic_id',
+    display: extra > 0 ? `${shown} +${extra}` : shown,
+    full: names.join(', '),
+    hasDeleted: names.includes('(deleted user)'),
+  };
+}
+
+// Responsible PICs are a read-only multi-user display (editing happens in the
+// row-edit modal). Sort key stays `pic_id` so the server's PIC sort expression
+// (alphabetically-first PIC name) is used and saved column preferences keep
+// working. A dangling PIC row (deleted user) renders "(deleted user)".
+function picColumn(size = 160): ColumnDef<DisplayRow> {
+  return {
+    id: 'pic_id',
+    accessorFn: (row) => (row.isFirstOfGroup ? row.project.pics?.[0]?.name ?? '' : ''),
     header: 'Responsible PIC',
     size,
-    meta: { editable: true, editType: 'user' } as ColumnMeta,
     cell: ({ row }) => {
       if (!row.original.isFirstOfGroup) return null;
-      const { pic_id } = row.original.project;
-      const name = projectCell(row.original, 'pic_name') as string | null | undefined;
-      if (!name) {
-        // The PIC user was permanently deleted: the id stays on the project, so
-        // flag it (like "(deleted customer)") for the admin to reassign.
-        if (pic_id) {
-          return <span className="block w-full min-w-0 break-words text-sm italic text-ink-muted">(deleted user)</span>;
-        }
-        return <span className="text-ink-muted/50">—</span>;
-      }
-      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">{name}</span>;
+      const pics = row.original.project.pics ?? [];
+      if (pics.length === 0) return <span className="text-ink-muted/50">—</span>;
+      const { display, full, hasDeleted } = peopleSummary(pics);
+      return (
+        <span
+          className={`block w-full min-w-0 break-words text-sm leading-snug ${hasDeleted ? 'italic text-ink-muted' : 'text-ink'}`}
+          title={full}
+        >
+          {display}
+        </span>
+      );
     },
   };
 }
@@ -518,15 +535,15 @@ function IssuesCell({
 }) {
   const text = row.project.issues;
   const issueDate = row.project.latest_issue_date;
-  const assignee = row.project.latest_issue_assignee;
-  const assigneeId = row.project.latest_issue_assignee_id;
+  const assignees = row.project.latest_issue_assignees ?? [];
+  const assigneeSummary = assignees.length > 0 ? peopleSummary(assignees) : null;
 
   const content = text ? (
     <span className="flex min-w-0 flex-col leading-snug">
       <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink" title={text}>{text}</span>
       <span className="block break-words text-[11px] text-ink-muted">
         {issueDate ? formatIssueDate(issueDate) : '—'}
-        {assignee ? ` · ${assignee}` : assigneeId ? ' · (deleted user)' : ''}
+        {assigneeSummary ? ` · ${assigneeSummary.display}` : ''}
       </span>
     </span>
   ) : (

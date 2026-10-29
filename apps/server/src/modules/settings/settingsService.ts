@@ -309,8 +309,8 @@ export async function getUserUsage(id: string): Promise<UserUsage> {
   }>(
     `SELECT
        (SELECT count(*) FROM projects WHERE staff_assigned_id = ?) AS projects_assigned,
-       (SELECT count(*) FROM projects WHERE pic_id = ?) AS projects_pic,
-       (SELECT count(*) FROM project_issues WHERE assignee_id = ?) AS issue_assignments`,
+       (SELECT count(*) FROM project_pics WHERE user_id = ?) AS projects_pic,
+       (SELECT count(*) FROM project_issue_assignees WHERE user_id = ?) AS issue_assignments`,
     [id, id, id],
   );
 
@@ -326,10 +326,11 @@ export async function getUserUsage(id: string): Promise<UserUsage> {
  * (two-step gate, enforced here rather than only in the UI).
  *
  * Per-user operational rows are removed with the account. Project assignments
- * (`projects.staff_assigned_id` / `pic_id`) and the audit trail
- * (`project_updates` / `project_issues`) are intentionally left dangling: the
- * grid flags those rows as "(deleted user)" so a SUPER_ADMIN can reassign them,
- * and the history keeps its entries (joined LEFT, so the name is just null).
+ * (`projects.staff_assigned_id` / `project_pics` / `project_issue_assignees`)
+ * and the audit trail (`project_updates` / `project_issues`) are intentionally
+ * left dangling: the grid flags those rows as "(deleted user)" so a SUPER_ADMIN
+ * can reassign them, and the history keeps its entries (joined LEFT, so the
+ * name is just null).
  */
 export async function deleteUser(id: string, caller: AuthUser): Promise<void> {
   // Same lockout reasoning as self-deactivation: there is no recovery path, and

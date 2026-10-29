@@ -17,8 +17,13 @@ export const STAGE_LABELS: Record<DashboardStageFilter, string> = {
 
 // Mirrors the server rule: customer_price is a project-level figure and is
 // rejected for vendor-line-based groupings (priority / vendor_type) to avoid
-// double counting a multi-vendor project's price in several buckets.
+// double counting a multi-vendor project's price in several buckets. PIC
+// grouping is count-only: a project with several PICs is counted once per PIC,
+// so every value metric would double count it.
 export function allowedMetricsFor(column: DashboardColumn): DashboardMetric[] {
+  if (column === 'pic_id') {
+    return ['count'];
+  }
   if (VENDOR_BASED_COLUMNS.has(column)) {
     return ['count', 'vendor_price', 'vendor_revenue', 'avg_aging'];
   }

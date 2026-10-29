@@ -61,6 +61,9 @@ export async function listViews(userId: string): Promise<DashboardView[]> {
 }
 
 export async function createView(user: AuthUser, payload: DashboardViewCreate): Promise<{ id: string }> {
+  if (payload.column_key === 'pic_id' && payload.metric_key !== 'count') {
+    throw new DashboardError('PIC grouping only supports the count metric', 400);
+  }
   const id = uuid();
   await runWrite(async (ex) => {
     const [{ maxOrder } = { maxOrder: 0 }] = await ex<{ maxOrder: number }>(
@@ -87,6 +90,18 @@ export async function createView(user: AuthUser, payload: DashboardViewCreate): 
 }
 
 export async function updateView(user: AuthUser, viewId: string, payload: DashboardViewUpdate): Promise<void> {
+  // PIC grouping is count-only. The column can't be changed by an update, so
+  // look the view's column up when the caller is changing the metric.
+  if (payload.metric_key !== undefined && payload.metric_key !== 'count') {
+    const rows = await runRead<{ column_key: string }>(
+      `SELECT column_key FROM dashboard_views WHERE id = ? AND user_id = ?`,
+      [viewId, user.id],
+    );
+    if (rows[0]?.column_key === 'pic_id') {
+      throw new DashboardError('PIC grouping only supports the count metric', 400);
+    }
+  }
+
   // Whitelist of editable fields — a view's chart_type / column_key stay fixed
   // once created (only the label + filters/metric are editable).
   const sets: string[] = [];
@@ -179,8 +194,18 @@ function validateMetric(metricKey: DashboardMetric): void {
 // count paths: user columns use the joined display name, vendor_type comes off
 // the vendor line, everything else folds NULLs to 'Unset'.
 function labelExpr(columnKey: DashboardColumn): { expr: string; join: string } {
-  if (columnKey === 'staff_assigned_id' || columnKey === 'pic_id') {
-    return { expr: `COALESCE(u.name, 'Unassigned')`, join: `LEFT JOIN users u ON u.id = p.${columnKey}` };
+  if (columnKey === 'staff_assigned_id') {
+    return { expr: `COALESCE(u.name, 'Unassigned')`, join: `LEFT JOIN users u ON u.id = p.staff_assigned_id` };
+  }
+  if (columnKey === 'pic_id') {
+    // A project may hold several PICs, so the grouping is one row per
+    // (project, PIC) pair; projects with no PIC still contribute one
+    // "Unassigned" row. Aliases (ppic/pu) deliberately avoid `pp`, which the
+    // scopeClause EXISTS subquery uses, and `u`, which is the Sales join.
+    return {
+      expr: `COALESCE(pu.name, 'Unassigned')`,
+      join: `LEFT JOIN project_pics ppic ON ppic.project_id = p.id LEFT JOIN users pu ON pu.id = ppic.user_id`,
+    };
   }
   if (columnKey === 'vendor_type') {
     return { expr: `COALESCE(pv.vendor_type::VARCHAR, 'Unset')`, join: '' };
@@ -212,6 +237,10 @@ export async function getChartData(
     throw new DashboardError('Unsupported stage filter', 400);
   }
   validateMetric(filters.metricKey);
+
+  if (columnKey === 'pic_id' && filters.metricKey !== 'count') {
+    throw new DashboardError('PIC grouping only supports the count metric', 400);
+  }
 
   if (VENDOR_BASED_COLUMNS.has(columnKey) && PROJECT_LEVEL_METRICS.has(filters.metricKey)) {
     throw new DashboardError('Sum of customer price is not available for priority / vendor-type groupings', 400);

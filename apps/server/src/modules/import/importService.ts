@@ -17,6 +17,7 @@ import {
   projectCreateSchema,
   projectImportRequestSchema,
   projectVendorCreateSchema,
+  splitPicList,
   type ImportCommitResponse,
   type ImportIssue,
   type ImportPreviewResponse,
@@ -389,21 +390,11 @@ async function prepare(body: unknown): Promise<Prepared> {
   );
   const userByEmail = new Map<string, { id: string }>();
   const usersByName = new Map<string, { id: string }[]>();
-  // PIC must resolve to an active STAFF account (Sales stays permissive), so it
-  // gets its own index — a PIC can never be an admin/deactivated user.
-  const staffByEmail = new Map<string, { id: string }>();
-  const staffByName = new Map<string, { id: string }[]>();
   for (const u of activeUsers) {
     userByEmail.set(norm(u.email), { id: u.id });
     const list = usersByName.get(norm(u.name)) ?? [];
     list.push({ id: u.id });
     usersByName.set(norm(u.name), list);
-    if (u.role === 'STAFF') {
-      staffByEmail.set(norm(u.email), { id: u.id });
-      const staffList = staffByName.get(norm(u.name)) ?? [];
-      staffList.push({ id: u.id });
-      staffByName.set(norm(u.name), staffList);
-    }
   }
 
   function getOrCreate<T extends { id: string }>(
@@ -422,16 +413,18 @@ async function prepare(body: unknown): Promise<Prepared> {
   }
 
   type UserLookup = { id: string } | { error: string };
-  function resolveUser(raw: string, label: string, staffOnly = false): UserLookup {
-    const byEmail = (staffOnly ? staffByEmail : userByEmail).get(norm(raw));
+  // Any active user may be referenced (Sales, and now PICs — STAFF or
+  // SUPER_ADMIN). Lookup is by email first, then exact name.
+  function resolveUser(raw: string, label: string): UserLookup {
+    const byEmail = userByEmail.get(norm(raw));
     if (byEmail) return byEmail;
-    const byName = (staffOnly ? staffByName : usersByName).get(norm(raw)) ?? [];
+    const byName = usersByName.get(norm(raw)) ?? [];
     if (byName.length === 1) return byName[0];
     if (byName.length > 1) {
       return { error: `${label} "${raw.trim()}" matches more than one active user` };
     }
     return {
-      error: `${label} "${raw.trim()}" was not found among active${staffOnly ? ' STAFF' : ''} users`,
+      error: `${label} "${raw.trim()}" was not found among active users`,
     };
   }
 
@@ -452,7 +445,7 @@ async function prepare(body: unknown): Promise<Prepared> {
       customer_end_contract: g.values.customer_end_contract ?? null,
       current_stage: g.values.current_stage ?? 'on_progress',
       staff_assigned_id: null,
-      pic_id: null,
+      pic_ids: [] as string[],
       customer_id: null,
     };
 
@@ -470,18 +463,24 @@ async function prepare(body: unknown): Promise<Prepared> {
       }
     }
 
+    // PIC accepts a `;`-separated list (multi-PIC projects). Each entry must
+    // resolve to an active user; unknown/ambiguous entries are row errors.
     const picRaw = g.values.pic;
     if (isPresent(picRaw)) {
-      const found = resolveUser(String(picRaw), importFieldLabel('pic'), true);
-      if ('error' in found) {
-        errors.push({
-          row: g.valueRows.pic ?? g.firstRow,
-          fieldKey: 'pic',
-          message: found.error,
-        });
-      } else {
-        payload.pic_id = found.id;
+      const picIds: string[] = [];
+      for (const part of splitPicList(picRaw)) {
+        const found = resolveUser(part, importFieldLabel('pic'));
+        if ('error' in found) {
+          errors.push({
+            row: g.valueRows.pic ?? g.firstRow,
+            fieldKey: 'pic',
+            message: found.error,
+          });
+        } else if (!picIds.includes(found.id)) {
+          picIds.push(found.id);
+        }
       }
+      payload.pic_ids = picIds;
     }
 
     const customerRaw = g.values.customer_name;
@@ -612,6 +611,9 @@ export async function commitProjectImport(
       for (const g of p.items) {
         if (!g.payload) continue; // unreachable when errors are empty
         await ex(insertProjectSql(), buildInsertValues(g.projectId, g.payload));
+        for (const picId of g.payload.pic_ids ?? []) {
+          await ex(`INSERT INTO project_pics (project_id, user_id) VALUES (?, ?)`, [g.projectId, picId]);
+        }
         for (const [i, line] of (g.linePayloads ?? []).entries()) {
           await ex(
             insertVendorLineSql(),
@@ -625,7 +627,7 @@ export async function commitProjectImport(
       throw err;
     }
   });
-  await exportSnapshots(['projects', 'project_vendors', 'customers', 'vendors']);
+  await exportSnapshots(['projects', 'project_vendors', 'project_pics', 'customers', 'vendors']);
 
   return {
     created_projects: p.items.filter((g) => g.payload).length,

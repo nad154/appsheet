@@ -33,9 +33,7 @@ import {
   FIELD_LABELS,
   FIELD_SELECT_OPTIONS,
   FIELD_TYPES,
-  NUMBER_FIELDS,
   SECTION_OF,
-  SECTION_ORDER,
 } from '../../lib/projectFields';
 
 const emptyForm = {
@@ -46,7 +44,6 @@ const emptyForm = {
   service_or_goods: '',
   current_stage: 'on_progress',
   staff_assigned_id: '',
-  pic_id: '',
   date_customer_received_doc1: '',
   date_customer_received_doc2: '',
   doc2_number_id: '',
@@ -87,7 +84,10 @@ export function GridPage() {
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
   const [stageFinishConfirm, setStageFinishConfirm] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<any>(emptyForm);
+  // Responsible PICs are a multi-user set, so they live outside the string form.
+  // [] means "no PICs" — only SUPER_ADMIN may set a non-empty set.
+  const [picIds, setPicIds] = useState<string[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [vendorDrafts, setVendorDrafts] = useState<VendorLineDraft[]>([]);
 
@@ -111,8 +111,6 @@ export function GridPage() {
   const assignable = useAssignableUsers();
   const years = useProjectYears();
   const users = assignable.data ?? [];
-  // Only active STAFF accounts may be assigned as PIC (or left unassigned).
-  const staffUsers = users.filter((u) => u.role === 'STAFF');
   const thresholds = useAgingThresholds();
   const agingThresholds = thresholds.data ?? { low_max_days: 0, medium_max_days: 0 };
 
@@ -195,10 +193,13 @@ export function GridPage() {
     setPage(1);
   };
 
-  const setField = (key: keyof typeof emptyForm, value: string) => setForm((f) => ({ ...f, [key]: value }));
+  const setField = (key: keyof typeof emptyForm, value: string) => setForm((f: any) => ({ ...f, [key]: value }));
+
+  const togglePicId = (id: string) =>
+    setPicIds((ids) => (ids.includes(id) ? ids.filter((v) => v !== id) : [...ids, id]));
 
   const handleConfirmStageFinish = () => {
-    setForm((f) => ({ ...f, current_stage: 'finish' }));
+    setForm((f:any) => ({ ...f, current_stage: 'finish' }));
     setStageFinishConfirm(false);
   };
 
@@ -394,7 +395,9 @@ export function GridPage() {
         customer_start_contract: form.customer_start_contract || null,
         customer_end_contract: form.customer_end_contract || null,
         current_stage: form.current_stage as 'on_progress' | 'finish',
-        ...(isAdmin ? { pic_id: form.pic_id || null } : {}),
+        // PICs are SUPER_ADMIN-only; a STAFF creation leaves the set out entirely
+        // (the API defaults it to empty and rejects a non-empty STAFF payload).
+        ...(isAdmin ? { pic_ids: picIds } : {}),
         ...(isAdmin ? { staff_assigned_id: form.staff_assigned_id || null } : {}),
         vendors,
       };
@@ -403,6 +406,7 @@ export function GridPage() {
       await refetchProjects();
       setShowAddForm(false);
       setForm(emptyForm);
+      setPicIds([]);
       setCustomerId('');
       setVendorDrafts([]);
     } catch (e) {
@@ -497,7 +501,10 @@ export function GridPage() {
                 <input value={form.folder_name} onChange={(e) => setField('folder_name', e.target.value)} className={controlClass} />
               </label>
               {ADD_EDITABLE_FIELDS.filter((k) => (SECTION_OF[k] ?? 'Other') === 'Project info')
-                .filter((k) => (k !== 'staff_assigned_id' || isAdmin) && (k !== 'pic_id' || isAdmin) && (k !== 'current_stage' || isAdmin))
+                // Project Name and Folder Reference are rendered explicitly above,
+                // so keep the generic loop from duplicating those two inputs.
+                .filter((k) => k !== 'project_name' && k !== 'folder_name')
+                .filter((k) => (k !== 'staff_assigned_id' || isAdmin) && (k !== 'pic_ids' || isAdmin) && (k !== 'current_stage' || isAdmin))
                 .map((key) => {
                   const editType = FIELD_TYPES[key] ?? 'text';
                   if (editType === 'date') {
@@ -551,19 +558,44 @@ export function GridPage() {
                     );
                   }
                   if (editType === 'user') {
-                    const options = key === 'pic_id' ? staffUsers : users;
                     return (
                       <label key={key} className={fieldLabel}>
                         {FIELD_LABELS[key] ?? key}
                         <Select value={form[key] ?? ''} onChange={(e) => setField(key as keyof typeof emptyForm, e.target.value)} className="py-1">
                           <option value="">–</option>
-                          {options.map((u) => (
+                          {users.map((u) => (
                             <option key={u.id} value={u.id}>
                               {u.name}
                             </option>
                           ))}
                         </Select>
                       </label>
+                    );
+                  }
+                  if (editType === 'users') {
+                    // Multi-PIC picker: every active user may be a PIC, capped at
+                    // 20 by the API. Empty on a fresh add form.
+                    return (
+                      <div key={key} className={`${fieldLabel} md:col-span-4`}>
+                        <span>{FIELD_LABELS[key] ?? key}</span>
+                        <div
+                          className="mt-1 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded border border-border bg-white p-2 sm:grid-cols-2 md:grid-cols-4"
+                          role="group"
+                          aria-label="Responsible PIC"
+                        >
+                          {users.map((u) => (
+                            <label key={u.id} className="flex items-center gap-2 text-sm text-ink">
+                              <input
+                                type="checkbox"
+                                checked={picIds.includes(u.id)}
+                                onChange={() => togglePicId(u.id)}
+                              />
+                              {u.name}
+                            </label>
+                          ))}
+                          {users.length === 0 && <span className="text-sm text-ink-muted">No active users.</span>}
+                        </div>
+                      </div>
                     );
                   }
                   if (editType === 'textarea') {

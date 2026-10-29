@@ -92,12 +92,12 @@ export const IMPORT_FIELDS: ImportField[] = [
   {
     key: 'pic',
     label: 'Responsible PIC',
-    description: 'Person in charge of the project. Match by email or exact name.',
+    description: 'Person(s) in charge of the project. Match by email or exact name; separate multiple PICs with a semicolon (;).',
     section: 'Project info',
     level: 'project',
     type: 'lookup',
     aliases: ['pic', 'pic_id', 'Responsible PIC', 'PIC'],
-    example: 'admin@example.com',
+    example: 'admin@example.com; staff1@example.com',
   },
   {
     key: 'current_stage',
@@ -370,4 +370,26 @@ export function importFieldsBySection(): { section: ImportFieldSection; fields: 
     section,
     fields: IMPORT_FIELDS.filter((f) => f.section === section),
   })).filter((g) => g.fields.length > 0);
+}
+
+/**
+ * Split a `;`-separated cell from the PIC import column into user references.
+ * Blank entries are dropped and repeats are removed (case-insensitively, so
+ * `Admin@x.com` and `admin@x.com` count once). Pure by design: resolving each
+ * reference to an active user stays in the server import service, which keeps
+ * this parsing unit-testable without touching the database.
+ */
+export function splitPicList(value: unknown): string[] {
+  if (value === null || value === undefined) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of String(value).split(';')) {
+    const token = part.trim();
+    if (!token) continue;
+    const dedupeKey = token.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    out.push(token);
+  }
+  return out;
 }

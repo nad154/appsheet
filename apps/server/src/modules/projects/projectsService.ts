@@ -579,6 +579,13 @@ export async function updateProject(
 
   assertStaffOwnership(user, project, payload);
 
+  // A finished project is frozen: neither STAFF nor SUPER_ADMIN may edit its
+  // fields or PICs. Vendor lines and issues live in their own tables and stay
+  // editable; deletion remains a separate SUPER_ADMIN-only action.
+  if (project.current_stage === 'finish') {
+    throw new ProjectWriteError('A finished project can no longer be edited', 409);
+  }
+
   // PIC assignment is SUPER_ADMIN-only (it grants row visibility) and must
   // always target active users. `pic_ids` is a full replacement set.
   let picIds: string[] | undefined;
@@ -594,13 +601,11 @@ export async function updateProject(
   }
 
   // Stage is SUPER_ADMIN-only (defence-in-depth — the shared update schema
-  // accepts it for both roles), and once a project is finished it can never be
-  // set back to on_progress.
+  // accepts it for both roles). The old "cannot reopen a finished project"
+  // guard is gone because the freeze above rejects every edit to a finished
+  // project before this point.
   if (payload.current_stage !== undefined && user.role !== 'SUPER_ADMIN') {
     throw new ProjectWriteError('Only SUPER_ADMIN can change the stage', 403);
-  }
-  if (payload.current_stage === 'on_progress' && project.current_stage === 'finish') {
-    throw new ProjectWriteError('A finished project cannot be reopened', 400);
   }
 
   // pic_ids is not a projects column — peel it off before building the SET list

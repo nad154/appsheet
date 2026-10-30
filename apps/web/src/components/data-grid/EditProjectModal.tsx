@@ -528,6 +528,14 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
   // the Save button's disabled state below. SUPER_ADMIN edits never see it.
   const [updateProgress, setUpdateProgress] = useState('');
 
+  // A finished project's project-level fields and PICs are frozen for both
+  // roles (server-enforced). Vendor lines stay editable, so this modal remains
+  // usable for them — it just can no longer change the project row itself.
+  const isLocked = (project.current_stage ?? 'on_progress') === 'finish';
+  // STAFF describe their project-level change; when the row is frozen there is
+  // no project write, so the note is neither required nor shown.
+  const requiresProgress = !isAdmin && !isLocked;
+
   // Removed: driveFolderId / linkInput / busy state (see UNUSED_DRIVE.md)
 
   // Vendor lines: a working copy of the project's lines plus any newly added
@@ -628,36 +636,40 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
   const handleSave = async () => {
     if (saving) return;
     const changes: Record<string, unknown> = {};
-    for (const key of EDITABLE_FIELDS) {
-      if (key === 'pic_ids') continue; // handled separately (multi-user set)
-      if (key === 'staff_assigned_id' && !isAdmin) continue;
-      if (key === 'current_stage' && !isAdmin) continue;
-      const current = normalize(key, draft[key] ?? '');
-      const original = (project as unknown as Record<string, unknown>)[key] ?? null;
-      if (current !== original) changes[key] = current;
+    // A finished project's row is frozen — collect no project-level changes.
+    // Vendor-line edits below still go through their own endpoints.
+    if (!isLocked) {
+      for (const key of EDITABLE_FIELDS) {
+        if (key === 'pic_ids') continue; // handled separately (multi-user set)
+        if (key === 'staff_assigned_id' && !isAdmin) continue;
+        if (key === 'current_stage' && !isAdmin) continue;
+        const current = normalize(key, draft[key] ?? '');
+        const original = (project as unknown as Record<string, unknown>)[key] ?? null;
+        if (current !== original) changes[key] = current;
+      }
+      // PICs are a full replacement set; only send when the admin actually changed
+      // it (an omitted pic_ids must never wipe the project's PICs).
+      if (isAdmin) {
+        const originalPicIds = (project.pics ?? []).map((p) => p.id);
+        const same =
+          originalPicIds.length === picIds.length &&
+          originalPicIds.every((id) => picIds.includes(id));
+        if (!same) changes.pic_ids = picIds;
+      }
+      const currentCustomer = customerId || null;
+      const originalCustomer = project.customer_id ?? null;
+      if (currentCustomer !== originalCustomer) changes.customer_id = currentCustomer;
     }
-    // PICs are a full replacement set; only send when the admin actually changed
-    // it (an omitted pic_ids must never wipe the project's PICs).
-    if (isAdmin) {
-      const originalPicIds = (project.pics ?? []).map((p) => p.id);
-      const same =
-        originalPicIds.length === picIds.length &&
-        originalPicIds.every((id) => picIds.includes(id));
-      if (!same) changes.pic_ids = picIds;
-    }
-    const currentCustomer = customerId || null;
-    const originalCustomer = project.customer_id ?? null;
-    if (currentCustomer !== originalCustomer) changes.customer_id = currentCustomer;
 
     if (Object.keys(changes).length === 0 && removedLineIds.length === 0 && lines.every((l) => l.id)) {
       onClose();
       return;
     }
-    if (!isAdmin && !updateProgress.trim()) {
+    if (requiresProgress && !updateProgress.trim()) {
       setError('Update progress is required before saving.');
       return;
     }
-    if (!isAdmin) changes.update_progress = updateProgress.trim();
+    if (requiresProgress) changes.update_progress = updateProgress.trim();
 
     setSaving(true);
     setError(null);
@@ -738,14 +750,24 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
   const renderBody = (): ReactNode => (
     <div className="px-5 py-4">
       {/* Removed: FolderBadges render (moved to UNUSED_DRIVE.md) */}
+      {isLocked && (
+        <div
+          role="status"
+          className="mb-4 rounded border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
+        >
+          This project is <span className="font-medium">Finish</span>. Its project details and PICs are read-only
+          — only vendor lines can still be changed.
+        </div>
+      )}
       {sections.map(({ section, fields }) => (
         <fieldset
           key={section}
+          disabled={isLocked}
           className={`mb-5 rounded border-2 p-3 ${
             section === 'Customer'
               ? 'border-emerald-300 bg-emerald-100/80 [&_input:not([type=\'date\'])]:bg-white [&_select]:bg-white [&_textarea]:bg-white [&_[data-date-field]]:bg-white'
               : 'border-border bg-canvas/60'
-          }`}
+          } ${isLocked ? 'opacity-60' : ''}`}
         >
           <legend
             className={`mb-2 px-1 text-xs font-semibold uppercase tracking-wide ${
@@ -822,7 +844,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
         </Button>
       </fieldset>
 
-      {!isAdmin && (
+      {requiresProgress && (
         <fieldset className="mb-5 rounded border border-warning/20 bg-warning-soft p-3">
           <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-warning">
             Update Progress <span className="normal-case font-normal">(required)</span>
@@ -874,7 +896,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
             </Button>
             <Button
               onClick={handleSave}
-              disabled={saving || !draft.project_name?.trim() || (!isAdmin && !updateProgress.trim())}
+              disabled={saving || !draft.project_name?.trim() || (requiresProgress && !updateProgress.trim())}
             >
               {saving ? 'Saving…' : 'Save changes'}
             </Button>

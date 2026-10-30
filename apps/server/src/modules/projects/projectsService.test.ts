@@ -16,7 +16,7 @@ vi.mock('../../db/export.js', () => ({
   exportSnapshots: vi.fn(),
 }));
 
-import { assertStaffOwnership, assertValidPics, ProjectWriteError } from './projectsService.js';
+import { assertStaffOwnership, assertValidPics, updateProject, ProjectWriteError } from './projectsService.js';
 import type { AuthUser } from '../../middleware/requireAuth.js';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -104,5 +104,58 @@ describe('assertStaffOwnership', () => {
     expect(() =>
       assertStaffOwnership(admin, { staff_assigned_id: id(1), pics: [] }, { staff_assigned_id: id(2) }),
     ).not.toThrow();
+  });
+});
+
+// A finished project is frozen for both roles: project fields and PICs can no
+// longer be edited. Vendor lines and issues live in their own tables and are
+// exercised by their own services.
+describe('updateProject on a finished project', () => {
+  const projectId = id(1);
+  const owner = { id: id(9), role: 'STAFF' } as unknown as AuthUser;
+  const admin = { id: id(9), role: 'SUPER_ADMIN' } as unknown as AuthUser;
+
+  const mockProject = (current_stage: 'on_progress' | 'finish') => {
+    runRead.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM projects p')) {
+        return [{ id: projectId, project_name: 'Finished job', staff_assigned_id: id(9), current_stage }];
+      }
+      if (sql.includes('FROM project_pics')) return [];
+      return [];
+    });
+  };
+
+  const captureError = async (promise: Promise<unknown>): Promise<unknown> => {
+    try {
+      await promise;
+    } catch (err) {
+      return err;
+    }
+    throw new Error('expected updateProject to reject');
+  };
+
+  const expectFrozen = (err: unknown) => {
+    expect(err).toBeInstanceOf(ProjectWriteError);
+    expect(err).toMatchObject({ message: 'A finished project can no longer be edited', statusCode: 409 });
+  };
+
+  it('rejects a SUPER_ADMIN field edit', async () => {
+    mockProject('finish');
+    expectFrozen(await captureError(updateProject(admin, projectId, { project_name: 'Renamed' })));
+  });
+
+  it('rejects a STAFF field edit', async () => {
+    mockProject('finish');
+    expectFrozen(await captureError(updateProject(owner, projectId, { project_name: 'Renamed' }, 'note')));
+  });
+
+  it('rejects a PIC change', async () => {
+    mockProject('finish');
+    expectFrozen(await captureError(updateProject(admin, projectId, { pic_ids: [id(2)] })));
+  });
+
+  it('still allows an on_progress project to be edited', async () => {
+    mockProject('on_progress');
+    await expect(updateProject(admin, projectId, { project_name: 'Renamed' })).resolves.toBeUndefined();
   });
 });

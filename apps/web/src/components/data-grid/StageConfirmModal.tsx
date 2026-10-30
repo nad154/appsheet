@@ -31,8 +31,9 @@ export function StageConfirmModal({ projectName, onConfirm, onCancel, busy }: St
       }
     >
       <p className="px-5 py-4 text-sm text-ink-muted">
-        Are you sure you want to mark “{projectName}” as <span className="font-medium text-ink">Finish</span>? A
-        finished project cannot be set back to On Progress.
+        Are you sure you want to mark “{projectName}” as <span className="font-medium text-ink">Finish</span>? This
+        locks the project details for everyone — they can no longer be edited — and the project cannot be set back
+        to On Progress.
       </p>
     </Modal>
   );

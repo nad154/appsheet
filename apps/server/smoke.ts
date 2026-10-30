@@ -193,10 +193,20 @@ async function main(): Promise<void> {
   const staffPatch = await req('PATCH', `/api/projects/${proj.id}`, staff, { update_progress: 'smoke note', issues: 'should not persist' });
   check('STAFF PATCH project (authorized only)', staffPatch.status === 403, staffPatch.json); // staff not assigned to this project
 
+  // Give the main smoke project a PIC so the issue-assignee pool (Sales + PICs)
+  // is non-empty below. This must run BEFORE the project is marked finish — a
+  // finished project's row and PICs are frozen (issues stay editable).
+  const projPicPatch = await req('PATCH', `/api/projects/${proj.id}`, admin, { pic_ids: [staffUser?.id] });
+  check('ADMIN sets one PIC on smoke project', projPicPatch.status === 200, projPicPatch.json);
+
   const adminPatch = await req('PATCH', `/api/projects/${proj.id}`, admin, { current_stage: 'finish' });
   check('ADMIN PATCH project 200', adminPatch.status === 200, adminPatch.json);
   const patchedRow = await req('GET', `/api/projects/${proj.id}`, admin);
   check('ADMIN PATCH applied', (patchedRow.json as any)?.current_stage === 'finish', patchedRow.json);
+
+  // A finished project is frozen for both roles (fields + PICs).
+  const frozenPatch = await req('PATCH', `/api/projects/${proj.id}`, admin, { project_name: 'Renamed after finish' });
+  check('ADMIN cannot edit a finished project (409)', frozenPatch.status === 409, frozenPatch.json);
 
   // -- PICs as a second ownership axis for STAFF (multi-user) --
   // Sales = admin, Responsible PICs = staff + admin: the PIC staff member must
@@ -242,11 +252,6 @@ async function main(): Promise<void> {
     pic_ids: Array.from({ length: 21 }, () => crypto.randomUUID()),
   });
   check('ADMIN cannot exceed 20 PICs (400)', tooManyPics.status === 400, tooManyPics.json);
-
-  // Give the main smoke project a PIC so the issue-assignee pool (Sales + PICs)
-  // is non-empty below.
-  const projPicPatch = await req('PATCH', `/api/projects/${proj.id}`, admin, { pic_ids: [staffUser?.id] });
-  check('ADMIN sets one PIC on smoke project', projPicPatch.status === 200, projPicPatch.json);
 
   // -- issues: SUPER_ADMIN-only add + history --
   const staffIssuesGet = await req('GET', `/api/projects/${proj.id}/issues`, staff);

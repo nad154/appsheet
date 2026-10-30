@@ -575,7 +575,9 @@ export function ProjectTable({
                     const isSaving = savingCell === `${row.id}_${field}`;
                     // Project-level cells are editable only on the group-header
                     // row; vendor-line cells are modal-only (never editable).
-                    const editable = isAdmin && !!meta?.editable && isFirstOfGroup;
+                    // A finished project's row is frozen for both roles.
+                    const editable =
+                      isAdmin && !!meta?.editable && isFirstOfGroup && project.current_stage !== 'finish';
 
                     let content: ReactNode;
                     if (isEditing && isFirstOfGroup) {

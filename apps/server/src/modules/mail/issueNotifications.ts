@@ -6,6 +6,7 @@ import { buildIssueAssignedEmail } from './templates/issueAssigned.js';
 
 export interface IssueAssignmentEmailInput {
   issueId: string;
+  projectId: string;
   projectName: string;
   issueText: string;
   issueDate: string;
@@ -59,6 +60,7 @@ export async function notifyIssueAssignees(input: IssueAssignmentEmailInput): Pr
     try {
       const mail = buildIssueAssignedEmail({
         recipientName: recipient.name,
+        projectId: input.projectId,
         projectName: input.projectName,
         issueText: input.issueText,
         issueDate: input.issueDate,

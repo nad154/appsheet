@@ -2,6 +2,8 @@ import { mailConfig } from '../config.js';
 
 export interface IssueAssignedEmailInput {
   recipientName?: string | null;
+  /** Used to deep-link straight to the project in the grid (?project=<id>). */
+  projectId?: string | null;
   projectName: string;
   issueText: string;
   issueDate: string;
@@ -35,7 +37,9 @@ function toSubjectLine(value: string): string {
 /**
  * Build the "you were assigned an issue" email as both text and HTML. Every
  * interpolated value is escaped for the HTML body; the optional project link is
- * omitted entirely when APP_BASE_URL is not configured.
+ * omitted entirely when APP_BASE_URL is not configured. When the project id is
+ * known, the link carries `?project=<id>` so the grid opens on that project's
+ * page and flashes it — the same arrival style as a dashboard drill-down.
  */
 export function buildIssueAssignedEmail(input: IssueAssignedEmailInput): BuiltEmail {
   const projectName = input.projectName.trim();
@@ -43,8 +47,11 @@ export function buildIssueAssignedEmail(input: IssueAssignedEmailInput): BuiltEm
   const greeting = input.recipientName?.trim() ? `Hello ${input.recipientName.trim()},` : 'Hello,';
   const otherAssignees = (input.otherAssignees ?? []).filter(Boolean);
 
+  const projectId = input.projectId?.trim();
   const projectUrl = mailConfig.appBaseUrl
-    ? `${mailConfig.appBaseUrl.replace(/\/+$/, '')}/grid`
+    ? `${mailConfig.appBaseUrl.replace(/\/+$/, '')}/grid${
+        projectId ? `?project=${encodeURIComponent(projectId)}` : ''
+      }`
     : '';
 
   const textLines = [greeting, '', 'You were assigned a new issue.', '', `Project: ${projectName}`, `Date: ${input.issueDate}`];
@@ -52,7 +59,7 @@ export function buildIssueAssignedEmail(input: IssueAssignedEmailInput): BuiltEm
   if (otherAssignees.length > 0) textLines.push(`Also assigned: ${otherAssignees.join(', ')}`);
   textLines.push('', input.issueText);
   if (projectUrl) {
-    textLines.push('', `Open the project tracker: ${projectUrl}`);
+    textLines.push('', `Open this project in Project Tracker: ${projectUrl}`);
   }
   textLines.push('', '— Project Tracker (automated message, please do not reply)');
 
@@ -68,7 +75,7 @@ export function buildIssueAssignedEmail(input: IssueAssignedEmailInput): BuiltEm
       ? `<tr><td style="padding:2px 12px 2px 0"><strong>Also assigned</strong></td><td>${escapeHtml(otherAssignees.join(', '))}</td></tr>`
       : '';
   const linkLine = projectUrl
-    ? `<p><a href="${escapeHtml(projectUrl)}">Open the project tracker</a></p>`
+    ? `<p><a href="${escapeHtml(projectUrl)}">Open this project in Project Tracker</a></p>`
     : '';
 
   const html = [

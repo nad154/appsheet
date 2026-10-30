@@ -29,6 +29,7 @@ import { notifyIssueAssignees } from './issueNotifications.js';
 
 const input = {
   issueId: 'issue-1',
+  projectId: 'project-1',
   projectName: 'Website Revamp',
   issueText: 'Customer asked for a new landing page.',
   issueDate: '2026-10-29',

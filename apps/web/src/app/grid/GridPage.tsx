@@ -94,17 +94,26 @@ export function GridPage() {
   const [vendorDrafts, setVendorDrafts] = useState<VendorLineDraft[]>([]);
 
   // Set only when arriving via a dashboard drill-down click
-  // (navigate('/grid', { state: { highlightProjectId } })).
-  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
-    () => (location.state?.highlightProjectId as string | undefined) ?? null,
-  );
+  // (navigate('/grid', { state: { highlightProjectId } })) or an email link
+  // (/grid?project=<id>, which survives the login redirect). Both land on the
+  // target project's page and flash the row.
+  const [highlightedRowId, setHighlightedRowId] = useState<string | null>(() => {
+    const fromState = location.state?.highlightProjectId as string | undefined;
+    const fromQuery = new URLSearchParams(location.search).get('project')?.trim();
+    return fromState ?? (fromQuery || null);
+  });
 
-  // Consume the navigation state once so a plain refresh of /grid doesn't
+  // Consume the arrival hint once so a plain refresh of /grid doesn't
   // re-trigger the highlight.
   useEffect(() => {
-    if (location.state?.highlightProjectId) {
-      navigate('.', { replace: true, state: {} });
-    }
+    const params = new URLSearchParams(location.search);
+    if (!location.state?.highlightProjectId && !params.has('project')) return;
+    params.delete('project');
+    const search = params.toString();
+    navigate(
+      { pathname: location.pathname, search: search ? `?${search}` : '' },
+      { replace: true, state: {} },
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

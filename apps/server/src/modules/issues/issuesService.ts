@@ -205,6 +205,7 @@ export async function addIssue(user: AuthUser, projectId: string, rawPayload: un
   if (payload.send_email && assigneeIds.length > 0) {
     void notifyIssueAssignees({
       issueId: id,
+      projectId,
       projectName: project.project_name,
       issueText: payload.issue_text,
       issueDate,

@@ -29,7 +29,12 @@ export function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/grid';
+  const fromState = location.state as
+    | { from?: { pathname?: string; search?: string; hash?: string } }
+    | null;
+  const from = fromState?.from
+    ? `${fromState.from.pathname ?? '/grid'}${fromState.from.search ?? ''}${fromState.from.hash ?? ''}`
+    : '/grid';
 
   const onSubmit = async (values: LoginForm) => {
     setError(null);

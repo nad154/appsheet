@@ -68,6 +68,24 @@ describe('buildIssueAssignedEmail', () => {
     expect(built.html).toContain('href="https://tracker.example.com/grid"');
   });
 
+  it('deep-links to the referenced project so the grid can highlight it', async () => {
+    const { buildIssueAssignedEmail } = await loadTemplate({ APP_BASE_URL: 'https://tracker.example.com/' });
+    const built = buildIssueAssignedEmail({ ...baseInput, projectId: 'proj/42 & 7' });
+
+    const expected = 'https://tracker.example.com/grid?project=proj%2F42%20%26%207';
+    expect(built.text).toContain(expected);
+    expect(built.html).toContain(`href="${expected.replace(/&/g, '&amp;')}"`);
+  });
+
+  it('falls back to the plain /grid link when the project id is missing', async () => {
+    const { buildIssueAssignedEmail } = await loadTemplate({ APP_BASE_URL: 'https://tracker.example.com' });
+    const blank = buildIssueAssignedEmail({ ...baseInput, projectId: '   ' });
+
+    expect(blank.text).toContain('https://tracker.example.com/grid');
+    expect(blank.text).not.toContain('?project=');
+    expect(blank.html).toContain('href="https://tracker.example.com/grid"');
+  });
+
   it('escapes HTML in every interpolated value', async () => {
     const { buildIssueAssignedEmail } = await loadTemplate();
     const built = buildIssueAssignedEmail({

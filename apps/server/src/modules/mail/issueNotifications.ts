@@ -34,6 +34,13 @@ function reasonOf(err: unknown): string {
 export async function notifyIssueAssignees(input: IssueAssignmentEmailInput): Promise<void> {
   if (!isMailEnabled() || input.assigneeIds.length === 0) return;
 
+
+  console.log('[debug] notify', {
+    enabled: isMailEnabled(),
+    driver: process.env.MAIL_DRIVER, 
+    assignees: input.assigneeIds,
+  });
+
   let rows: RecipientRow[];
   try {
     const placeholders = input.assigneeIds.map(() => '?').join(', ');

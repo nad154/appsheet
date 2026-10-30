@@ -40,12 +40,44 @@ function buildHeaders(useAuth: boolean, isJson: boolean): Record<string, string>
   return headers;
 }
 
+export interface BlobResponse {
+  blob: Blob;
+  /** From Content-Disposition, falling back to "projects.csv". */
+  filename: string;
+}
+
+type ResponseType = 'json' | 'blob';
+
+function errorMessageFrom(data: unknown, status: number): string {
+  return (
+    (typeof data === 'object' && data && 'error' in data && typeof (data as { error: unknown }).error === 'string'
+      ? (data as { error: string }).error
+      : null) ?? `Request failed (${status})`
+  );
+}
+
+/** `attachment; filename="projects-2026-10-29.csv"` -> projects-2026-10-29.csv */
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1]);
+    } catch {
+      return encoded[1];
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(header);
+  return plain ? plain[1].trim() : null;
+}
+
 async function doRequest(
   method: string,
   path: string,
   body?: unknown,
   useAuth = true,
   retry = true,
+  responseType: ResponseType = 'json',
 ): Promise<unknown> {
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
   const isJson = body !== undefined && !isFormData;
@@ -59,19 +91,29 @@ async function doRequest(
     // Access token may be expired — try to refresh once, then retry.
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      return doRequest(method, path, body, useAuth, false);
+      return doRequest(method, path, body, useAuth, false, responseType);
     }
     onSessionExpired?.();
     throw new ApiError(401, 'Session expired');
   }
 
+  // Files must not run through parseResponse (JSON-or-text); an ApiError still
+  // carries the server's JSON `error` field when the request failed.
+  if (responseType === 'blob') {
+    if (!res.ok) {
+      const errorBody = await parseResponse(res);
+      throw new ApiError(res.status, errorMessageFrom(errorBody, res.status), errorBody);
+    }
+    const result: BlobResponse = {
+      blob: await res.blob(),
+      filename: filenameFromDisposition(res.headers.get('Content-Disposition')) ?? 'projects.csv',
+    };
+    return result;
+  }
+
   const data = await parseResponse(res);
   if (!res.ok) {
-    const message =
-      (typeof data === 'object' && data && 'error' in data && typeof (data as { error: unknown }).error === 'string'
-        ? (data as { error: string }).error
-        : null) ?? `Request failed (${res.status})`;
-    throw new ApiError(res.status, message, data);
+    throw new ApiError(res.status, errorMessageFrom(data, res.status), data);
   }
   return data;
 }
@@ -119,5 +161,9 @@ export const apiClient = {
   },
   async del<T>(path: string): Promise<T> {
     return (await doRequest('DELETE', path)) as T;
+  },
+  /** Binary download (e.g. CSV export) with the server-suggested filename. */
+  async getBlob(path: string): Promise<BlobResponse> {
+    return (await doRequest('GET', path, undefined, true, true, 'blob')) as BlobResponse;
   },
 };

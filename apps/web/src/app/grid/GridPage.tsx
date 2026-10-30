@@ -25,6 +25,7 @@ import { apiClient, ApiError } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/Toast';
 import { ImportCsvModal } from '../../components/import/ImportCsvModal';
+import { downloadBlob } from '../../lib/downloadBlob';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -81,6 +82,7 @@ export function GridPage() {
   const [stageFilter, setStageFilter] = useState<ProjectStage | undefined>(undefined);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImportCsv, setShowImportCsv] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
   const [stageFinishConfirm, setStageFinishConfirm] = useState(false);
@@ -191,6 +193,30 @@ export function GridPage() {
   const handleStageChange = (next: string) => {
     setStageFilter(next === 'all' ? undefined : (next as ProjectStage));
     setPage(1);
+  };
+
+  // Downloads every row of the current filtered/sorted set (all pages, not just
+  // the visible one). Filters and scope are applied server-side, so a STAFF
+  // export can only ever contain their own projects.
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const qs = new URLSearchParams();
+      if (yearFilter !== undefined) qs.set('year', String(yearFilter));
+      if (stageFilter !== undefined) qs.set('stage', stageFilter);
+      if (sortBy !== undefined) qs.set('sort_by', sortBy);
+      if (sortDir !== undefined) qs.set('sort_dir', sortDir);
+      const query = qs.toString();
+      const { blob, filename } = await apiClient.getBlob(
+        `/api/projects/export.csv${query ? `?${query}` : ''}`,
+      );
+      downloadBlob(blob, filename);
+      showToast('CSV exported.', 'success');
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Could not export CSV.', 'error');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const setField = (key: keyof typeof emptyForm, value: string) => setForm((f: any) => ({ ...f, [key]: value }));
@@ -424,6 +450,14 @@ export function GridPage() {
         title="Project Grid"
         actions={
           <>
+            <Button
+              variant="secondary"
+              onClick={handleExportCsv}
+              disabled={exporting}
+              data-testid="export-csv"
+            >
+              {exporting ? 'Exporting…' : 'Export CSV'}
+            </Button>
             {isAdmin && (
               <Button
                 variant="secondary"

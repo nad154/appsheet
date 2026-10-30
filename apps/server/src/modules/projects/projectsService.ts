@@ -171,6 +171,13 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   // Step 1 — one lightweight query for the WHOLE scoped set: id + vendor-line
   // count + the sort key. The scoped set is ≤500 projects at this app's scale,
   // so this is cheap and drives the pack with exactly the order the user sees.
+  //
+  // `p.id` is the final tiebreaker so the order is total, not just partial.
+  // Without it, ties (many projects share one created_at when they were created
+  // by a single CSV import, because DuckDB's current_timestamp is the
+  // transaction start) could order differently between two identical queries —
+  // which would misplace rows across page boundaries for the CSV export's
+  // page-by-page walk (and the drill-down locator).
   const sortExpr = SORTABLE_COLUMNS[sortKey] ?? 'p.created_at';
   const nullsLast = NULLS_LAST_SORT_KEYS.has(sortKey) ? ' NULLS LAST' : '';
   const scoped = await runRead<{ id: string; line_count: number }>(
@@ -180,7 +187,7 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
      LEFT JOIN users u ON u.id = p.staff_assigned_id
      LEFT JOIN customers c ON c.id = p.customer_id
      ${whereClause}
-     ORDER BY ${sortExpr} ${sortDir}${nullsLast}`,
+     ORDER BY ${sortExpr} ${sortDir}${nullsLast}, p.id ASC`,
     params,
   );
 
@@ -252,6 +259,47 @@ export async function listProjects(user: AuthUser, query: ProjectListQuery): Pro
   }));
 
   return { rows, total, total_pages, total_lines, page, page_size: pageSize };
+}
+
+/** Everything listProjects accepts except pagination (page/page_size are internal). */
+export type ProjectExportQuery = Omit<ProjectListQuery, 'page' | 'page_size'>;
+
+// The export walks listProjects page by page at the maximum page size. 100
+// pages is far beyond this app's 50–500 projects and only exists so a runaway
+// set can never spin forever.
+const CSV_EXPORT_PAGE_SIZE = 500;
+const CSV_EXPORT_MAX_PAGES = 100;
+
+/**
+ * Every project in the caller's scoped set, across all pages, in the grid's
+ * order — the row source for GET /api/projects/export.csv.
+ *
+ * Deliberately reuses listProjects instead of duplicating the SQL, so RBAC
+ * scoping, year/stage filters, sort, joins, derived priority and update/issue
+ * metadata can never drift from the grid.
+ */
+export async function listAllProjectsForExport(
+  user: AuthUser,
+  query: ProjectExportQuery,
+): Promise<Project[]> {
+  const first = await listProjects(user, { ...query, page: 1, page_size: CSV_EXPORT_PAGE_SIZE });
+  const rows: Project[] = [...first.rows];
+  const lastPage = Math.min(first.total_pages, CSV_EXPORT_MAX_PAGES);
+  for (let page = 2; page <= lastPage; page++) {
+    const next = await listProjects(user, { ...query, page, page_size: CSV_EXPORT_PAGE_SIZE });
+    rows.push(...next.rows);
+  }
+  return rows;
+}
+
+/**
+ * user id -> login email, for the CSV export's Sales/PIC columns. Deactivated
+ * users are included: an exported file should name whoever is actually
+ * assigned, and the importer is what reports a deactivated reference.
+ */
+export async function loadUserEmails(): Promise<Map<string, string>> {
+  const rows = await runRead<{ id: string; email: string }>(`SELECT id, email FROM users`);
+  return new Map(rows.map((r) => [r.id, r.email]));
 }
 
 // Active users available for assignment (Sales, Responsible PIC, issue

@@ -17,3 +17,6 @@ tree.txt
 Dockerfile
 docker-compose.yml
 .dockerignore
+
+
+notes.txt

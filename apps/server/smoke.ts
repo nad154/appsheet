@@ -29,6 +29,65 @@ async function req(method: string, path: string, token: string | null, body?: un
   return { status: res.status, json };
 }
 
+// Same as req(), but for endpoints that stream a non-JSON body: keeps the raw
+// text plus the response headers the CSV export asserts on.
+async function reqRaw(method: string, path: string, token: string | null) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  // Read bytes, not res.text(): undici strips a leading UTF-8 BOM when parsing
+  // text, which would hide the export's BOM from the assertions.
+  const body = Buffer.from(await res.arrayBuffer()).toString('utf8');
+  return {
+    status: res.status,
+    contentType: res.headers.get('content-type'),
+    disposition: res.headers.get('content-disposition'),
+    text: body,
+  };
+}
+
+/** Minimal RFC 4180 reader — split('\n') would break on quoted newlines. */
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') {
+        quoted = false;
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+    if (ch === '"') quoted = true;
+    else if (ch === ',') {
+      row.push(cell);
+      cell = '';
+    } else if (ch === '\r') {
+      // CRLF separator: ignore the CR, act on the LF.
+    } else if (ch === '\n') {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += ch;
+    }
+  }
+  if (cell !== '' || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
 async function login(
   email: string,
   password: string,
@@ -504,6 +563,76 @@ async function main(): Promise<void> {
   const mapGet2 = await req('GET', '/api/me/preferences/import-mapping', admin);
   check('DELETE import-mapping resets', mapDel.status === 200 && mapGet2.status === 200
     && Object.keys((mapGet2.json as any)?.mapping ?? {}).length === 0, mapGet2.json);
+
+  // -- CSV export (plan_csv_export) --
+  // Smoke Import Alpha (2 vendor lines) and Beta (1 line) still exist here —
+  // the import cleanup below removes them. Solo has no vendor lines at all.
+  // The exact header list is asserted in csvExport.test.ts against IMPORT_FIELDS.
+  const anonCsv = await reqRaw('GET', '/api/projects/export.csv', null);
+  check('export.csv requires auth (401)', anonCsv.status === 401, anonCsv.text);
+  const adminCsv = await reqRaw('GET', '/api/projects/export.csv', admin);
+  check('export.csv 200', adminCsv.status === 200, adminCsv.text.slice(0, 200));
+  check('export.csv content-type is csv',
+    (adminCsv.contentType ?? '').startsWith('text/csv'), adminCsv.contentType);
+  check('export.csv is an attachment with a dated filename',
+    /^attachment; filename="projects-\d{4}-\d{2}-\d{2}\.csv"$/.test(adminCsv.disposition ?? ''), adminCsv.disposition);
+  check('export.csv starts with a single BOM', adminCsv.text.startsWith('\uFEFF')
+    && adminCsv.text.indexOf('\uFEFF', 1) === -1, adminCsv.text.slice(0, 40));
+  check('export.csv uses CRLF row separators', adminCsv.text.includes('\r\n')
+    && !/[^\r]\n/.test(adminCsv.text), adminCsv.text.slice(0, 200));
+
+  const csvRows = parseCsvRows(adminCsv.text.replace(/^\uFEFF/, ''));
+  const csvHeader = csvRows[0] ?? [];
+  const csvData = csvRows.slice(1).filter((r) => r.length > 0 && r.some((c) => c !== ''));
+  const col = (name: string) => csvHeader.indexOf(name);
+  check('export.csv header starts with the import registry labels',
+    csvHeader[0] === 'Project Name' && csvHeader[1] === 'Folder Reference' && csvHeader.includes('Vendor'), csvHeader);
+  check('export.csv ends with the four info-only columns',
+    JSON.stringify(csvHeader.slice(-4)) === JSON.stringify(['Aging (days)', 'Priority', 'Update Progress', 'Action']), csvHeader.slice(-4));
+  check('export.csv one row per vendor line (alpha 2, beta 1)',
+    csvData.filter((r) => r[col('Project Name')] === 'Smoke Import Alpha').length === 2
+    && csvData.filter((r) => r[col('Project Name')] === 'Smoke Import Beta').length === 1, csvData.length);
+  const alphaCsvRows = csvData.filter((r) => r[col('Project Name')] === 'Smoke Import Alpha');
+  check('export.csv repeats project values and orders vendor lines',
+    alphaCsvRows.every((r) => r[col('Customer')] === 'Smoke Import Customer')
+    && alphaCsvRows.map((r) => r[col('Vendor')]).join('|') === 'Smoke Import Vendor A|Smoke Import Vendor B'
+    && alphaCsvRows[0][col('Customer SP Received Date')] === '2026-08-01', alphaCsvRows);
+  check('export.csv writes Sales as email', alphaCsvRows[0]?.[col('Sales Name')] === 'admin@example.com', alphaCsvRows[0]?.[col('Sales Name')]);
+  const soloRows = csvData.filter((r) => r[col('Project Name')] === 'Smoke Import Solo');
+  check('export.csv emits one blank-vendor row for a vendorless project',
+    soloRows.length === 1 && soloRows[0][col('Vendor')] === '', soloRows);
+
+  // Every data row corresponds to one grid line, so the unfiltered export has
+  // exactly as many rows as the grid's total_lines for the same scope.
+  const gridTotals = ((await req('GET', '/api/projects?page=1&page_size=1', admin)).json as any)?.total_lines;
+  check('export.csv row count equals grid total_lines', csvData.length === gridTotals, { rows: csvData.length, gridTotals });
+
+  // The stage filter is applied server-side, not post-hoc in the client.
+  const finishList = ((await req('GET', '/api/projects?stage=finish&page=1&page_size=1', admin)).json as any)?.total_lines;
+  const finishCsv = await reqRaw('GET', '/api/projects/export.csv?stage=finish', admin);
+  const finishRows = parseCsvRows(finishCsv.text.replace(/^\uFEFF/, '')).slice(1).filter((r) => r.some((c) => c !== ''));
+  check('export.csv stage filter matches the list and only finished rows',
+    finishCsv.status === 200 && finishRows.length === finishList
+    && finishRows.every((r) => r[col('Status')] === 'Finish'), { finishRows: finishRows.length, finishList });
+
+  const emptyCsv = await reqRaw('GET', '/api/projects/export.csv?year=2100', admin);
+  const emptyRows = parseCsvRows(emptyCsv.text.replace(/^\uFEFF/, ''));
+  check('export.csv with no matches is 200 + header only',
+    emptyCsv.status === 200 && emptyRows.length === 1 && emptyRows[0].length === csvHeader.length, emptyRows);
+  const badStageCsv = await reqRaw('GET', '/api/projects/export.csv?stage=nope', admin);
+  check('export.csv rejects an invalid stage 400', badStageCsv.status === 400, badStageCsv.text);
+  // Pagination is meaningless here: the export always spans every page.
+  const pagedCsv = await reqRaw('GET', '/api/projects/export.csv?page=2&page_size=1', admin);
+  check('export.csv ignores pagination params',
+    pagedCsv.status === 200
+    && parseCsvRows(pagedCsv.text.replace(/^\uFEFF/, '')).length === csvRows.length, pagedCsv.text.length);
+
+  // STAFF export is scoped server-side: none of the Smoke Import projects
+  // belong to staff1, so they must not leak.
+  const staffCsv = await reqRaw('GET', '/api/projects/export.csv', staff);
+  check('STAFF export.csv 200', staffCsv.status === 200, staffCsv.text.slice(0, 200));
+  check('STAFF export.csv excludes projects outside their scope',
+    !staffCsv.text.includes('Smoke Import Alpha') && !staffCsv.text.includes('Smoke Import Beta'), staffCsv.text.slice(0, 200));
 
   // -- import cleanup --
   for (const p of (await listProjectsAll()).filter((r: any) => String(r.project_name).startsWith('Smoke Import'))) {

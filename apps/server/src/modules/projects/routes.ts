@@ -11,8 +11,11 @@ import {
   updateProject,
   deleteProject,
   ProjectWriteError,
+  listAllProjectsForExport,
+  loadUserEmails,
   type ProjectListQuery,
 } from './projectsService.js';
+import { buildProjectsCsv } from '../csv-export/csvExport.js';
 import { updateProgressFieldSchema, PROJECT_STAGES } from '@tracker/shared';
 
 const listQuerySchema = z.object({
@@ -23,6 +26,11 @@ const listQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100).optional(),
   stage: z.enum(PROJECT_STAGES).optional(),
 });
+
+// The export accepts the same filters/sort as the list but always spans every
+// page, so pagination params are dropped from the schema (unknown query keys
+// are stripped by zod, so a stray ?page= is ignored rather than misread).
+const exportQuerySchema = listQuerySchema.omit({ page: true, page_size: true });
 
 const idParamSchema = z.object({ id: z.string().uuid() });
 
@@ -64,6 +72,39 @@ projectsRouter.get('/years', async (req, res) => {
 projectsRouter.get('/users', async (_req, res) => {
   try {
     res.json(await listAssignableUsers());
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// GET /api/projects/export.csv — the caller's whole scoped set as CSV: same
+// RBAC scope, year/stage filters and sort as the grid, but every page (not just
+// the visible one). Both roles may export; only Import stays SUPER_ADMIN-only.
+//
+// Must stay ABOVE GET /:id — otherwise the id validator would reject
+// "export.csv" with a 400.
+projectsRouter.get('/export.csv', async (req, res) => {
+  try {
+    const parsed = exportQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid query parameters', details: parsed.error.flatten() });
+      return;
+    }
+
+    const rows = await listAllProjectsForExport(req.user!, {
+      sort_by: parsed.data.sort_by,
+      sort_dir: parsed.data.sort_dir,
+      year: parsed.data.year,
+      stage: parsed.data.stage,
+    });
+    const emailById = await loadUserEmails();
+    const filename = `projects-${localDateString()}.csv`;
+
+    // setHeader (not res.attachment) so the filename stays exactly as written.
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(buildProjectsCsv(rows, { emailById }));
   } catch (err) {
     handleError(err, res);
   }
@@ -136,4 +177,11 @@ function handleError(err: unknown, res: Response): void {
   // eslint-disable-next-line no-console
   console.error('Projects error:', err);
   res.status(500).json({ error: 'Internal server error' });
+}
+
+/** Today's LOCAL date as YYYY-MM-DD — the export filename must follow the
+ *  user's calendar day, not UTC's. */
+function localDateString(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }

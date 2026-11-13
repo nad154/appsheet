@@ -8,6 +8,7 @@ apps/server/secrets/
 apps/secrets/
 apps/server/data/parquet/*.parquet
 apps/server/data
+backups/
 test-results/
 playwright-report/
 .DS_Store

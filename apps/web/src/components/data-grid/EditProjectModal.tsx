@@ -296,11 +296,17 @@ function DateField({
   return (
     <div
       data-date-field
-      className="relative mt-1 flex w-full items-center rounded border border-border px-2 py-1"
+      onClick={openPicker}
+      className="relative mt-1 flex w-full cursor-pointer items-center rounded border border-border px-2 py-1"
     >
       <button
         type="button"
-        onClick={openPicker}
+        onClick={(e) => {
+          // The wrapper also opens the picker, so stop this click from bubbling
+          // into a second showPicker() call.
+          e.stopPropagation();
+          openPicker();
+        }}
         title={display || 'Pick a date'}
         className={`flex flex-1 cursor-pointer items-center justify-between gap-2 text-left text-sm focus:outline-none ${
           display ? 'text-ink' : 'text-ink-muted'
@@ -343,7 +349,11 @@ function DateField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label={ariaLabel}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        tabIndex={-1}
+        // Keep the native input invisible but click-through: the wrapper's
+        // button is the click target, so a click anywhere on the field (text or
+        // calendar icon) opens the picker instead of focusing the native input.
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
       />
     </div>
   );

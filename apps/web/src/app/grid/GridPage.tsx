@@ -330,10 +330,15 @@ export function GridPage() {
       : '';
 
     return (
-      <div className="relative flex w-full items-center">
+      <div className="relative flex w-full cursor-pointer items-center" onClick={openPicker}>
         <button
           type="button"
-          onClick={openPicker}
+          onClick={(e) => {
+            // The wrapper also opens the picker, so stop this click from
+            // bubbling into a second showPicker() call.
+            e.stopPropagation();
+            openPicker();
+          }}
           title={display || 'Pick a date'}
           className={`flex w-full items-center justify-between gap-2 rounded border border-border px-2 py-1 text-left text-sm ${controlClass} ${
             display ? 'text-ink' : 'text-ink-muted'
@@ -376,7 +381,11 @@ export function GridPage() {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-label={ariaLabel}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          tabIndex={-1}
+          // Keep the native input invisible but click-through: the visible
+          // field is the click target, so clicking the text or the calendar
+          // icon opens the picker instead of focusing the native input.
+          className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
         />
       </div>
     );

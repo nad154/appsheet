@@ -4,6 +4,7 @@ import { ChartCard } from '../../components/dashboard/ChartCard';
 import { AddViewForm } from '../../components/dashboard/AddViewForm';
 import { useToast } from '../../components/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 
 export function DashboardPage() {
@@ -24,6 +25,9 @@ export function DashboardPage() {
     <div>
       <PageHeader
         title="Dashboard"
+        eyebrow="Insights"
+        description="Charts and breakdowns of your projects."
+        meta={views ? <Badge variant="brand">{views.length} views</Badge> : undefined}
         actions={<Button onClick={() => setShowAdd((v) => !v)}>{showAdd ? 'Cancel' : 'Add view'}</Button>}
       />
 

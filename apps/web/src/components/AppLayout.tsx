@@ -7,19 +7,14 @@ import { Button } from './ui/Button';
 import type { Role } from '@tracker/shared';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `relative inline-flex items-center px-1 py-4 text-sm font-medium transition-colors ${
-    isActive ? 'text-accent' : 'text-ink-muted hover:text-ink'
+  `inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+    isActive ? 'bg-brand-50 text-brand-700' : 'text-ink-muted hover:bg-brand-50/60 hover:text-ink'
   }`;
 
 function NavItem({ to, label }: { to: string; label: string }) {
   return (
     <NavLink to={to} className={navClass}>
-      {({ isActive }) => (
-        <>
-          <span>{label}</span>
-          {isActive && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-brand-gradient" />}
-        </>
-      )}
+      {label}
     </NavLink>
   );
 }
@@ -45,14 +40,17 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas bg-page-glow">
+      <div className="h-0.5 bg-brand-gradient" aria-hidden="true" />
       <header className="border-b border-border bg-surface shadow-sm">
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <img src="/asset/logo.png" alt="Logo" className="h-7 w-7" />
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient p-1.5 shadow-sm">
+                <img src="/asset/logo.png" alt="Logo" className="h-full w-full object-contain" />
+              </span>
               <span className="text-sm font-semibold tracking-tight text-ink">Project Tracker</span>
             </div>
-            <nav className="flex h-14 items-stretch gap-5">
+            <nav className="flex items-center gap-2">
               <NavItem to="/grid" label="Grid" />
               <NavItem to="/dashboard" label="Dashboard" />
               <NavItem to="/account" label="Account" />

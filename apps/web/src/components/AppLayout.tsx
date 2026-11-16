@@ -17,7 +17,7 @@ function NavItem({ to, label }: { to: string; label: string }) {
       {({ isActive }) => (
         <>
           <span>{label}</span>
-          {isActive && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-accent" />}
+          {isActive && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-brand-gradient" />}
         </>
       )}
     </NavLink>
@@ -44,8 +44,8 @@ export function AppLayout() {
   const isDev = import.meta.env.DEV;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-canvas">
-      <header className="border-b border-border bg-surface">
+    <div className="flex h-screen flex-col overflow-hidden bg-canvas bg-page-glow">
+      <header className="border-b border-border bg-surface shadow-sm">
         <div className="flex h-14 items-center justify-between px-4">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
@@ -68,7 +68,7 @@ export function AppLayout() {
                 data-testid="dev-role-switcher"
                 value={user.role}
                 onChange={(e) => switchRole(e.target.value as Role)}
-                className="rounded-md border border-dashed border-border bg-transparent px-2 py-1 text-xs text-ink-muted"
+                className="rounded-lg border border-dashed border-border bg-transparent px-2 py-1 text-xs text-ink-muted"
                 title="Dev-only: switch role"
               >
                 <option value="SUPER_ADMIN">SUPER_ADMIN</option>
@@ -76,7 +76,7 @@ export function AppLayout() {
               </select>
             )}
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-gradient text-xs font-semibold text-white">
                 {initials(user?.name)}
               </span>
               <span className="hidden leading-tight sm:block">

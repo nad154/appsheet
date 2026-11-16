@@ -11,10 +11,12 @@ import {
   Tooltip,
   Legend,
   Cell,
+  CartesianGrid,
 } from 'recharts';
 import { useChartData, useUpdateDashboardView } from '../../hooks/useDashboard';
 import { useProjectYears } from '../../hooks/useProjects';
 import { DrillDownPanel } from './DrillDownPanel';
+import { CHART_COLORS } from '../../lib/chartColors';
 import {
   METRIC_LABELS,
   STAGE_LABELS,
@@ -28,7 +30,15 @@ import type {
   DashboardStageFilter,
 } from '@tracker/shared';
 
-const COLORS = ['#10b981', '#06b6d4', '#ef4444', '#8b5cf6', '#f59e0b'];
+const AXIS_TICK = { fontSize: 11, fill: '#6b6262' } as const;
+
+// White tooltip card with a soft shadow; matches the `shadow-overlay` token.
+const TOOLTIP_STYLE = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #ece7e7',
+  borderRadius: '0.5rem',
+  boxShadow: '0 12px 32px -12px rgba(127,29,29,0.30)',
+} as const;
 
 interface ChartRow {
   name: string;
@@ -83,13 +93,24 @@ export function ChartCard({ view, onDelete }: { view: DashboardView; onDelete: (
   };
 
   const filterCls =
-    'rounded border border-border bg-surface px-1.5 py-1 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/40';
+    'rounded-full border border-border bg-canvas px-2.5 py-1 text-xs text-ink focus:outline-none focus:ring-2 focus:ring-accent/25';
 
   return (
     // `border-gray-200` is a structural locator used by dashboard-drilldown.spec.
-    <div className="rounded-lg border border-gray-200 bg-surface p-4 shadow-card">
+    <div className="relative rounded-xl border border-gray-200 bg-surface p-4 shadow-card transition-shadow hover:shadow-overlay">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-brand-500"
+        aria-hidden="true"
+      />
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-ink">{view.label}</h3>
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: CHART_COLORS[0] }}
+            aria-hidden="true"
+          />
+          {view.label}
+        </h3>
         <button
           type="button"
           onClick={() => onDelete(view.id)}
@@ -159,35 +180,41 @@ export function ChartCard({ view, onDelete }: { view: DashboardView; onDelete: (
                 nameKey="name"
                 cx="50%"
                 cy="50%"
+                innerRadius={45}
                 outerRadius={75}
+                paddingAngle={2}
+                stroke="#ffffff"
+                strokeWidth={2}
                 onClick={handleSliceClick}
                 className="cursor-pointer"
               >
                 {chartRows.map((row, i) => (
-                  <Cell key={row.name} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={row.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
               <Legend />
             </PieChart>
           ) : (
             <BarChart data={chartRows}>
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <CartesianGrid stroke="#ece7e7" vertical={false} />
+              <XAxis dataKey="name" tick={AXIS_TICK} />
               <YAxis
                 allowDecimals={view.metric_key === 'avg_aging'}
-                tick={{ fontSize: 11 }}
+                tick={AXIS_TICK}
                 tickFormatter={formatChartValue}
               />
-              <Tooltip formatter={(v) => formatChartValue(Number(v))} />
+              <Tooltip formatter={(v) => formatChartValue(Number(v))} contentStyle={TOOLTIP_STYLE} />
               <Legend />
               <Bar
                 dataKey="value"
                 name={METRIC_LABELS[view.metric_key]}
+                radius={[6, 6, 0, 0]}
                 onClick={handleSliceClick}
                 className="cursor-pointer"
               >
                 {chartRows.map((row, i) => (
-                  <Cell key={row.name} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={row.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                 ))}
               </Bar>
             </BarChart>

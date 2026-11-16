@@ -14,9 +14,14 @@ interface CardProps {
 export function Card({ children, className, title, subtitle, actions }: CardProps) {
   const hasHeader = title != null || subtitle != null || actions != null;
   return (
-    <section className={cn('rounded-lg border border-border bg-surface shadow-card', className)}>
+    <section
+      className={cn(
+        'rounded-xl border border-border bg-surface shadow-card transition-shadow',
+        className,
+      )}
+    >
       {hasHeader && (
-        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex items-start justify-between gap-3 border-b border-border bg-brand-soft px-4 py-3">
           <div>
             {title != null && <h2 className="text-sm font-semibold text-ink">{title}</h2>}
             {subtitle != null && <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>}

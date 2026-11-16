@@ -134,7 +134,10 @@ export function Modal({
 
   return createPortal(
     <div
-      className={cn('fixed inset-0 flex items-center justify-center bg-black/40 p-4', overlayClassName)}
+      className={cn(
+        'fixed inset-0 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-[2px]',
+        overlayClassName,
+      )}
       onClick={closeOnOverlayClick ? onClose : undefined}
       role="presentation"
     >
@@ -142,7 +145,7 @@ export function Modal({
         ref={dialogRef}
         tabIndex={-1}
         className={cn(
-          'flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-lg bg-surface shadow-overlay focus:outline-none',
+          'relative flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl bg-surface shadow-overlay focus:outline-none',
           maxWidthClass,
         )}
         onClick={(e) => e.stopPropagation()}
@@ -150,6 +153,7 @@ export function Modal({
         aria-modal="true"
         aria-label={ariaLabel}
       >
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-brand-gradient" aria-hidden="true" />
         <header className="flex items-center justify-between border-b border-border px-5 py-3">
           <div>
             {eyebrow != null && (
@@ -160,7 +164,7 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1.5 text-ink-muted transition-colors hover:bg-canvas hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             aria-label="Close"
             title="Close"
           >
@@ -171,7 +175,9 @@ export function Modal({
         <div className="min-h-0 flex-1 overflow-auto">{children}</div>
 
         {footer != null && (
-          <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">{footer}</div>
+          <div className="flex items-center justify-end gap-2 border-t border-border bg-canvas px-5 py-3">
+            {footer}
+          </div>
         )}
       </div>
     </div>,

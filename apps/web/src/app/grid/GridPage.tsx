@@ -340,7 +340,7 @@ export function GridPage() {
             openPicker();
           }}
           title={display || 'Pick a date'}
-          className={`flex w-full items-center justify-between gap-2 rounded border border-border px-2 py-1 text-left text-sm ${controlClass} ${
+          className={`flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2 py-1 text-left text-sm ${controlClass} ${
             display ? 'text-ink' : 'text-ink-muted'
           }`}
         >
@@ -370,7 +370,7 @@ export function GridPage() {
             }}
             aria-label="Clear date"
             title="Clear date"
-            className="absolute right-8 rounded p-1 text-xs text-ink-muted hover:bg-canvas hover:text-ink"
+            className="absolute right-8 rounded-lg p-1 text-xs text-ink-muted hover:bg-brand-50 hover:text-ink"
           >
             ✕
           </button>
@@ -490,7 +490,7 @@ export function GridPage() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-accent px-3 py-2 shadow-card">
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-brand-gradient px-3 py-2 shadow-card">
         <label className="flex items-center gap-1.5 text-xs text-white">
           Year
           <Select
@@ -539,8 +539,8 @@ export function GridPage() {
 
       {showAddForm && (
         <Card title="New project" className="mb-4">
-          <fieldset className="mb-4 rounded border-2 border-border bg-canvas/60 p-3">
-            <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          <fieldset className="mb-4 rounded-xl border-2 border-brand-200 bg-brand-50/50 p-3">
+            <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-brand-700">
               Project info
             </legend>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -631,7 +631,7 @@ export function GridPage() {
                       <div key={key} className={`${fieldLabel} md:col-span-4`}>
                         <span>{FIELD_LABELS[key] ?? key}</span>
                         <div
-                          className="mt-1 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded border border-border bg-white p-2 sm:grid-cols-2 md:grid-cols-4"
+                          className="mt-1 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-border bg-surface p-2 sm:grid-cols-2 md:grid-cols-4"
                           role="group"
                           aria-label="Responsible PIC"
                         >
@@ -668,7 +668,7 @@ export function GridPage() {
             </div>
           </fieldset>
 
-          <fieldset className="mb-4 rounded border-2 border-border bg-canvas/60 p-3 [&_input:not([type='date'])]:bg-white [&_select]:bg-white [&_textarea]:bg-white">
+          <fieldset className="mb-4 rounded-xl border-2 border-emerald-300 bg-emerald-50/70 p-3 [&_input:not([type='date'])]:bg-surface [&_select]:bg-surface [&_textarea]:bg-surface">
             <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">
               Customer
             </legend>
@@ -737,8 +737,8 @@ export function GridPage() {
           </fieldset>
 
 
-          <fieldset className="mt-4">
-            <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+          <fieldset className="mt-4 rounded-xl border-2 border-indigo-300 bg-indigo-50/70 p-3">
+            <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">
               Vendor lines {vendorDrafts.length > 0 && <span className="normal-case">({vendorDrafts.length})</span>}
             </legend>
             {vendorDrafts.length === 0 && (

@@ -1,7 +1,7 @@
 export function Spinner({ className }: { className?: string }) {
   return (
     <svg
-      className={`inline-block animate-spin text-ink-muted ${className ?? ''}`}
+      className={`inline-block animate-spin text-accent ${className ?? ''}`}
       width="16"
       height="16"
       viewBox="0 0 24 24"

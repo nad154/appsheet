@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from './cn';
 
-type BadgeVariant = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+type BadgeVariant = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'brand';
 
 interface BadgeProps {
   variant?: BadgeVariant;
@@ -11,11 +11,12 @@ interface BadgeProps {
 }
 
 const VARIANT: Record<BadgeVariant, string> = {
-  neutral: 'bg-canvas text-ink-muted',
-  info: 'bg-accent-soft text-accent',
-  success: 'bg-success-soft text-success',
-  warning: 'bg-warning-soft text-warning',
-  danger: 'bg-danger-soft text-danger',
+  neutral: 'bg-canvas text-ink-muted ring-1 ring-inset ring-border',
+  info: 'bg-info-soft text-info ring-1 ring-inset ring-info/20',
+  success: 'bg-success-soft text-success ring-1 ring-inset ring-success/20',
+  warning: 'bg-warning-soft text-warning ring-1 ring-inset ring-warning/20',
+  danger: 'bg-danger-soft text-danger ring-1 ring-inset ring-danger/20',
+  brand: 'bg-brand-50 text-brand-700 ring-1 ring-brand-200',
 };
 
 // Soft pill badge, replacing the separate stage / priority / flag styles.

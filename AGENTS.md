@@ -27,6 +27,7 @@ Relevant skills include:
 - DuckDB
 - Playwright/testing
 - verification/testing
+- UI/UX 
 
 Skills supplement this file; they do not override the project's
 architectural constraints.

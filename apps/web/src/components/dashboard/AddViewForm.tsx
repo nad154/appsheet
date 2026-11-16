@@ -12,7 +12,7 @@ import { METRIC_LABELS, STAGE_LABELS, allowedMetricsFor } from './dashboardMeta'
 import { Button } from '../ui/Button';
 
 const selectCls =
-  'rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40';
+  'rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25';
 
 const COLUMN_LABELS: Record<DashboardColumn, string> = {
   current_stage: 'Stage',
@@ -65,7 +65,7 @@ export function AddViewForm({ onDone }: { onDone: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-card"
+      className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-4 shadow-card"
     >
       <label className="flex flex-col gap-0.5">
         <span className="text-[11px] text-ink-muted">Chart type</span>

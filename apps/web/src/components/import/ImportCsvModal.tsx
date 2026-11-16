@@ -227,7 +227,7 @@ export function ImportCsvModal({ onClose, onImported }: ImportCsvModalProps) {
       {/* -- Step 1: choose file -- */}
       {step === 1 && (
         <div className="space-y-4 px-5 py-4">
-          <div className="rounded-md border border-dashed border-border bg-canvas px-4 py-6 text-center">
+          <div className="rounded-lg border border-dashed border-border bg-canvas px-4 py-6 text-center">
             <p className="text-sm text-ink">
               Choose a <code className="rounded bg-surface px-1">.csv</code> file exported from
               Excel or your other tool. Nothing is uploaded until you reach the preview step.
@@ -240,7 +240,7 @@ export function ImportCsvModal({ onClose, onImported }: ImportCsvModalProps) {
                 onChange={(e) => void onFile(e.target.files?.[0])}
                 data-testid="import-file-input"
               />
-              <span className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-canvas">
+              <span className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-brand-50">
                 Choose file…
               </span>
             </label>
@@ -268,7 +268,7 @@ export function ImportCsvModal({ onClose, onImported }: ImportCsvModalProps) {
             </p>
           )}
           {csv && (
-            <div className="rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink">
+            <div className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-ink">
               <p>
                 <strong>{csv.fileName}</strong>
               </p>
@@ -369,7 +369,7 @@ export function ImportCsvModal({ onClose, onImported }: ImportCsvModalProps) {
 
 function ResultLine({ label, value }: { label: string; value: number }) {
   return (
-    <li className="rounded-md border border-border bg-canvas px-2 py-1.5">
+    <li className="rounded-lg border border-border bg-canvas px-2 py-1.5">
       <span className="block text-xs text-ink-muted">{label}</span>
       <span className="font-semibold text-ink">{value.toLocaleString()}</span>
     </li>
@@ -390,7 +390,7 @@ function SummaryList({ summary }: { summary: ImportPreviewResponse['summary'] })
   return (
     <ul className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
       {items.map(([label, value, isDanger]) => (
-        <li key={label} className="rounded-md border border-border bg-canvas px-2 py-1.5">
+        <li key={label} className="rounded-lg border border-border bg-canvas px-2 py-1.5">
           <span className="block text-xs text-ink-muted">{label}</span>
           <span className={`font-semibold ${isDanger && value > 0 ? 'text-danger' : 'text-ink'}`}>
             {value.toLocaleString()}
@@ -408,13 +408,13 @@ function PreviewBody({ preview }: { preview: ImportPreviewResponse }) {
       <SummaryList summary={preview.summary} />
 
       {preview.notes.map((n) => (
-        <p key={n} className="rounded-md border border-border bg-canvas px-3 py-2 text-sm text-ink-muted">
+        <p key={n} className="rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-ink-muted">
           {n}
         </p>
       ))}
 
       {preview.errors.length > 0 && (
-        <div className="rounded-md border border-danger/40 bg-danger/5 px-3 py-2">
+        <div className="rounded-lg border border-danger/40 bg-danger/5 px-3 py-2">
           <p className="mb-1 text-sm font-semibold text-danger">
             Fix these rows before importing ({preview.summary.errors}):
           </p>
@@ -432,7 +432,7 @@ function PreviewBody({ preview }: { preview: ImportPreviewResponse }) {
       )}
 
       {preview.warnings.length > 0 && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+        <div className="rounded-lg border border-warning/30 bg-warning-soft px-3 py-2">
           <p className="mb-1 text-sm font-semibold text-ink">Warnings ({preview.summary.warnings}):</p>
           <ul className="max-h-32 space-y-0.5 overflow-auto text-sm text-ink">
             {preview.warnings.slice(0, maxShown).map((w, i) => (
@@ -449,7 +449,7 @@ function PreviewBody({ preview }: { preview: ImportPreviewResponse }) {
           First {preview.sample.length} project{preview.sample.length === 1 ? '' : 's'}
           {preview.sample_truncated ? ' of more' : ''}
         </p>
-        <div className="overflow-auto rounded-md border border-border">
+        <div className="overflow-auto rounded-lg border border-border">
           <table className="w-full text-left text-sm">
             <thead className="bg-canvas text-xs text-ink-muted">
               <tr>

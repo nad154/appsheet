@@ -35,11 +35,11 @@ export function AccountPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div>
-        <h1 className="text-lg font-semibold text-ink">Account</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">Account</h1>
         <p className="text-sm text-ink-muted">Manage your account security.</p>
       </div>
-      <section className="rounded-lg border border-border bg-surface shadow-sm">
-        <header className="border-b border-border px-4 py-3">
+      <section className="rounded-xl border border-border bg-surface shadow-card">
+        <header className="border-b border-border bg-brand-soft px-4 py-3">
           <h2 className="text-sm font-semibold text-ink">Change password</h2>
           <p className="text-xs text-ink-muted">Update your password for this account.</p>
         </header>

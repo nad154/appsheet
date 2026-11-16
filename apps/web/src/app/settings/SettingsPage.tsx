@@ -33,17 +33,18 @@ import { useToast } from '../../components/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
 import { PermanentDeleteConfirmModal } from '../../components/settings/PermanentDeleteConfirmModal';
 // import { useToast } from '../../components/Toast'
 import { Copy } from 'react-bootstrap-icons';
 
 const btn =
-  'rounded border px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40';
-const btnPrimary = `${btn} border-accent bg-accent text-white hover:opacity-90`;
-const btnDanger = `${btn} border-danger bg-danger text-white hover:opacity-90`;
+  'rounded-lg border px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40';
+const btnPrimary = `${btn} border-accent bg-accent text-white shadow-sm hover:opacity-90`;
+const btnDanger = `${btn} border-danger bg-danger text-white shadow-sm hover:opacity-90`;
 const btnDangerGhost = `${btn} border-danger text-danger hover:bg-danger/10`;
-const btnGhost = `${btn} border-border text-ink hover:bg-canvas`;
-const inputCls = 'w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40';
+const btnGhost = `${btn} border-border text-ink hover:bg-brand-50`;
+const inputCls = 'w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25';
 
 export function SettingsPage() {
   const { user: me } = useAuth();
@@ -260,7 +261,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
   };
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
+    <section className="rounded-xl border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">Users</h2>
 
       {isLoading && <p className="text-xs text-ink-muted">Loading users…</p>}
@@ -269,7 +270,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
       {users && (
         <table className="mb-4 w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
               <th className="pb-1 pr-3">Name</th>
               <th className="pb-1 pr-3">Email</th>
               <th className="pb-1 pr-3">Role</th>
@@ -281,7 +282,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
             {users.map((u) => {
               const isSelf = u.id === me?.id;
               return (
-                <tr key={u.id} className="border-b border-border/60 align-middle">
+                <tr key={u.id} className="border-b border-border/60 align-middle hover:bg-brand-50/50">
                   <td className="py-1.5 pr-3">
                     {u.name}
                     {isSelf && <span className="ml-1 text-xs text-ink-muted">(you)</span>}
@@ -292,7 +293,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
                       value={u.role}
                       onChange={(e) => changeRole(u, e.target.value as Role)}
                       disabled={isSelf || updateUser.isPending}
-                      className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-ink"
+                      className="rounded-lg border border-border bg-surface px-1.5 py-0.5 text-xs text-ink"
                       aria-label={`Role for ${u.name}`}
                     >
                       {ROLES.map((r) => (
@@ -303,9 +304,9 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
                     </select>
                   </td>
                   <td className="py-1.5 pr-3">
-                    <span className={u.is_active ? 'text-success' : 'text-ink-muted'}>
+                    <Badge variant={u.is_active ? 'success' : 'neutral'}>
                       {u.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="py-1.5">
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -424,7 +425,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as Role)}
-            className="w-36 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+            className="w-36 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink"
           >
             {ROLES.map((r) => (
               <option key={r} value={r}>
@@ -620,7 +621,7 @@ function EntityAdminPanel({
   };
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
+    <section className="rounded-xl border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">{title}</h2>
 
       {list.isLoading && <p className="text-xs text-ink-muted">Loading…</p>}
@@ -633,14 +634,14 @@ function EntityAdminPanel({
       {list.data && list.data.length > 0 && (
         <table className="mb-4 w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
               <th className="pb-1 pr-3">Name</th>
               <th className="pb-1">Actions</th>
             </tr>
           </thead>
           <tbody>
             {list.data.map((row) => (
-              <tr key={row.id} className="border-b border-border/60 align-middle">
+              <tr key={row.id} className="border-b border-border/60 align-middle hover:bg-brand-50/50">
                 <td className="py-1.5 pr-3">
                   {editingId === row.id ? (
                     <input
@@ -650,7 +651,7 @@ function EntityAdminPanel({
                         if (e.key === 'Enter') void commitRename(row.id);
                         if (e.key === 'Escape') setEditingId(null);
                       }}
-                      className="w-64 rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink"
+                      className="w-64 rounded-lg border border-border bg-surface px-2 py-1 text-sm text-ink"
                       aria-label={`Rename ${row.name}`}
                     />
                   ) : (
@@ -816,7 +817,7 @@ function MarketSegmentsPanel() {
   };
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
+    <section className="rounded-xl border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">Market Segments</h2>
 
       {isLoading && <p className="text-xs text-ink-muted">Loading segments…</p>}
@@ -827,7 +828,7 @@ function MarketSegmentsPanel() {
       {segments && (
         <table className="mb-4 w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
               <th className="pb-1 pr-3">Label</th>
               <th className="pb-1 pr-3 w-24">Sort order</th>
               <th className="pb-1 pr-3">Status</th>
@@ -836,13 +837,13 @@ function MarketSegmentsPanel() {
           </thead>
           <tbody>
             {segments.map((s) => (
-              <tr key={s.id} className="border-b border-border/60 align-middle">
+              <tr key={s.id} className="border-b border-border/60 align-middle hover:bg-brand-50/50">
                 <td className="py-1.5 pr-3">{s.label}</td>
                 <td className="py-1.5 pr-3 text-ink-muted">{s.sort_order}</td>
                 <td className="py-1.5 pr-3">
-                  <span className={s.is_active ? 'text-success' : 'text-ink-muted'}>
+                  <Badge variant={s.is_active ? 'success' : 'neutral'}>
                     {s.is_active ? 'Active' : 'Inactive'}
-                  </span>
+                  </Badge>
                 </td>
                 <td className="py-1.5">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -896,7 +897,7 @@ function MarketSegmentsPanel() {
             type="number"
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
-            className="w-20 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+            className="w-20 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink"
           />
         </label>
         <button type="submit" disabled={createSegment.isPending} className={btnPrimary}>
@@ -965,7 +966,7 @@ function AgingThresholdsPanel() {
   };
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 shadow-card">
+    <section className="rounded-xl border border-border bg-surface p-4 shadow-card">
       <h2 className="mb-3 text-sm font-semibold">Aging → Priority</h2>
       <p className="mb-3 text-xs text-ink-muted">
         Projects are assigned a Priority from their Aging value. High priority is anything above the
@@ -986,7 +987,7 @@ function AgingThresholdsPanel() {
               min={1}
               value={low}
               onChange={(e) => setLow(e.target.value)}
-              className="w-28 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+              className="w-28 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink"
             />
           </label>
           <label className="flex flex-col gap-0.5">
@@ -996,7 +997,7 @@ function AgingThresholdsPanel() {
               min={1}
               value={medium}
               onChange={(e) => setMedium(e.target.value)}
-              className="w-28 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+              className="w-28 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink"
             />
           </label>
           <span className="text-sm text-ink">High priority — anything above</span>

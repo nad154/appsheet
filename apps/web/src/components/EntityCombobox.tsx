@@ -170,7 +170,7 @@ export function EntityCombobox({
   ];
 
   const optionCls = (isHighlighted: boolean) =>
-    `w-full px-2 py-1.5 text-left text-sm ${isHighlighted ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-accent-soft'}`;
+    `w-full px-2 py-1.5 text-left text-sm ${isHighlighted ? 'bg-brand-50 text-accent' : 'text-ink hover:bg-brand-50'}`;
 
   return (
     <div ref={rootRef} className="relative">
@@ -183,10 +183,10 @@ export function EntityCombobox({
         placeholder={placeholder}
         disabled={disabled}
         aria-label={ariaLabel}
-        className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+        className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
       />
       {open && (
-        <ul className="absolute z-30 mt-1 max-h-48 w-full overflow-auto rounded-md border border-border bg-surface shadow-overlay">
+        <ul className="absolute z-30 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-border bg-surface shadow-overlay">
           {loading && matches.length === 0 && !canCreate && (
             <li className="px-2 py-1.5 text-sm text-ink-muted">{creating ? 'Creating…' : 'Searching…'}</li>
           )}

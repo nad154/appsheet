@@ -46,14 +46,14 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative rounded-md p-2 text-ink-muted transition-colors hover:bg-canvas hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="relative rounded-lg p-2 text-ink-muted transition-colors hover:bg-brand-50 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
         aria-label="Notifications"
         data-testid="notification-bell"
       >
         <BellIcon size={20} />
         {count > 0 && (
           <span
-            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white"
+            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white"
             data-testid="notification-badge"
           >
             {count > 99 ? '99+' : count}
@@ -63,7 +63,7 @@ export function NotificationBell() {
 
       {open && (
         <div
-          className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-lg border border-border bg-surface shadow-overlay"
+          className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl border border-border bg-surface shadow-overlay"
           data-testid="notification-panel"
         >
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
@@ -91,8 +91,8 @@ export function NotificationBell() {
                     <button
                       type="button"
                       onClick={() => handleItemClick(n)}
-                      className={`w-full border-l-2 px-3 py-2.5 text-left transition-colors hover:bg-canvas ${
-                        n.is_read ? 'border-l-transparent' : 'border-l-accent bg-accent-soft'
+                      className={`w-full border-l-2 px-3 py-2.5 text-left transition-colors hover:bg-brand-50 ${
+                        n.is_read ? 'border-l-transparent' : 'border-l-accent bg-brand-50'
                       }`}
                       data-testid={`notification-item-${n.id}`}
                     >

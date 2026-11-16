@@ -6,6 +6,10 @@
 @layer base {
   body {
     @apply bg-canvas text-ink antialiased;
+    /* Inter stylistic sets: alternate single-storey 'a'/'l' shapes that read
+       cleaner at small UI sizes. Numeric alignment is opted into per-cell via
+       the `tabular-nums` utility on amounts, aging days and counts. */
+    font-feature-settings: 'cv11', 'ss01';
   }
 }
 

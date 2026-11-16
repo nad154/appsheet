@@ -26,14 +26,14 @@ export function DrillDownPanel({
   const visible = projects.slice(0, MAX_VISIBLE);
 
   return (
-    <div className="mt-3 border-t border-border pt-3" data-testid="drill-down-panel">
+    <div className="mt-3 rounded-lg border border-border bg-brand-50/60 p-3" data-testid="drill-down-panel">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Projects — {value}</p>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close drill-down"
-          className="rounded p-1 text-ink-muted hover:bg-canvas hover:text-ink"
+          className="rounded-lg p-1 text-ink-muted hover:bg-brand-100 hover:text-ink"
         >
           ×
         </button>
@@ -53,7 +53,7 @@ export function DrillDownPanel({
                 <button
                   type="button"
                   onClick={() => onSelect(p.id)}
-                  className="flex w-full items-center justify-between gap-3 rounded px-2 py-1 text-left text-sm text-ink hover:bg-accent-soft hover:text-accent"
+                  className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1 text-left text-sm text-ink hover:bg-brand-100 hover:text-accent"
                 >
                   <span className="truncate">{p.project_name}</span>
                   {/* vendor-based drill-downs (vendor_type / priority) list one

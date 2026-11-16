@@ -76,7 +76,7 @@ export function FieldSelect({ value, usedBy, header, onChange, ariaLabel }: Fiel
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 text-left text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-left text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25"
       >
         <span className={cn('truncate', !selected && 'text-ink-muted')}>
           {selected ? selected.label : 'Ignore this column'}
@@ -88,7 +88,7 @@ export function FieldSelect({ value, usedBy, header, onChange, ariaLabel }: Fiel
         <div
           role="listbox"
           aria-label={ariaLabel}
-          className="absolute left-0 top-full z-40 mt-1 max-h-72 w-full min-w-[22rem] overflow-auto rounded-md border border-border bg-surface py-1 shadow-overlay"
+          className="absolute left-0 top-full z-40 mt-1 max-h-72 w-full min-w-[22rem] overflow-auto rounded-xl border border-border bg-surface py-1 shadow-overlay"
         >
           <button
             type="button"
@@ -96,8 +96,8 @@ export function FieldSelect({ value, usedBy, header, onChange, ariaLabel }: Fiel
             aria-selected={value === null}
             onClick={() => pick(null)}
             className={cn(
-              'flex w-full flex-col gap-0.5 px-3 py-1.5 text-left text-sm hover:bg-canvas',
-              value === null && 'bg-canvas font-medium',
+              'flex w-full flex-col gap-0.5 px-3 py-1.5 text-left text-sm hover:bg-brand-50',
+              value === null && 'bg-brand-50 font-medium',
             )}
           >
             <span>Ignore this column</span>
@@ -128,8 +128,8 @@ export function FieldSelect({ value, usedBy, header, onChange, ariaLabel }: Fiel
                         'flex w-full flex-col gap-0.5 px-3 py-1.5 text-left text-sm',
                         disabled
                           ? 'cursor-not-allowed opacity-40'
-                          : 'hover:bg-canvas',
-                        !disabled && value === f.key && 'bg-canvas font-medium',
+                          : 'hover:bg-brand-50',
+                        !disabled && value === f.key && 'bg-brand-50 font-medium',
                       )}
                     >
                       <span className="flex items-center justify-between gap-2">

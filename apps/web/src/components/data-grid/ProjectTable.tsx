@@ -69,9 +69,9 @@ interface ProjectTableProps {
 // headers under the Customer group render light green, under Vendor light
 // purple (lighter than the group bands). Project Info group uses accent color.
 const LEAF_HEADER_TINT: Record<string, string> = {
-  customer: 'bg-emerald-50 text-emerald-700',
-  vendor: 'bg-indigo-50 text-indigo-700',
-  project_info: 'bg-accent text-white',
+  customer: 'bg-emerald-50 text-emerald-800',
+  vendor: 'bg-indigo-50 text-indigo-800',
+  project_info: 'bg-brand-50 text-brand-800',
 };
 
 const Z = {
@@ -129,7 +129,7 @@ function EditableCell({
   const commit = () => onCommit(draft);
 
   const cls =
-    'w-full rounded border border-accent bg-surface px-1.5 py-0.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40';
+    'w-full rounded-lg border border-accent bg-surface px-1.5 py-0.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/25';
   
   if (editType === 'date') {
     return (
@@ -451,7 +451,7 @@ export function ProjectTable({
       </div>
       <div
         ref={parentRef}
-        className="relative min-h-0 flex-1 overflow-auto rounded-md border border-border"
+        className="relative min-h-0 flex-1 overflow-auto rounded-xl border border-border shadow-card"
         role="table"
         aria-label="Projects grid"
         onMouseLeave={() => setHoveredProjectId(null)}
@@ -500,7 +500,7 @@ export function ProjectTable({
                             : 'none'
                           : undefined
                       }
-                      className={`border-b border-r border-border text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-accent text-white'}`}
+                      className={`border-b border-r border-border text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-brand-600 text-white'}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -508,10 +508,11 @@ export function ProjectTable({
                         position: isStickyCol ? 'sticky' : undefined,
                         left: isStickyCol ? stickyLeft : undefined,
                         zIndex: isStickyCol ? Z.stickyHeaderCol : undefined,
-                        // Tinted (Customer/Vendor) headers are already opaque
-                        // and must keep their colour when sticky; only the plain
-                        // grey headers need an explicit opaque background.
-                        backgroundColor: isStickyCol && !leafTint ? '#f8fafc' : undefined,
+                        // Tinted (Customer/Vendor/Project Info) headers are
+                        // already opaque and must keep their colour when
+                        // sticky; only the plain headers need an explicit
+                        // opaque background.
+                        backgroundColor: isStickyCol && !leafTint ? '#faf8f8' : undefined,
                         boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.08)' : undefined,
                       }}
                     >
@@ -561,7 +562,7 @@ export function ProjectTable({
               // STAFF open the row modal by clicking the row; make that same
               // affordance reachable from the keyboard (Enter/Space).
               const rowIsActivatable = !isAdmin && isFirstOfGroup;
-              const stripeBg = isStripeGray ? '#fef2f2' : '#ffffff';
+              const stripeBg = isStripeGray ? '#fff7f7' : '#ffffff';
               const hoverBg = '#DBDBDB';
               const rowBg = hoveredProjectId === project.id ? hoverBg : stripeBg;
               return (
@@ -592,7 +593,7 @@ export function ProjectTable({
                       : ''
                   } ${!isAdmin ? 'cursor-pointer' : ''} ${
                     rowIsActivatable
-                      ? 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent'
+                      ? 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40'
                       : ''
                   }`}
                   style={{
@@ -649,7 +650,7 @@ export function ProjectTable({
                             e.stopPropagation();
                             setActiveCell({ rowId: row.id, columnId: field });
                           }}
-                          className="w-full cursor-text rounded px-0 text-left hover:outline hover:outline-1 hover:outline-accent/40"
+                          className="w-full cursor-text rounded-lg px-0 text-left hover:outline hover:outline-1 hover:outline-accent/40"
                           title={`Edit ${field}`}
                         >
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -673,7 +674,7 @@ export function ProjectTable({
                                   e.stopPropagation();
                                   setEditModalRow(project);
                                 }}
-                                className="hidden rounded p-0.5 text-ink-muted hover:bg-canvas hover:text-ink group-hover:inline-flex group-focus-within:inline-flex"
+                                className="hidden rounded-lg p-0.5 text-ink-muted hover:bg-brand-50 hover:text-brand-700 group-hover:inline-flex group-focus-within:inline-flex"
                                 aria-label={`Edit ${project.project_name}`}
                                 title="Edit project"
                               >
@@ -725,7 +726,7 @@ export function ProjectTable({
           <select
             value={pageSize}
             onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            className="rounded-md border border-border px-2 py-1"
+            className="rounded-lg border border-border bg-surface px-2 py-1"
             aria-label="Rows per page"
           >
             {[25, 50, 100].map((n) => (
@@ -742,7 +743,7 @@ export function ProjectTable({
           <button
             onClick={() => handlePageChange(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="rounded-md border border-border px-3 py-1 disabled:opacity-40"
+            className="rounded-lg border border-border px-3 py-1 transition-colors hover:border-brand-200 hover:bg-brand-50 disabled:opacity-40"
           >
             Prev
           </button>
@@ -752,7 +753,7 @@ export function ProjectTable({
           <button
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="rounded-md border border-border px-3 py-1 disabled:opacity-40"
+            className="rounded-lg border border-border px-3 py-1 transition-colors hover:border-brand-200 hover:bg-brand-50 disabled:opacity-40"
           >
             Next
           </button>

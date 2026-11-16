@@ -35,7 +35,7 @@ function IssueCard({ entry }: { entry: ProjectIssueEntry }) {
   const assignees = entry.assignees ?? [];
   const summary = assignees.length > 0 ? peopleSummary(assignees) : null;
   return (
-    <div className="rounded border border-border p-3">
+    <div className="rounded-xl border border-border p-3 transition-colors hover:bg-brand-50/40">
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">{fmtDate(entry.issue_date)}</span>
         <span className="text-xs text-ink-muted">
@@ -133,7 +133,7 @@ export function IssuesModal({
       maxWidthClass="max-w-3xl"
     >
       <div className="space-y-4 px-5 py-4">
-        <fieldset className="rounded border border-border p-3">
+        <fieldset className="rounded-xl border border-border p-3">
           <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">Add issue</legend>
           <div className="space-y-3">
             <label className="flex flex-col gap-1 text-xs text-ink-muted">
@@ -166,7 +166,7 @@ export function IssuesModal({
                   </span>
                 </span>
                 <div
-                  className="max-h-40 overflow-y-auto rounded border border-border bg-white p-2"
+                  className="max-h-40 overflow-y-auto rounded-lg border border-border bg-surface p-2"
                   role="group"
                   aria-label="Issue assignees"
                 >

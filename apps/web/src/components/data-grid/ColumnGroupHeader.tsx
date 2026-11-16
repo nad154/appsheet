@@ -7,9 +7,9 @@ import type { DisplayRow } from './columns';
 // the Customer section renders green, the Vendor section renders purple.
 // project_info uses accent color.
 const GROUP_HEADER_TINT: Record<string, string> = {
-  customer: 'bg-emerald-100 text-emerald-800',
-  vendor: 'bg-indigo-100 text-indigo-800',
-  project_info: 'bg-accent text-white',
+  customer: 'bg-emerald-600 text-white',
+  vendor: 'bg-indigo-600 text-white',
+  project_info: 'bg-brand-600 text-white',
 };
 
 interface ColumnGroupHeaderProps {
@@ -45,7 +45,7 @@ export function ColumnGroupHeader({
 
   // 2. Label goes in the widest segment (first wins ties).
   const labelIdx = segments.reduce((best, s, i, arr) => (s.width > arr[best].width ? i : best), 0);
-  const tint = GROUP_HEADER_TINT[header.column.id] ?? 'bg-accent text-white';
+  const tint = GROUP_HEADER_TINT[header.column.id] ?? 'bg-brand-600 text-white';
 
   return (
     <>

@@ -58,7 +58,7 @@ export function StickyColumnsMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40"
+        className="rounded-lg border border-border bg-surface px-2 py-1 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/25"
         data-testid="sticky-columns-button"
         aria-haspopup="true"
         aria-expanded={open}
@@ -68,7 +68,7 @@ export function StickyColumnsMenu({
 
       {open && (
         <div
-          className="absolute right-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-surface shadow-overlay"
+          className="absolute right-0 top-full z-50 mt-1 w-72 rounded-xl border border-border bg-surface shadow-overlay"
           data-testid="sticky-columns-panel"
         >
           <div className="max-h-96 overflow-auto p-2">
@@ -83,7 +83,7 @@ export function StickyColumnsMenu({
                     return (
                       <label
                         key={o.id}
-                        className="flex items-center gap-2 rounded px-1 py-0.5 text-sm text-ink hover:bg-canvas"
+                        className="flex items-center gap-2 rounded-lg px-1 py-0.5 text-sm text-ink hover:bg-brand-50"
                       >
                         <input
                           type="checkbox"
@@ -106,7 +106,7 @@ export function StickyColumnsMenu({
             <button
               type="button"
               onClick={onReset}
-              className="rounded border border-border px-2 py-1 text-xs text-ink-muted hover:bg-canvas"
+              className="rounded-lg border border-border px-2 py-1 text-xs text-ink-muted hover:bg-brand-50"
               data-testid="sticky-reset"
             >
               Reset to default

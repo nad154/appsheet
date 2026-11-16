@@ -174,7 +174,7 @@ function StageFieldInput({
 }) {
   const label = <span className="text-xs text-ink-muted">{FIELD_LABELS.current_stage}</span>;
   const cls =
-    'mt-1 w-full rounded border border-border px-2 py-1 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40';
+    'mt-1 w-full rounded-lg border border-border px-2 py-1 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/25';
 
   if (projectStage === 'finish') {
     return (
@@ -246,7 +246,7 @@ function PriceField({
       onFocus={handleFocus}
       onBlur={handleBlur}
       onChange={(e) => setEditing(sanitizeNumeric(e.target.value))}
-      className={`mt-1 w-full rounded border border-border px-2 py-1 text-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+      className={`mt-1 w-full rounded-lg border border-border px-2 py-1 text-sm placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent/25 ${
         display ? 'text-ink' : 'text-ink-muted'
       }`}
     />
@@ -297,7 +297,7 @@ function DateField({
     <div
       data-date-field
       onClick={openPicker}
-      className="relative mt-1 flex w-full cursor-pointer items-center rounded border border-border px-2 py-1"
+      className="relative mt-1 flex w-full cursor-pointer items-center rounded-lg border border-border px-2 py-1"
     >
       <button
         type="button"
@@ -338,7 +338,7 @@ function DateField({
           }}
           aria-label="Clear date"
           title="Clear date"
-          className="relative z-10 ml-1 rounded p-1 text-xs text-ink-muted hover:bg-canvas hover:text-ink"
+          className="relative z-10 ml-1 rounded-lg p-1 text-xs text-ink-muted hover:bg-brand-50 hover:text-ink"
         >
           ✕
         </button>
@@ -374,7 +374,7 @@ function FieldInput({
   const label = <span className="text-xs text-ink-muted">{FIELD_LABELS[field] ?? field}</span>;
   // Empty fields render their value/placeholder in light gray so a null/blank
   // field reads as empty instead of looking like plain dark text.
-  const cls = `mt-1 w-full rounded border border-border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+  const cls = `mt-1 w-full rounded-lg border border-border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent/25 ${
     value ? 'text-ink' : 'text-ink-muted'
   }`;
 
@@ -485,7 +485,7 @@ function PicMultiSelect({
     <div className="flex flex-col md:col-span-2">
       <span className="text-xs text-ink-muted">{FIELD_LABELS.pic_ids ?? 'Responsible PIC'}</span>
       <div
-        className="mt-1 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded border border-border bg-white p-2 sm:grid-cols-2"
+        className="mt-1 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded-lg border border-border bg-surface p-2 sm:grid-cols-2"
         role="group"
         aria-label="Responsible PIC"
       >
@@ -763,7 +763,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
       {isLocked && (
         <div
           role="status"
-          className="mb-4 rounded border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
+          className="mb-4 rounded-lg border border-success/30 bg-success-soft px-3 py-2 text-sm text-success"
         >
           This project is <span className="font-medium">Finish</span>. Its project details and PICs are read-only
           — only vendor lines can still be changed.
@@ -773,15 +773,15 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
         <fieldset
           key={section}
           disabled={isLocked}
-          className={`mb-5 rounded border-2 p-3 ${
+          className={`mb-5 rounded-xl border-2 p-3 ${
             section === 'Customer'
-              ? 'border-emerald-300 bg-emerald-100/80 [&_input:not([type=\'date\'])]:bg-white [&_select]:bg-white [&_textarea]:bg-white [&_[data-date-field]]:bg-white'
-              : 'border-border bg-canvas/60'
+              ? 'border-emerald-300 bg-emerald-50/70 [&_input:not([type=\'date\'])]:bg-surface [&_select]:bg-surface [&_textarea]:bg-surface [&_[data-date-field]]:bg-surface'
+              : 'border-brand-200 bg-brand-50/50'
           } ${isLocked ? 'opacity-60' : ''}`}
         >
           <legend
             className={`mb-2 px-1 text-xs font-semibold uppercase tracking-wide ${
-              section === 'Customer' ? 'text-emerald-800' : 'text-ink-muted'
+              section === 'Customer' ? 'text-emerald-800' : 'text-brand-700'
             }`}
           >
             {section}
@@ -826,7 +826,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
         </fieldset>
       ))}
 
-      <fieldset className="mb-5 rounded border-2 border-indigo-300 bg-indigo-100/80 p-3 [&_input:not([type='date'])]:bg-white [&_select]:bg-white [&_textarea]:bg-white [&_[data-date-field]]:bg-white">
+      <fieldset className="mb-5 rounded-xl border-2 border-indigo-300 bg-indigo-50/70 p-3 [&_input:not([type='date'])]:bg-surface [&_select]:bg-surface [&_textarea]:bg-surface [&_[data-date-field]]:bg-surface">
         <legend className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-indigo-800">
           Vendor lines {lines.length > 0 && <span className="normal-case">({lines.length})</span>}
         </legend>
@@ -855,7 +855,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
       </fieldset>
 
       {requiresProgress && (
-        <fieldset className="mb-5 rounded border border-warning/20 bg-warning-soft p-3">
+        <fieldset className="mb-5 rounded-xl border border-warning/20 bg-warning-soft p-3">
           <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-warning">
             Update Progress <span className="normal-case font-normal">(required)</span>
           </legend>
@@ -865,7 +865,7 @@ export function EditProjectModal({ project, users, isAdmin, onClose, onSave, onD
             value={updateProgress}
             onChange={(e) => setUpdateProgress(e.target.value)}
             placeholder="Describe what you changed and why…"
-            className="w-full rounded border border-warning/40 bg-surface px-2 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-warning/40"
+            className="w-full rounded-lg border border-warning/40 bg-surface px-2 py-1.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-warning/40"
             aria-label="Update progress"
           />
         </fieldset>
@@ -961,11 +961,11 @@ export function VendorLineRow({
   onRemove: () => void;
 }) {
   const cls = (v: unknown): string =>
-    `w-full rounded border border-border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+    `w-full rounded-lg border border-border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent/25 ${
       v ? 'text-ink' : 'text-ink-muted'
     }`;
   return (
-    <div className="rounded border border-gray-200 p-3">
+    <div className="rounded-xl border border-gray-200 p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold text-ink-muted">Vendor {index + 1}</span>
         <span className="flex items-center gap-2">
@@ -977,7 +977,7 @@ export function VendorLineRow({
           <button
             type="button"
             onClick={onRemove}
-            className="rounded border border-danger/20 px-2 py-0.5 text-xs text-danger hover:bg-danger-soft"
+            className="rounded-lg border border-danger/20 px-2 py-0.5 text-xs text-danger hover:bg-danger-soft"
           >
             Remove
           </button>

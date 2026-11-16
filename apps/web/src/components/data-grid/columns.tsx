@@ -110,7 +110,7 @@ const projectNumberColumn: ColumnDef<DisplayRow> = {
   enableSorting: false,
   cell: ({ row }) => {
     if (!row.original.isFirstOfGroup) return null;
-    return         <span className="block text-sm text-ink-muted">{row.original.index}</span>;
+    return         <span className="block text-sm tabular-nums text-ink-muted">{row.original.index}</span>;
   },
 };
 
@@ -124,7 +124,7 @@ function numberCol(accessorKey: keyof Project, header: string, size = 120): Colu
       if (!row.original.isFirstOfGroup) return null;
       const v = projectCell(row.original, accessorKey);
       if (v === null || v === undefined || v === '') return <span className="text-ink-muted/50">Rp —</span>;
-      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug tabular-nums text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
   };
 }
@@ -320,7 +320,7 @@ function vendorNumberCol(
     cell: ({ row }) => {
       const v = vendorCell(row.original, key);
       if (v === null || v === undefined || v === '') return <span className="text-ink-muted/50">Rp —</span>;
-      return <span className="block w-full min-w-0 break-words text-sm leading-snug text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
+      return <span className="block w-full min-w-0 break-words text-sm leading-snug tabular-nums text-ink">Rp {formatGridNumber(v as string | number | null | undefined)}</span>;
     },
   };
 }
@@ -381,7 +381,7 @@ const agingColumn: ColumnDef<DisplayRow> = {
   cell: ({ row }) => {
     const aging = computeAging(row.original.vendor ?? {});
     if (aging === null) return <span className="text-ink-muted/50">—</span>;
-    return <span className="block text-sm text-ink">{aging}</span>;
+    return <span className="block text-sm tabular-nums text-ink">{aging}</span>;
   },
 };
 
@@ -433,7 +433,7 @@ function stageColumn(onRequestFinish: (project: Project) => void, isAdmin: boole
             e.stopPropagation();
             onRequestFinish(row.original.project);
           }}
-          className="rounded px-0 text-left hover:outline hover:outline-1 hover:outline-accent/40"
+          className="rounded-lg px-0 text-left hover:outline hover:outline-1 hover:outline-accent/40"
           title="Mark project as Finish"
           aria-label={`Mark ${row.original.project.project_name} as Finish`}
         >

@@ -15,7 +15,7 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 const inputCls =
-  'h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40';
+  'h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink placeholder:text-ink-muted/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -47,16 +47,18 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-canvas bg-dot-pattern bg-dots px-4">
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-400/20 blur-3xl"
+        aria-hidden="true"
+      />
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="w-full max-w-sm space-y-5 rounded-lg border border-border bg-surface p-6 shadow-card"
+        className="relative w-full max-w-sm space-y-5 rounded-xl border border-border bg-surface p-6 shadow-overlay"
       >
         <div className="flex flex-col items-center gap-2 text-center">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white">
-            PT
-          </span>
-          <h1 className="text-xl font-semibold text-ink">Project Tracker</h1>
+          <img src="/asset/logo.png" alt="Logo" className="h-10 w-10" />
+          <h1 className="text-xl font-semibold tracking-tight text-ink">Project Tracker</h1>
           <p className="text-sm text-ink-muted">Sign in to continue</p>
         </div>
 
@@ -103,7 +105,7 @@ export function LoginPage() {
         {error && (
           <div
             role="alert"
-            className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger"
+            className="flex items-start gap-2 rounded-lg border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger"
           >
             <AlertIcon size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>{error}</span>

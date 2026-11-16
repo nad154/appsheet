@@ -43,7 +43,7 @@ function fmtDate(iso: string): string {
 function HistoryEntryCard({ entry }: { entry: ProjectUpdateEntry }) {
   const fields = Object.keys(entry.changes);
   return (
-    <div className="rounded border border-border p-3">
+    <div className="rounded-xl border border-border p-3 transition-colors hover:bg-brand-50/40">
       <div className="mb-2 flex items-baseline justify-between">
         <span className="text-sm font-semibold text-ink">{entry.staff_name ?? '(deleted user)'}</span>
         <span className="text-xs text-ink-muted">{fmtDate(entry.created_at)}</span>
@@ -60,7 +60,7 @@ function HistoryEntryCard({ entry }: { entry: ProjectUpdateEntry }) {
             ))}
           </tbody>
         </table>
-        <div className="rounded bg-warning-soft p-2 text-sm text-ink md:col-span-1">
+        <div className="rounded-lg bg-warning-soft p-2 text-sm text-ink md:col-span-1">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-warning">Update Progress</p>
           {entry.update_progress}
         </div>

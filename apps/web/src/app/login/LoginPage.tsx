@@ -64,21 +64,48 @@ export function LoginPage() {
           <label className="text-sm font-medium text-ink" htmlFor="email">
             Email
           </label>
-          <input id="email" type="email" autoComplete="email" className={inputCls} {...register('email')} />
-          {errors.email && <p className="text-xs text-danger">{errors.email.message}</p>}
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            className={inputCls}
+            aria-invalid={errors.email ? true : undefined}
+            aria-describedby={errors.email ? 'email-error' : undefined}
+            {...register('email')}
+          />
+          {errors.email && (
+            <p id="email-error" className="text-xs text-danger">
+              {errors.email.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1">
           <label className="text-sm font-medium text-ink" htmlFor="password">
             Password
           </label>
-          <input id="password" type="password" autoComplete="current-password" className={inputCls} {...register('password')} />
-          {errors.password && <p className="text-xs text-danger">{errors.password.message}</p>}
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            className={inputCls}
+            aria-invalid={errors.password ? true : undefined}
+            aria-describedby={errors.password ? 'password-error' : undefined}
+            {...register('password')}
+          />
+          {errors.password && (
+            <p id="password-error" className="text-xs text-danger">
+              {errors.password.message}
+            </p>
+          )}
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger">
-            <AlertIcon size={16} className="mt-0.5 shrink-0" />
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger"
+          >
+            <AlertIcon size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
             <span>{error}</span>
           </div>
         )}

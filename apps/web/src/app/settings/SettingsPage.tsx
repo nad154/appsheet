@@ -31,12 +31,14 @@ import type { MarketSegmentUsage, PublicUser, Role, UserUsage } from '@tracker/s
 import { ROLES } from '@tracker/shared';
 import { useToast } from '../../components/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '../../components/ui/Button';
 import { PermanentDeleteConfirmModal } from '../../components/settings/PermanentDeleteConfirmModal';
 // import { useToast } from '../../components/Toast'
 import { Copy } from 'react-bootstrap-icons';
 
 const btn =
-  'rounded border px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-40';
+  'rounded border px-2 py-1 text-xs font-medium transition-colors hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40';
 const btnPrimary = `${btn} border-accent bg-accent text-white hover:opacity-90`;
 const btnDanger = `${btn} border-danger bg-danger text-white hover:opacity-90`;
 const btnDangerGhost = `${btn} border-danger text-danger hover:bg-danger/10`;
@@ -120,6 +122,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<Role>('STAFF');
   const [addNotice, setAddNotice] = useState<string | null>(null);
 
@@ -138,6 +141,7 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
     setName('');
     setEmail('');
     setPassword('');
+    setShowPassword(false);
     setRole('STAFF');
     setAddNotice(null);
   };
@@ -370,28 +374,50 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
             placeholder="jane@example.com"
           />
         </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-ink-muted">Password</span>
-          <input
-            type="text"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputCls}
-            placeholder="min 8 characters"
-          />
-        </label>
+        <div className="flex flex-col gap-0.5">
+          <label htmlFor="add-user-password" className="text-[11px] text-ink-muted">
+            Password
+          </label>
+          <div className="flex items-center gap-1">
+            <input
+              id="add-user-password"
+              type={showPassword ? 'text' : 'password'}
+              required
+              minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputCls}
+              placeholder="min 8 characters"
+              autoComplete="new-password"
+              aria-describedby="add-user-password-hint"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className={btnGhost}
+              aria-pressed={showPassword}
+              aria-controls="add-user-password"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              title={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          <span id="add-user-password-hint" className="sr-only">
+            At least 8 characters. The new user signs in with this password.
+          </span>
+        </div>
         <button type="button" onClick={handleGeneratePassword} className={btnGhost}>
           Generate random password
         </button>
         <button
           type="button"
           onClick={() => void handleCopyCredentials()}
-          className={`${btnGhost}`} 
+          className={`${btnGhost}`}
+          aria-label="Copy email and password to clipboard"
+          title="Copy email and password to clipboard"
         >
-          <Copy size={16} 
-          className="group-disabled:opacity-10 group-enabled:opacity-80"/>
+          <Copy size={16} aria-hidden="true" />
         </button>
         <label className="flex flex-col gap-0.5">
           <span className="text-[11px] text-ink-muted">Role</span>
@@ -410,7 +436,11 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
         <button type="submit" disabled={createUser.isPending} className={btnPrimary}>
           {createUser.isPending ? 'Creating…' : 'Add user'}
         </button>
-        {addNotice && <span className="text-xs text-ink-muted">{addNotice}</span>}
+        {addNotice && (
+          <span role="alert" className="text-xs text-danger">
+            {addNotice}
+          </span>
+        )}
       </form>
 
       {deleting && (
@@ -430,62 +460,79 @@ function UsersPanel({ me }: { me: PublicUser | null }) {
       )}
 
       {resetTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg">
-            <h3 className="mb-1 text-sm font-semibold text-ink">Reset password for {resetTarget.name}</h3>
-            <p className="mb-3 text-xs text-ink-muted">
+        <Modal
+          ariaLabel={`Reset password for ${resetTarget.name}`}
+          eyebrow="Users"
+          title={`Reset password for ${resetTarget.name}`}
+          maxWidthClass="max-w-md"
+          closeOnOverlayClick={!resetUserPassword.isPending}
+          onClose={closeResetModal}
+          footer={
+            <>
+              <Button variant="secondary" onClick={closeResetModal} disabled={resetUserPassword.isPending}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="reset-password-form"
+                disabled={resetUserPassword.isPending}
+              >
+                {resetUserPassword.isPending ? 'Resetting...' : 'Reset password'}
+              </Button>
+            </>
+          }
+        >
+          <form id="reset-password-form" onSubmit={submitReset} className="flex flex-col gap-2 px-5 py-4">
+            <p className="mb-1 text-xs text-ink-muted">
               The user will be signed out on all devices. Tell them the new password directly.
             </p>
-            <form onSubmit={submitReset} className="flex flex-col gap-2">
-              <label className="flex flex-col gap-0.5">
-                <span className="text-[11px] text-ink-muted">Your password</span>
-                <input
-                  type="password"
-                  required
-                  value={resetAdminPassword}
-                  onChange={(e) => setResetAdminPassword(e.target.value)}
-                  className={inputCls}
-                  autoComplete="current-password"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-[11px] text-ink-muted">New password</span>
-                <input
-                  type="password"
-                  required
-                  value={resetNewPassword}
-                  onChange={(e) => setResetNewPassword(e.target.value)}
-                  className={inputCls}
-                  autoComplete="new-password"
-                  minLength={8}
-                  maxLength={128}
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-[11px] text-ink-muted">Confirm new password</span>
-                <input
-                  type="password"
-                  required
-                  value={resetConfirmPassword}
-                  onChange={(e) => setResetConfirmPassword(e.target.value)}
-                  className={inputCls}
-                  autoComplete="new-password"
-                  minLength={8}
-                  maxLength={128}
-                />
-              </label>
-              {resetError && <span className="text-xs text-danger">{resetError}</span>}
-              <div className="mt-2 flex justify-end gap-2">
-                <button type="button" onClick={closeResetModal} className={btnGhost} disabled={resetUserPassword.isPending}>
-                  Cancel
-                </button>
-                <button type="submit" className={btnPrimary} disabled={resetUserPassword.isPending}>
-                  {resetUserPassword.isPending ? 'Resetting...' : 'Reset password'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            <label className="flex flex-col gap-0.5" htmlFor="reset-admin-password">
+              <span className="text-[11px] text-ink-muted">Your password</span>
+              <input
+                id="reset-admin-password"
+                type="password"
+                required
+                value={resetAdminPassword}
+                onChange={(e) => setResetAdminPassword(e.target.value)}
+                className={inputCls}
+                autoComplete="current-password"
+              />
+            </label>
+            <label className="flex flex-col gap-0.5" htmlFor="reset-new-password">
+              <span className="text-[11px] text-ink-muted">New password</span>
+              <input
+                id="reset-new-password"
+                type="password"
+                required
+                value={resetNewPassword}
+                onChange={(e) => setResetNewPassword(e.target.value)}
+                className={inputCls}
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+              />
+            </label>
+            <label className="flex flex-col gap-0.5" htmlFor="reset-confirm-password">
+              <span className="text-[11px] text-ink-muted">Confirm new password</span>
+              <input
+                id="reset-confirm-password"
+                type="password"
+                required
+                value={resetConfirmPassword}
+                onChange={(e) => setResetConfirmPassword(e.target.value)}
+                className={inputCls}
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+              />
+            </label>
+            {resetError && (
+              <p role="alert" className="text-xs text-danger">
+                {resetError}
+              </p>
+            )}
+          </form>
+        </Modal>
       )}
     </section>
   );

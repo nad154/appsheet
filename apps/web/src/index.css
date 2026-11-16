@@ -47,3 +47,16 @@
     transform: translateY(0);
   }
 }
+
+/* Respect the OS "reduce motion" setting: decorative entrance/flash animations
+   are disabled per-element with Tailwind's `motion-reduce:animate-none`, and
+   this guard collapses the remaining transition durations (hover/focus colour
+   fades) without breaking spinners, which rely on animation, not transition. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

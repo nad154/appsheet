@@ -157,6 +157,9 @@ export function EntityCombobox({
       else if (canCreate) void runCreate();
       else if (exact) pick(exact);
     } else if (e.key === 'Escape') {
+      // Dismiss only the dropdown. The surrounding Modal also listens for
+      // Escape; without this, closing the list would close the whole dialog.
+      e.stopPropagation();
       setOpen(false);
     }
   };

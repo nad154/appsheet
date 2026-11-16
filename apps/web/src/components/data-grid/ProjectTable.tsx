@@ -483,13 +483,24 @@ export function ProjectTable({
                   const isLastStickyCol = runEndIds.has(columnId);
                   const leafTint = LEAF_HEADER_TINT[header.column.parent?.id ?? ''] ?? '';
                   // main table header 
+                  const headerLabel = String(header.column.columnDef.header ?? columnId);
+                  const headerContent = header.isPlaceholder
+                    ? null
+                    : flexRender(header.column.columnDef.header, header.getContext());
                   return (
                     <div
                       key={header.id}
                       role="columnheader"
-                      onClick={isSortable ? () => handleSortClick(columnId) : undefined}
-                      aria-sort={isActiveSort ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      className={`border-b border-r border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-accent text-white'}`}
+                      aria-sort={
+                        isSortable
+                          ? isActiveSort
+                            ? sortDir === 'asc'
+                              ? 'ascending'
+                              : 'descending'
+                            : 'none'
+                          : undefined
+                      }
+                      className={`border-b border-r border-border text-left text-xs font-semibold uppercase tracking-wide ${leafTint || 'bg-accent text-white'}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -502,16 +513,27 @@ export function ProjectTable({
                         // grey headers need an explicit opaque background.
                         backgroundColor: isStickyCol && !leafTint ? '#f8fafc' : undefined,
                         boxShadow: isLastStickyCol ? '2px 0 4px -2px rgba(0,0,0,0.08)' : undefined,
-                        cursor: isSortable ? 'pointer' : undefined,
                       }}
                     >
-                      <span className="flex-1">
-                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                      </span>
-                      {isSortable && (
-                        <span className="ml-1 text-xs text-ink-muted/60">
-                          {isActiveSort ? (sortDir === 'desc' ? '↓' : '↑') : ''}
-                        </span>
+                      {/* Sorting is a real button so it is keyboard-operable;
+                          `ring-current` keeps the focus ring visible on both
+                          the accent and the tinted group headers. */}
+                      {isSortable ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSortClick(columnId)}
+                          title={`Sort by ${headerLabel}`}
+                          className="flex w-full cursor-pointer items-center px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-current"
+                        >
+                          <span className="flex-1 truncate">{headerContent}</span>
+                          <span aria-hidden="true" className="ml-1 text-xs opacity-70">
+                            {isActiveSort ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="flex w-full items-center px-3 py-2">
+                          <span className="flex-1">{headerContent}</span>
+                        </div>
                       )}
                     </div>
                   );
@@ -536,6 +558,9 @@ export function ProjectTable({
               const isStripeGray = index % 2 === 0;
               const isHighlighted =
                 flashActive && isFirstOfGroup && row.original.project.id === highlightedRowId;
+              // STAFF open the row modal by clicking the row; make that same
+              // affordance reachable from the keyboard (Enter/Space).
+              const rowIsActivatable = !isAdmin && isFirstOfGroup;
               const stripeBg = isStripeGray ? '#fef2f2' : '#ffffff';
               const hoverBg = '#DBDBDB';
               const rowBg = hoveredProjectId === project.id ? hoverBg : stripeBg;
@@ -546,11 +571,30 @@ export function ProjectTable({
                   ref={rowVirtualizer.measureElement}
                   role="row"
                   data-testid={isHighlighted ? 'highlighted-row' : undefined}
-                  onClick={!isAdmin && isFirstOfGroup ? () => setEditModalRow(project) : undefined}
+                  tabIndex={rowIsActivatable ? 0 : undefined}
+                  onClick={rowIsActivatable ? () => setEditModalRow(project) : undefined}
+                  onKeyDown={
+                    rowIsActivatable
+                      ? (e) => {
+                          // Ignore keys meant for an interactive child cell.
+                          if (e.target !== e.currentTarget) return;
+                          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                            e.preventDefault();
+                            setEditModalRow(project);
+                          }
+                        }
+                      : undefined
+                  }
                   onMouseEnter={() => setHoveredProjectId(project.id)}
                   className={`border-b border-border/60 ${
-                    isHighlighted ? 'animate-[row-flash_1.2s_ease-in-out]' : ''
-                  } ${!isAdmin ? 'cursor-pointer' : ''}`}
+                    isHighlighted
+                      ? 'animate-[row-flash_1.2s_ease-in-out] motion-reduce:animate-none'
+                      : ''
+                  } ${!isAdmin ? 'cursor-pointer' : ''} ${
+                    rowIsActivatable
+                      ? 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent'
+                      : ''
+                  }`}
                   style={{
                     display: 'grid', 
                     gridTemplateColumns, 
@@ -629,7 +673,7 @@ export function ProjectTable({
                                   e.stopPropagation();
                                   setEditModalRow(project);
                                 }}
-                                className="hidden rounded p-0.5 text-ink-muted hover:bg-canvas hover:text-ink group-hover:inline-flex"
+                                className="hidden rounded p-0.5 text-ink-muted hover:bg-canvas hover:text-ink group-hover:inline-flex group-focus-within:inline-flex"
                                 aria-label={`Edit ${project.project_name}`}
                                 title="Edit project"
                               >
@@ -649,7 +693,7 @@ export function ProjectTable({
                         role="cell"
                         className={`px-3 py-2 text-ink ${
                           isStickyCol && isHighlighted
-                            ? 'animate-[row-flash-sticky_1.2s_ease-in-out]'
+                            ? 'animate-[row-flash-sticky_1.2s_ease-in-out] motion-reduce:animate-none'
                             : ''
                         }`}
                         style={{

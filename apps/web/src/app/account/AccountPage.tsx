@@ -3,7 +3,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { changeOwnPasswordSchema, type ChangeOwnPasswordInput } from '@tracker/shared';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { PageHeader } from '../../components/ui/PageHeader';
 import { useToast } from '../../components/Toast';
 import { useChangePassword } from '../../hooks/useChangePassword';
 
@@ -34,12 +33,11 @@ export function AccountPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <PageHeader
-        title="Account"
-        eyebrow="Profile"
-        description="Manage your account security."
-      />
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-ink">Account</h1>
+        <p className="text-sm text-ink-muted">Manage your account security.</p>
+      </div>
       <section className="rounded-xl border border-border bg-surface shadow-card">
         <header className="border-b border-border bg-brand-soft px-4 py-3">
           <h2 className="text-sm font-semibold text-ink">Change password</h2>

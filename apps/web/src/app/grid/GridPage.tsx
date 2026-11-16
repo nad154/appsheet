@@ -27,7 +27,6 @@ import { useToast } from '../../components/Toast';
 import { ImportCsvModal } from '../../components/import/ImportCsvModal';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Select, controlClass } from '../../components/ui/Input';
@@ -54,24 +53,6 @@ const emptyForm = {
 };
 
 const ADD_EDITABLE_FIELDS = Object.keys(FIELD_TYPES).filter((k) => k !== 'customer_id' && k !== 'issues');
-
-// Leading "+" for the primary action. Hidden from assistive tech so the button
-// keeps the exact accessible name "Add project" / "Cancel" the specs rely on.
-function AddPlusIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-4 w-4"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
 
 export function GridPage() {
   const { user } = useAuth();
@@ -485,17 +466,6 @@ export function GridPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         title="Project Grid"
-        eyebrow="Projects"
-        description="Track every project and vendor line in one place."
-        meta={
-          data ? (
-            <>
-              <Badge variant="brand">{data.total} projects</Badge>
-              <Badge variant="brand">{data.total_lines} vendor lines</Badge>
-            </>
-          ) : undefined
-        }
-        variant="minimal"
         actions={
           <>
             <Button
@@ -515,11 +485,7 @@ export function GridPage() {
                 {showImportCsv ? 'Cancel' : 'Import CSV'}
               </Button>
             )}
-            <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
-            <Button onClick={() => setShowAddForm((v) => !v)}>
-              {!showAddForm && <AddPlusIcon />}
-              {showAddForm ? 'Cancel' : 'Add project'}
-            </Button>
+            <Button onClick={() => setShowAddForm((v) => !v)}>{showAddForm ? 'Cancel' : 'Add project'}</Button>
           </>
         }
       />

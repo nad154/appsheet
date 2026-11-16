@@ -45,45 +45,19 @@ const btnDanger = `${btn} border-danger bg-danger text-white shadow-sm hover:opa
 const btnDangerGhost = `${btn} border-danger text-danger hover:bg-danger/10`;
 const btnGhost = `${btn} border-border text-ink hover:bg-brand-50`;
 const inputCls = 'w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25';
-const sectionJumpClass =
-  'rounded-full border border-border bg-surface px-3 py-1 text-xs text-ink-muted transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2';
 
 export function SettingsPage() {
   const { user: me } = useAuth();
 
   return (
-    <div>
-      <PageHeader
-        title="Settings"
-        eyebrow="Administration"
-        description="Users, customers, vendors and priority rules."
-      />
+    <div className="space-y-8">
+      <PageHeader title="Settings" />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <a href="#users" className={sectionJumpClass}>Users</a>
-        <a href="#customers" className={sectionJumpClass}>Customers</a>
-        <a href="#vendors" className={sectionJumpClass}>Vendors</a>
-        <a href="#market-segments" className={sectionJumpClass}>Market Segments</a>
-        <a href="#aging-priority" className={sectionJumpClass}>Aging → Priority</a>
-      </div>
-
-      <div className="space-y-8">
-        <div id="users" className="scroll-mt-4">
-          <UsersPanel me={me} />
-        </div>
-        <div id="customers" className="scroll-mt-4">
-          <CustomersPanel />
-        </div>
-        <div id="vendors" className="scroll-mt-4">
-          <VendorsPanel />
-        </div>
-        <div id="market-segments" className="scroll-mt-4">
-          <MarketSegmentsPanel />
-        </div>
-        <div id="aging-priority" className="scroll-mt-4">
-          <AgingThresholdsPanel />
-        </div>
-      </div>
+      <UsersPanel me={me} />
+      <CustomersPanel />
+      <VendorsPanel />
+      <MarketSegmentsPanel />
+      <AgingThresholdsPanel />
     </div>
   );
 }

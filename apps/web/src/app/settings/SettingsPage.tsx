@@ -967,7 +967,7 @@ function AgingThresholdsPanel() {
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4 shadow-card">
-      <h2 className="mb-3 text-sm font-semibold">Aging → Priority</h2>
+      <h2 className="mb-3 text-sm font-semibold">Aging & Priority</h2>
       <p className="mb-3 text-xs text-ink-muted">
         Projects are assigned a Priority from their Aging value. High priority is anything above the
         Medium threshold.
@@ -979,8 +979,32 @@ function AgingThresholdsPanel() {
       )}
 
       {data && (
+        <div
+          aria-live="polite"
+          className="mb-4 rounded-lg border border-border bg-brand-50/50 p-3"
+        >
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+            Current aging thresholds (days)
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-ink">
+            <span>
+              <span className="font-semibold">Low</span> 1 - {data.low_max_days}
+            </span>
+            <span>
+              <span className="font-semibold">Medium</span> {data.low_max_days + 1} - {data.medium_max_days}
+            </span>
+            <span>
+              <span className="font-semibold">High</span> {data.medium_max_days + 1}+
+            </span>
+          </div>
+        </div>
+      )}
+
+      {data && (
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-0.5">
+            
+
             <span className="text-[11px] text-ink-muted">Low priority — up to N days</span>
             <input
               type="number"
